@@ -18,6 +18,7 @@
 - [구현 계획: `docs/PLAN.md`](docs/PLAN.md) — core 설계, ddooby-pang에서 가져올 코드, 저장·온라인 구조
 - [작업 목록: `docs/TASKS.md`](docs/TASKS.md) — 주차별 태스크와 완료 기준
 - [개발 가이드: `docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — VSCode에서 실행·확인하는 방법, 태스크별 확인 절차와 공부할 개념
+- [작업 방식: `docs/WORKFLOW.md`](docs/WORKFLOW.md) — Orca 탭 구성, 분석 → 승인 → 구현 → 리뷰 → 반영 흐름, Codex 리뷰·이미지
 
 ## 개발 방향
 

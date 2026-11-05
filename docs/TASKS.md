@@ -11,8 +11,8 @@
 
 ## 1주차 — 코어 + 드래그 (SPEC 10절)
 
-- [ ] **W1-01** 🧪 프로젝트 세팅: pang 설정 복사 (PLAN 3.1 표 1행), `rng.ts` + 테스트 복사, `config.ts` 뼈대(PLAN 5절), `CLAUDE.md` 작성(pang의 "작업 방식·아키텍처 규칙·명령어·Git" 절을 block에 맞게 고침, DEVELOPMENT 4·6절 갱신 규칙 포함, Orca 위임 절은 빼기), 빈 Boot 씬
-  - 파일: `package.json`, `tsconfig.json`, `vite.config.ts`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `.gitignore`, `src/main.ts`, `src/config.ts`, `src/core/rng.ts`, `src/scenes/BootScene.ts`, `tests/core/rng.test.ts`, `CLAUDE.md`
+- [ ] **W1-01** 🧪 프로젝트 세팅: pang 설정 복사 (PLAN 3.1 표 1행), `rng.ts` + 테스트 복사, `config.ts` 뼈대(PLAN 5절), `CLAUDE.md`·`AGENTS.md` 작성(pang의 "작업 방식·아키텍처 규칙·명령어·Git" 절을 block에 맞게 고침, DEVELOPMENT 4·6절 갱신 규칙 포함, 탭 구성·위임 흐름은 내용을 옮기지 않고 `docs/WORKFLOW.md` 1~2절을 가리킨다), `vite.config.ts`에 `server.port: 5180` (WORKFLOW 6절), 빈 Boot 씬
+  - 파일: `package.json`, `tsconfig.json`, `vite.config.ts`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `.gitignore`(지금 것에 pang 항목을 합친다), `src/main.ts`, `src/config.ts`, `src/core/rng.ts`, `src/scenes/BootScene.ts`, `tests/core/rng.test.ts`, `CLAUDE.md`, `AGENTS.md`
   - 완료 기준: `npm run lint && npm test && npm run build` 통과. `src/core/`에 `Math.random()`, `import Phaser`, `import '../view/x'`를 임시로 넣으면 lint 에러가 남 (확인 후 지움). `npm run dev`에서 빈 화면에 콘솔 오류 0
 - [ ] **W1-02** 🧪 core 타입 + 보드: `types.ts`, `board.ts` (PLAN 4.1, 4.3), 테스트 헬퍼 `boardFrom` ⛓ W1-01
   - 테스트 (`tests/core/board.test.ts`):

@@ -4,3 +4,6 @@
 # OS / Editor
 .DS_Store
 .idea/
+
+# Codex 탭 결과 (WORKFLOW 8.5)
+.codex-out/

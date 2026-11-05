@@ -27,7 +27,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 
 | 명령 | 용도 | 생기는 태스크 |
 |---|---|---|
-| `npm run dev` | 개발 서버 (http://localhost:5173). 코드를 저장하면 브라우저가 자동 갱신된다. 끄려면 `Ctrl+C` | W1-01 (예정) |
+| `npm run dev` | 개발 서버 (http://localhost:5180, ddooby-pang 5173과 겹치지 않게). 코드를 저장하면 브라우저가 자동 갱신된다. 끄려면 `Ctrl+C` | W1-01 (예정) |
 | `npm test` | 테스트 한 번 실행 (`tests/**/*.test.ts`) | W1-01 (예정) |
 | `npm run test:watch` | 파일을 저장할 때마다 테스트 자동 재실행. 끄려면 `q` | W1-01 (예정) |
 | `npm run typecheck` | 타입 에러만 확인 | W1-01 (예정) |
@@ -43,13 +43,13 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 
 1. `npm run dev` 실행 → 터미널에 주소가 뜬다
    ```
-   ➜  Local:   http://localhost:5173/
-   ➜  Network: http://192.168.x.x:5173/
+   ➜  Local:   http://localhost:5180/
+   ➜  Network: http://192.168.x.x:5180/
    ```
 2. **PC 브라우저**: `Local` 주소를 연다 (`Cmd` + 클릭)
 3. **휴대폰 크기로 보기**: Chrome 개발자도구(`Cmd+Option+I`) → 기기 툴바(`Cmd+Shift+M`) → 390×844(iPhone 12~14 크기) 선택. 태스크 확인과 캡처는 이 크기로 한다
 4. **실제 휴대폰으로 보기**: PC와 같은 Wi-Fi에 연결한 뒤 휴대폰 브라우저로 `Network` 주소를 연다. 드래그(터치) 감각은 꼭 실제 휴대폰으로도 본다
-   - 밖에서는 Tailscale로: `http://<PC 이름>.<tailnet>.ts.net:5173/` (`vite.config.ts`의 `allowedHosts`, ddooby-pang과 같음)
+   - 밖에서는 Tailscale로: `http://<PC 이름>.<tailnet>.ts.net:5180/` (`vite.config.ts`의 `allowedHosts`, ddooby-pang과 같음)
 5. 에러가 나면 개발자도구의 **Console** 탭을 확인한다
 6. **배포된 주소**: W4-03 이후 https://ddoobyddooby.github.io/ddooby-block/ — main에 push하면 1~2분 뒤 자동으로 새로 배포된다
 
@@ -79,7 +79,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 
 | 증상 | 해결 |
 |---|---|
-| `Port 5173 is in use` | 다른 터미널에서 서버가 이미 떠 있다. 그 터미널에서 `Ctrl+C`, 또는 Vite가 제안하는 다른 포트를 쓴다. ddooby-pang 서버가 떠 있을 수도 있다 |
+| `Port 5180 is in use` | 다른 터미널에서 block 서버가 이미 떠 있다. 그 터미널에서 `Ctrl+C`, 또는 Vite가 제안하는 다른 포트를 쓴다. 5181·5182는 구현 탭 몫이다 (WORKFLOW 6절) |
 | `vite: command not found` 등 | `npm install`을 안 했거나 실패했다. 다시 실행 |
 | 휴대폰에서 `Network` 주소가 안 열림 | 같은 Wi-Fi인지 확인. macOS 방화벽이 Node 연결을 막고 있는지 확인 |
 | 화면이 갱신 안 됨 | 브라우저 강력 새로고침 `Cmd+Shift+R` |
