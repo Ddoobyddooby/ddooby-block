@@ -1,0 +1,26 @@
+# ddooby-block
+
+8×8 보드에 블록 조각을 놓아 가로·세로 줄을 지우고 점수를 쌓는 블록 퍼즐 게임입니다.
+
+> **현재 상태: 기획 단계.** v0.1 MVP의 요구사항은 [SPEC](docs/SPEC.md)에 정리되어 있습니다. 게임 코드와 실행 방법은 구현이 시작되면 추가합니다.
+
+## v0.1에서 만들 것
+
+- 드래그 앤 드롭으로 조각 3개를 배치하는 클래식 모드
+- 줄 제거, 다줄 보너스, 콤보, 게임 오버
+- 로컬 최고 점수와 진행 중인 판 이어하기
+- ddooby-block 전용 Supabase를 사용하는 주간 랭킹
+- 웹(GitHub Pages)과 Android APK
+
+## 문서
+
+- [제품 명세: `docs/SPEC.md`](docs/SPEC.md) — 무엇을 왜 만드는지, 규칙과 수용 기준
+- [구현 계획: `docs/PLAN.md`](docs/PLAN.md) — core 설계, ddooby-pang에서 가져올 코드, 저장·온라인 구조
+- [작업 목록: `docs/TASKS.md`](docs/TASKS.md) — 주차별 태스크와 완료 기준
+- [개발 가이드: `docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — VSCode에서 실행·확인하는 방법, 태스크별 확인 절차와 공부할 개념
+
+## 개발 방향
+
+Phaser 3, TypeScript, Vite, Capacitor, Supabase, Vitest를 사용할 계획입니다. 게임 규칙은 Phaser에 의존하지 않는 순수 TypeScript로 작성하고, 화면과 연출은 별도로 구현합니다.
+
+이 프로젝트는 ddooby-pang과 독립적으로 운영합니다. 검증된 코드와 설계 패턴만 복사해 활용하며, Supabase 프로젝트와 계정, 데이터는 공유하지 않습니다. 구현은 ddooby-pang v0.2의 3주차 작업(Supabase와 랭킹)이 끝난 뒤 시작할 예정입니다.

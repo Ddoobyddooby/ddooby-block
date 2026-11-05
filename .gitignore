@@ -1,0 +1,6 @@
+# Claude Code / oh-my-claudecode 세션 상태
+.omc/
+
+# OS / Editor
+.DS_Store
+.idea/
