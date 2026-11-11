@@ -75,6 +75,19 @@ npm run build
 
 커밋 전 최소 검증: `npm run lint && npm run typecheck && npm test && npm run build`. TASKS의 UI 태스크는 브라우저 390×844에서 수동 확인하고 콘솔 오류·DEV 상태 불일치가 없어야 한다. URL 옵션 `?seed=N`, `?fill=`, `?over`는 관련 태스크가 완료된 후에만 사용한다. 시뮬레이션 `npm run sim` 역시 W4-02 이후에 사용한다.
 
+명령별 상세 (생기는 태스크는 `docs/DEVELOPMENT.md` 2절):
+
+- `npm run dev`: 개발 서버 (http://localhost:5180). 사용자가 띄워 두었을 수 있으므로 5180 포트가 사용 중이면 끄지 말고 그 서버를 쓴다
+- `npm run typecheck`: `tsc --noEmit` / `npm run build`: 타입체크 + 프로덕션 빌드 (`dist/`)
+- `npm test`: Vitest 한 번 실행 (`tests/**/*.test.ts`) / `npm run test:watch`: 감시 모드
+- `npm run lint`: ESLint (`src/core/**`의 phaser·view·scenes·storage·online import, `Math.random`, DOM 사용을 에러로 막는다)
+- `npm run format`: Prettier (`*.md`는 제외)
+- `npm run sim` (W4-02): 자동 플레이 봇으로 seed 1~1000, 평균 점수·배치 수·보정 발생률 (`scripts/sim/`, `npm test`에는 안 들어감)
+- `npm run android:sync` (W4-03): 웹 빌드 + `cap sync android`
+- 개발 URL 옵션: `?seed=N`(조각 순서 재현), DEV 전용 `?fill=<패턴>`(보드 미리 채우기), DEV 전용 `?over`(게임 오버 화면 미리보기). 옵션이 없으면 메뉴부터. DEV에서는 매 배치 후 view ↔ board 대조
+
+버전 고정 이유 (ddooby-pang과 같음): Phaser는 SPEC대로 3.x(최신은 4.x). TypeScript는 typescript-eslint가 `<6.1`만 지원해서 `~6.0`.
+
 ## 7. Git·리뷰·완료 보고
 
 - 메인 폴더는 `main`; 기능 작업은 `feat/<태스크ID>-<요약>` 브랜치와 구현 탭별 worktree를 쓴다. 실제 브랜치 이름은 `docs/WORKFLOW.md` 6절과 TASKS의 태스크 ID를 따른다.

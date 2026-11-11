@@ -19,6 +19,7 @@
 - [작업 목록: `docs/TASKS.md`](docs/TASKS.md) — 주차별 태스크와 완료 기준
 - [개발 가이드: `docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — VSCode에서 실행·확인하는 방법, 태스크별 확인 절차와 공부할 개념
 - [작업 방식: `docs/WORKFLOW.md`](docs/WORKFLOW.md) — Orca 탭 구성, 분석 → 승인 → 구현 → 리뷰 → 반영 흐름, Codex 리뷰·이미지
+- [Codex 지침: `AGENTS.md`](AGENTS.md) · [Claude 지침: `CLAUDE.md`](CLAUDE.md) — 역할별 작업 규칙과 아키텍처 제약
 
 ## 개발 방향
 
