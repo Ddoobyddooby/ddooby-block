@@ -17,10 +17,10 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   // core는 순수 TS: 렌더러, DOM, 비결정적 랜덤, 상위 계층에 의존하지 않는다 (PLAN 1절).
-  // core → config 의존은 허용한다 (PLAN 3절)
+  // core → config 의존은 허용한다 (PLAN 3절).
+  // flat config의 globals는 앞 블록과 병합되어 여기서 비울 수 없다. 전역은 no-restricted-globals로 막는다
   {
     files: ['src/core/**/*.ts'],
-    languageOptions: { globals: {} },
     rules: {
       'no-restricted-imports': [
         'error',
@@ -50,6 +50,15 @@ export default tseslint.config(
         'error',
         { name: 'window', message: 'core에서 DOM을 쓰지 않는다.' },
         { name: 'document', message: 'core에서 DOM을 쓰지 않는다.' },
+        { name: 'globalThis', message: 'core에서 전역 객체를 거쳐 쓰지 않는다.' },
+        { name: 'self', message: 'core에서 전역 객체를 거쳐 쓰지 않는다.' },
+        { name: 'navigator', message: 'core에서 브라우저 API를 쓰지 않는다.' },
+        { name: 'localStorage', message: 'core에서 저장소를 쓰지 않는다.' },
+      ],
+      // no-restricted-imports는 정적 import만 본다
+      'no-restricted-syntax': [
+        'error',
+        { selector: 'ImportExpression', message: 'core는 동적 import를 쓰지 않는다.' },
       ],
     },
   },
