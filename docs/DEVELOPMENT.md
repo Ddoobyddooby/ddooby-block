@@ -2,7 +2,7 @@
 
 > VSCode에서 프로젝트를 열고, 서버를 띄우고, 작업 결과를 확인하는 방법.
 > 태스크가 끝날 때마다 **4절 작업별 확인 방법**과 **6절 Study for App**에 항목을 추가한다. 새 명령이 생기면 2절, 새 URL 옵션이 생기면 3절도 갱신한다.
-> 지금은 기획 단계라 2·3절은 [PLAN](./PLAN.md)에서 정한 **예정** 명령·옵션이다. 해당 태스크가 끝나면 "(예정)" 표시를 지운다.
+> 2·3절에서 "(예정)"이 붙은 명령·옵션은 [PLAN](./PLAN.md)에서 정했지만 아직 없는 것이다. 해당 태스크가 끝나면 "(예정)" 표시를 지운다.
 
 ---
 
@@ -27,13 +27,13 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 
 | 명령 | 용도 | 생기는 태스크 |
 |---|---|---|
-| `npm run dev` | 개발 서버 (http://localhost:5180, ddooby-pang 5173과 겹치지 않게). 코드를 저장하면 브라우저가 자동 갱신된다. 끄려면 `Ctrl+C` | W1-01 (예정) |
-| `npm test` | 테스트 한 번 실행 (`tests/**/*.test.ts`) | W1-01 (예정) |
-| `npm run test:watch` | 파일을 저장할 때마다 테스트 자동 재실행. 끄려면 `q` | W1-01 (예정) |
-| `npm run typecheck` | 타입 에러만 확인 | W1-01 (예정) |
-| `npm run lint` | ESLint 규칙 검사 (`src/core`의 Phaser·DOM·`Math.random` 사용 금지 포함) | W1-01 (예정) |
-| `npm run format` | Prettier로 코드 정리 (md 문서는 제외) | W1-01 (예정) |
-| `npm run build` | 타입체크 + 배포용 빌드 (`dist/`) | W1-01 (예정) |
+| `npm run dev` | 개발 서버 (http://localhost:5180, ddooby-pang 5173과 겹치지 않게). 코드를 저장하면 브라우저가 자동 갱신된다. 끄려면 `Ctrl+C` | W1-01 |
+| `npm test` | 테스트 한 번 실행 (`tests/**/*.test.ts`) | W1-01 |
+| `npm run test:watch` | 파일을 저장할 때마다 테스트 자동 재실행. 끄려면 `q` | W1-01 |
+| `npm run typecheck` | 타입 에러만 확인 | W1-01 |
+| `npm run lint` | ESLint 규칙 검사 (`src/core`의 Phaser·DOM·`Math.random` 사용 금지 포함) | W1-01 |
+| `npm run format` | Prettier로 코드 정리 (md 문서는 제외) | W1-01 |
+| `npm run build` | 타입체크 + 배포용 빌드 (`dist/`) | W1-01 |
 | `npm run sim` | 자동 플레이 봇으로 seed 1~1000을 돌려 평균 점수·배치 수·보정 발생률을 찍는다. 가중치·점수를 고친 뒤 밸런스를 잴 때 | W4-02 (예정) |
 | `npm run android:sync` | 웹 빌드 후 `android/` 앱에 복사 (`cap sync`). Android Studio에서 ▶ 하기 전에 실행 | W4-03 (예정) |
 
@@ -73,7 +73,14 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 > - 직접 확인: (코드를 일부러 바꿔 테스트가 실패하는지 보는 방법, 화면에서 볼 것, URL 옵션 등)
 > ```
 
-(아직 끝난 태스크 없음)
+### W1-01 프로젝트 세팅
+
+- `npm install` (처음 한 번)
+- `npm run lint && npm run typecheck && npm test && npm run build` → 에러 없이 끝나고 테스트는 파일 2개, 31개 통과 (`tests/core/rng.test.ts` 6개, `tests/lint/coreGuard.test.ts` 25개)
+- `npm run dev` → 터미널에 뜬 주소를 열고 기기 툴바를 390×844로 설정 → 검은 빈 화면, Console에 빨간 오류 없음 (`Phaser v3.90.0` 배너만 보인다)
+  - 5180을 다른 프로그램이 쓰고 있으면 Vite가 다음 번호로 띄운다. 터미널에 뜬 주소를 그대로 쓴다 (5절)
+- 직접 확인 (core 보호 규칙): `src/core/tmp.ts`를 만들어 `export const a = Math.random();`을 넣고 `npm run lint` → "랜덤은 core/rng.ts의 seed RNG만 쓴다" 에러. `export const b = document;`, `import 'phaser';`로 바꿔 가며 에러를 본 뒤 파일을 지운다
+- 직접 확인 (테스트가 규칙을 지키는지): `eslint.config.js`에서 `Math.random` 금지 줄을 잠깐 주석 처리하고 `npm test` → `coreGuard` 테스트가 실패한다. 되돌린다
 
 ## 5. 문제 해결
 
@@ -99,4 +106,12 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 > - 참고: [링크](https://...)
 > ```
 
-(아직 끝난 태스크 없음)
+### W1-01 프로젝트 세팅
+
+- pang에서 이미 본 것: Vite + Vitest 한 설정 파일(`vite.config.ts`), strict TypeScript 옵션(`tsconfig.json`), mulberry32 seed RNG(`src/core/rng.ts`), Phaser 부팅과 `Scale.EXPAND`(`src/main.ts`), safe-area(`index.html`) → ddooby-pang `docs/DEVELOPMENT.md` 6절
+- **금지 목록과 허용 목록**: 처음에는 `window`, `document`처럼 막을 이름을 나열했는데 `location`, `DOMParser`처럼 빠진 이름이 계속 나왔다. 그래서 core에서는 브라우저·Node 전역을 전부 끄고 ES 내장만 켠 뒤 `no-undef`로 막는다. 막을 것을 나열하면 빠뜨리기 쉽고, 허용할 것을 나열하면 새로 생긴 것도 기본으로 막힌다 → `eslint.config.js`의 `src/core/**` 블록
+- **ESLint flat config의 병합**: 뒤 블록의 `globals: {}`는 앞 블록의 전역을 지우지 못한다 (합쳐진다). 끄려면 이름마다 `'off'`를 줘야 한다 → `eslint.config.js`
+- **규칙을 테스트로 지키기**: 린트 설정도 코드라서 누가 고치다 구멍을 낼 수 있다. ESLint Node API(`lintText`)로 "이 코드는 막혀야 한다 / 통과해야 한다"를 Vitest로 검사한다 → `tests/lint/coreGuard.test.ts`
+- **core에서 시간·랜덤을 막는 이유**: 서버가 같은 seed와 배치 로그로 판을 다시 돌려 점수를 검증한다. core가 `Math.random`이나 `Date.now`를 읽으면 다시 돌릴 때 결과가 달라진다 → `src/core/rng.ts`, `eslint.config.js`
+- **수치 한곳 관리와 규칙 버전**: `as const`로 값을 고정하고, 규칙에 영향을 주는 값을 바꾸면 `RULES_VERSION`을 올린다 → `src/config.ts`
+- 참고: [ESLint 설정 파일 (globals)](https://eslint.org/docs/latest/use/configure/language-options), [ESLint Node.js API](https://eslint.org/docs/latest/integrate/nodejs-api)

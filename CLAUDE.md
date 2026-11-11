@@ -48,7 +48,7 @@ Codex-main은 담당 구현 탭에 결함 재현·추가 테스트·수정·재�
 
 ## 5. 아키텍처 불변 규칙
 
-- `src/core/`는 **순수 TypeScript**. Phaser, DOM, `Math.random()`, `@capacitor/*`, `view`·`scenes`·`storage`·`online`에 의존하지 않는다. ESLint 규칙으로 강제한다.
+- `src/core/`는 **순수 TypeScript**. Phaser, DOM, `Math.random()`, `@capacitor/*`, `view`·`scenes`·`storage`·`online`에 의존하지 않는다. ESLint 규칙으로 강제한다: core에서는 브라우저·Node 전역을 전부 끄고 ES 내장만 허용하며, `Date`·`globalThis`·동적 import도 막는다. 이 차단은 `tests/lint/coreGuard.test.ts`가 지킨다.
 - 의존 흐름은 `scenes/view → core`, `storage/online → core`이며 core가 이들 상위 계층을 import하지 않는다. core에서 `config.ts`로의 의존은 허용한다.
 - `core/rng.ts`의 Seed 기반 mulberry32만으로 게임 랜덤을 생성한다. **동일 seed + 동일 배치 로그 + 동일 규칙 버전 = 동일 상태와 점수**가 보장되어야 한다.
 - `core`는 `(state, action) → { state, events }`를 담당하고 Phaser 화면은 결과 이벤트에 따라 입력·연출만 처리한다. 게임 판정 로직을 view에 중복하지 않는다.
@@ -62,11 +62,11 @@ Codex-main은 담당 구현 탭에 결함 재현·추가 테스트·수정·재�
 
 ## 6. 주요 개발 명령
 
-> W1-01 전까지 아래 명령 중 일부는 **예정**이다. 실제 `package.json` 스크립트를 확인한 뒤 실행한다.
+> 아래 명령은 W1-01부터 쓸 수 있다. `npm run sim`(W4-02)과 `npm run android:sync`(W4-03)는 아직 없다.
 
 ```bash
 npm install
-npm run dev             # 기본 포트 5180 (W1-01 이후)
+npm run dev             # 기본 포트 5180
 npm run lint
 npm run typecheck
 npm test

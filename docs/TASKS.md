@@ -12,9 +12,10 @@
 
 ## 1주차 — 코어 + 드래그 (SPEC 10절)
 
-- [ ] **W1-01** 🧪 프로젝트 세팅: pang 설정 복사 (PLAN 3.1 표 1행), `rng.ts` + 테스트 복사, `config.ts` 뼈대(PLAN 5절), 기존 `CLAUDE.md`·`AGENTS.md`의 명령어·아키텍처 규칙을 실제 세팅과 대조해 갱신, `vite.config.ts`에 `server.port: 5180` (WORKFLOW 6절), 빈 Boot 씬
-  - 파일: `package.json`, `tsconfig.json`, `vite.config.ts`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `.gitignore`(지금 것에 pang 항목을 합친다), `src/main.ts`, `src/config.ts`, `src/core/rng.ts`, `src/scenes/BootScene.ts`, `tests/core/rng.test.ts`, `CLAUDE.md`, `AGENTS.md`(실제 세팅과 다를 때만 수정)
+- [x] **W1-01** 🧪 프로젝트 세팅: pang 설정 복사 (PLAN 3.1 표 1행), `rng.ts` + 테스트 복사, `config.ts` 뼈대(PLAN 5절), 기존 `CLAUDE.md`·`AGENTS.md`의 명령어·아키텍처 규칙을 실제 세팅과 대조해 갱신, `vite.config.ts`에 `server.port: 5180` (WORKFLOW 6절), 빈 Boot 씬
+  - 파일: `package.json`, `tsconfig.json`, `vite.config.ts`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `.gitignore`(지금 것에 pang 항목을 합친다), `src/main.ts`, `src/config.ts`, `src/core/rng.ts`, `src/scenes/BootScene.ts`, `tests/core/rng.test.ts`, `tests/lint/coreGuard.test.ts`, `index.html`, `.vscode/`, `package-lock.json`, `CLAUDE.md`, `AGENTS.md`(실제 세팅과 다를 때만 수정)
   - 완료 기준: `npm run lint && npm test && npm run build` 통과. `src/core/`에 `Math.random()`, `import Phaser`, `import '../view/x'`를 임시로 넣으면 lint 에러가 남 (확인 후 지움). `npm run dev`에서 빈 화면에 콘솔 오류 0
+  - 확인 메모 (2026-11-11, `b54baf1`·`f3d8679`·`d58b92e`): lint·typecheck·build 통과, 테스트 31개 통과, 390×844 빈 화면 콘솔 오류 0 (5183 포트). Codex 독립 리뷰 3회차 통과: core 차단을 금지 목록에서 허용 목록(브라우저·Node 전역 끔 + `no-undef`)으로 바꾸고 `Date`·동적 import 금지와 차단 테스트 추가. 의존성은 phaser와 개발 도구만 (Capacitor·Supabase는 W3·W4). `PIECE_WEIGHTS`(W1-03)·`VIEW`(W1-06)·`FX`(2주차)는 해당 태스크에서 `config.ts`에 넣는다. 남은 한계는 FEEDBACK R1
 - [ ] **W1-02** 🧪 core 타입 + 보드: `types.ts`, `board.ts` (PLAN 4.1, 4.3), 테스트 헬퍼 `boardFrom` ⛓ W1-01
   - 테스트 (`tests/core/board.test.ts`):
     - `canPlace`: 보드 밖(음수, 8 이상), 채워진 칸과 겹침 → false. 오른쪽 아래 끝에 딱 맞음 → true

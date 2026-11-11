@@ -60,7 +60,7 @@
 
 ## 5. 아키텍처 규칙 (CLAUDE.md와 동일)
 
-- `src/core/`는 **순수 TypeScript**: Phaser, DOM, `Math.random()`, Capacitor, `view`·`scenes`·`storage`·`online` import 금지. ESLint로 보호한다.
+- `src/core/`는 **순수 TypeScript**: Phaser, DOM, `Math.random()`, Capacitor, `view`·`scenes`·`storage`·`online` import 금지. ESLint로 보호한다: core에서는 브라우저·Node 전역을 전부 끄고 ES 내장만 허용하며, `Date`·`globalThis`·동적 import도 막는다. 이 차단은 `tests/lint/coreGuard.test.ts`가 지킨다.
 - 의존 방향은 `scenes/view → core`, `storage/online → core`. core에서 `src/config.ts` 접근은 허용한다.
 - Seed 기반 RNG는 `src/core/rng.ts`(mulberry32)만 사용한다. **같은 seed + 같은 배치 로그 + 같은 규칙 버전은 동일한 상태·점수**를 반환해야 한다.
 - core는 게임 상태·규칙·이벤트를 결정하고 Phaser는 입력·시각 효과만 담당한다. 보드는 불변으로 처리한다.
@@ -72,10 +72,10 @@
 
 ## 6. 명령어 및 검증
 
-> W1-01 초기 세팅 전에는 실행 스크립트가 없을 수 있다. 실제 `package.json`을 먼저 확인한다.
+> 아래 명령은 W1-01부터 쓸 수 있다. `npm run sim`(W4-02)과 `npm run android:sync`(W4-03)는 아직 없다.
 
 ```bash
-npm run dev             # 예정: http://localhost:5180
+npm run dev             # http://localhost:5180
 npm run lint
 npm run typecheck
 npm test
