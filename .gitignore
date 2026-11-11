@@ -1,9 +1,31 @@
 # Claude Code / oh-my-claudecode 세션 상태
 .omc/
 
-# OS / Editor
+# Node
+node_modules/
+dist/
+coverage/
+
+# Capacitor / Android
+android/app/build/
+android/.gradle/
+android/local.properties
+
+# Env / OS / Editor
+.env
+.env.*
+!.env.example
 .DS_Store
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 .idea/
+
+# Playwright MCP 스크린샷·로그
+.playwright-mcp/
+
+# brainstorming 시안
+.superpowers/
 
 # Codex 탭 결과 (WORKFLOW 8.5)
 .codex-out/
