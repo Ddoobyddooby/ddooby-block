@@ -2,23 +2,25 @@
 
 > Orca 탭 구성, 작업 위임 순서(분석 → 승인 → 구현 → 리뷰 → 반영·보고), Codex에 맡길 일에 대한 규칙. 어느 PC에서 clone해도 이 문서를 따른다.
 > Claude 메모리(`~/.claude/…`)는 PC마다 따로라서 규칙은 여기에 둔다. ddooby-pang `docs/WORKFLOW.md`와 `CLAUDE.md` "작업 위임 흐름"을 block에 맞게 합친 문서다.
-> W1-01에서 `CLAUDE.md`·`AGENTS.md`를 만들면 두 파일에서 이 문서를 가리킨다. 탭 ID가 바뀌면 **1절 표만** 고친다.
+> W1-01에서 `CLAUDE.md`·`AGENTS.md`를 만들면 두 파일에서 이 문서를 가리킨다. 역할은 Orca 탭 제목으로 구분하고, 탭 구성이 바뀌면 **1절 표만** 고친다.
 
 ---
 
 ## 1. 탭 구성 (Orca)
 
-2026-11-05 기준. 네 탭 모두 메인 폴더(`ddooby-block`, `main`)에서 열려 있다.
+2026-11-11 기준. 다섯 탭 모두 메인 폴더(`ddooby-block`, `main`)에서 연다. 역할은 **Orca 탭 제목**으로 구분한다.
 
-| 역할 | Orca 탭 | orcaTabId |
-|---|---|---|
-| 요청 접수·분석·설계·계획·조정·문서·보고 | claude-main(분석) | `e2b4a5e7-d08c-4734-8322-705022c298d4` |
-| 구현 1 | claude-1 | `1a0af9fb-8492-4776-a4be-6201675898a5` |
-| 구현 2 | claude-2 | `a5e9c6f0-cdf4-4a0b-b809-9c3008f05581` |
-| 최종 리뷰·이미지 생성 | codex | `7d7bcb74-f4fe-429c-a82b-d8df758a0965` |
+| 역할 | Orca 탭 제목 |
+|---|---|
+| 요청 접수·분석·설계·계획·조정·문서·보고 | `claude-main` |
+| 구현 1 | `claude-1` |
+| 구현 2 | `claude-2` |
+| Codex 테스트 전략·실패 트리아지·독립 리뷰 (요청마다 한 역할) | `codex-main` |
+| Codex 디자이너 (시안·이미지 원본) | `codex-design` |
 
-- 위 표에 없는 Claude 세션은 일반 Claude다. 위임 흐름을 따르지 않고 요청받은 일을 직접 한다. 소스를 고칠 때도 2절 2단계처럼 파일과 변경 내용을 먼저 보여 주고 승인받는다
-- 세션이 어느 탭인지 모르겠으면 `echo $ORCA_TAB_ID`로 확인하고, 그래도 불분명하면 사용자에게 묻는다
+- 탭 ID와 handle은 PC·세션마다 달라지므로 문서에 적지 않고 사용자에게 묻지도 않는다. 5절 명령으로 탭 제목이 일치하는 handle을 찾는다
+- 위 표에 없는 제목의 Claude 세션은 일반 Claude다. 위임 흐름을 따르지 않고 요청받은 일을 직접 한다. 소스를 고칠 때도 2절 2단계처럼 파일과 변경 내용을 먼저 보여 주고 승인받는다
+- 세션이 어느 탭인지 모르겠으면 `echo $ORCA_TAB_ID` 값을 5절 목록의 `visualLayouts` 탭 `tabId`와 대조해 제목을 확인하고, 그래도 불분명하면 사용자에게 묻는다
 - 탭 하나만 열어서 일할 때(혼자 모드)는 그 세션이 2절의 모든 단계를 직접 한다. Git은 6절의 브랜치 규칙만 따른다
 
 ## 2. 작업 위임 흐름
@@ -28,7 +30,7 @@
 1. **분석**: 요청을 분석하고 설계·작업 방식·계획을 검토한다. 이 단계에서는 제품 코드를 고치지 않는다. 규칙·설계가 바뀌면 SPEC·PLAN·TASKS를 이 탭이 고친다
 2. **승인**: 3절 형식으로 계획(수정 파일·변경 내용)을 사용자에게 보여 주고 승인을 받는다. 승인 전에는 구현 탭에 코딩을 지시하지 않는다
 3. **구현**: claude-1과 claude-2에 각각 지시한다(4절 지시서). 파일 단위로 나눠서 같은 파일을 두 탭에 동시에 맡기지 않는다. `src/config.ts`, `src/core/types.ts`처럼 여럿이 고치는 파일은 한 탭에만 맡긴다. 구현 탭은 자기 worktree와 `feat/<태스크ID>-<요약>` 브랜치에서 수정 → 테스트 추가 → `npm run lint && npm test && npm run build` → 브라우저 확인(390×844) → 커밋까지 하고, 결과(커밋 해시, 테스트 수, 화면 캡처 경로)를 보고한다. 아직 main에는 올리지 않는다. claude-main 탭은 결과를 완료 기준과 대조해서 맞지 않으면 구현 탭에 되돌리고, 맞으면 리뷰로 넘긴다
-4. **리뷰**: codex 탭에 읽기 전용 리뷰를 맡긴다(8.2). 결과는 `.codex-out/<태스크ID>-review.md`로 받는다. 지적 사항은 claude-main 탭이 취합해서 고칠 것은 해당 구현 탭에 되돌리고, 우선순위가 낮은 것은 `docs/FEEDBACK.md`에 R 항목으로 남긴다. 재리뷰는 2회까지 하고, 넘으면 사용자에게 보고한다
+4. **리뷰**: codex-main 탭에 읽기 전용 리뷰를 맡긴다(8.2). 결과는 `.codex-out/<태스크ID>-review.md`로 받는다. 지적 사항은 claude-main 탭이 취합해서 고칠 것은 해당 구현 탭에 되돌리고, 우선순위가 낮은 것은 `docs/FEEDBACK.md`에 R 항목으로 남긴다. 재리뷰는 2회까지 하고, 넘으면 사용자에게 보고한다
 5. **반영·보고**: 리뷰를 통과하면 구현 탭에 main 반영(rebase → lint·test·build → `git push origin HEAD:main`)을 지시한다. 반영되면 claude-main 탭이 `TASKS.md` 체크, `DEVELOPMENT.md` 4·6절 추가, worktree 정리를 하고 변경 파일·내용·테스트 결과·미확인 사항을 사용자에게 보고한다
 
 규칙:
@@ -60,16 +62,16 @@
 
 ## 5. 탭에 메시지 보내기 (Orca CLI)
 
-터미널 handle은 Orca를 다시 켜면 바뀐다. 보낼 때마다 1절의 `tabId`로 다시 찾는다.
+터미널 handle은 Orca를 다시 켜면 바뀐다. 보낼 때마다 1절의 탭 제목으로 다시 찾는다. 기준은 `visualLayouts`의 탭 `title`이다 (`terminals[].title`은 실행 중인 프로그램이 바꾸므로 쓰지 않는다).
 
 ```bash
-orca terminal list --json                                        # tabId가 맞는 줄의 handle
+orca terminal list --worktree current --include-visual-layouts --json   # visualLayouts에서 탭 제목이 일치하는 handle
 orca terminal read --terminal <handle> --screen --json           # 쉬는 중인지 먼저 본다
 orca terminal send --terminal <handle> --text "<지시서>" --enter --wait-submit 10 --json
 orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 900000 --json
 ```
 
-- 보내기 전에 탭이 살아 있는지 확인한다. 탭이 없으면 사용자에게 알린다
+- 보내기 전에 탭이 살아 있는지 확인한다. 해당 제목의 탭이 없거나 둘 이상이면 추측하지 않고 사용자에게 알린다
 - `input_accepted`만 믿지 말고, 그 탭 화면에서 작업이 시작됐는지 확인한다 (다른 명령이 실행 중이면 입력이 묻힐 수 있다)
 - 구현·리뷰 탭의 최종 결과(구현 보고, codex의 "통과" 또는 지적 사항)가 화면에 나올 때까지 기다린다. `wait`가 `blockedReason`을 돌려줘도 화면에 `Working`이 보이면 아직 진행 중이므로 다시 wait/read 한다. 실제 입력·승인 창이 떠 있을 때만 사용자에게 처리를 요청한다
 - 모든 탭의 권한 모드를 같게(예: auto) 둔다. 다르면 메시지가 사용자 승인 대기로 묶인다
@@ -132,7 +134,7 @@ git fetch origin && git switch -c feat/w1-03-pieces origin/main
 - **언제**: 구현 탭이 태스크 커밋을 보고했을 때(2절 4단계). `src/core`, `src/storage`, `supabase/`, 큰 리팩터를 건드린 커밋은 꼭 돌린다. 문서·에셋만 바뀐 커밋은 건너뛴다
 - **지시서에 넣을 것**: 첫 줄 한 문장 요약, "AGENTS.md와 docs/WORKFLOW.md 8절을 따른다. 파일을 고치지 않고 커밋·push 하지 않는다", 커밋 해시와 태스크 ID, 기준(`AGENTS.md` 아키텍처 규칙, SPEC·PLAN의 해당 절), 찾을 것(버그, 회귀, 엣지 케이스, 빠진 테스트, **같은 seed + 로그 → 같은 결과가 깨지는 곳**), 결과 파일 경로(8.5), 지적마다 심각도(높음/중간/낮음)·파일:줄·근거·재현 조건, 문제가 없으면 없다고 쓰기
 - 리뷰는 `git show <해시>`로 본다. 구현 탭의 worktree와 브랜치는 건드리지 않게 한다
-- codex 탭을 못 쓸 때는 claude-main이 메인 폴더에서 직접 돌린다 (쓰기 막음):
+- codex-main 탭을 못 쓸 때는 claude-main이 메인 폴더에서 직접 돌린다 (쓰기 막음):
 
   ```bash
   codex exec -s read-only -o .codex-out/<태스크ID>-review.md "<위 지시서>"
@@ -146,7 +148,7 @@ git fetch origin && git switch -c feat/w1-03-pieces origin/main
 ### 8.3 이미지 생성
 
 - **무엇**: 앱 아이콘, 배경·장식, 게임 오버 화면 그림 같은 원본 그림. 블록은 SPEC 12절 6번 결정에 따라 **코드로 그린 단색 + 하이라이트**를 쓰므로 그림을 받지 않는다
-- **요청**: claude-main이 프롬프트를 쓴다. 담을 것: 쓰는 곳, 크기(px)·비율, 투명 배경 여부, 색감, 글자 넣지 않기, 다른 게임(특히 블록 블라스트)·캐릭터를 닮게 하지 않기 (SPEC 1절 원칙, 저장소가 공개라 저작권 있는 그림은 안 된다)
+- **요청**: claude-main이 프롬프트를 써서 codex-design 탭에 보낸다. 담을 것: 쓰는 곳, 크기(px)·비율, 투명 배경 여부, 색감, 글자 넣지 않기, 다른 게임(특히 블록 블라스트)·캐릭터를 닮게 하지 않기 (SPEC 1절 원칙, 저장소가 공개라 저작권 있는 그림은 안 된다)
 - **흐름**: Codex가 만든 원본 → `assets/<용도>-src/`에 저장 → 사용자가 보고 고름 → 구현 탭이 크기를 맞춰 `public/`에 넣고 연결 → 그 폴더의 `CREDITS.md`에 "Codex(OpenAI) 생성, 날짜, 프롬프트 요약"을 적는다
 - 고르지 않은 후보는 저장소에 넣지 않는다
 
