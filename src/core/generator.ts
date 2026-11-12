@@ -27,9 +27,17 @@ const ENTRIES: readonly Entry[] = PIECES.map((piece) => {
 const ALL_WEIGHTS: readonly number[] = ENTRIES.map((entry) => entry.weight);
 
 /**
+ * 가중치 합계의 상한. RNG(`next`)는 32비트 값을 2^32로 나눈 실수를 내므로 `nextInt(rng, n)`이
+ * 낼 수 있는 서로 다른 값은 많아야 2^32개다. 합계가 이보다 크면 나오지 않는 정수가 생겨
+ * 가중치 비율대로 뽑지 못한다 (합계가 Infinity가 되는 경우도 여기서 걸린다).
+ */
+const MAX_TOTAL_WEIGHT = 2 ** 32;
+
+/**
  * 가중치 추첨. `nextInt(rng, 합계)`를 정확히 한 번 부르고, 나온 정수가 들어가는 누적합 구간의 index를 돌려준다.
  * 구간은 `[앞 누적합, 누적합)`이라 가중치 0인 항목은 뽑히지 않는다.
- * 계약: 가중치는 0 이상의 정수, 합계는 1 이상. 어기면 호출한 쪽의 버그이므로 던진다.
+ * 계약: 가중치는 0 이상의 정수, 합계는 1 이상 2^32 이하. 어기면 호출한 쪽의 버그이므로
+ * 추첨 전에(RNG를 쓰기 전에) 던진다.
  */
 export function weightedPick(
   weights: readonly number[],
@@ -43,6 +51,9 @@ export function weightedPick(
     total += weight;
   }
   if (total < 1) throw new Error('weightedPick: 가중치 합계가 1 이상이어야 한다');
+  if (total > MAX_TOTAL_WEIGHT) {
+    throw new Error(`weightedPick: 가중치 합계가 2^32 이하여야 한다 (${total})`);
+  }
 
   const [roll, nextRng] = nextInt(rng, total);
   let acc = 0;

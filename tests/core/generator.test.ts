@@ -234,6 +234,20 @@ describe('weightedPick', () => {
     expect(() => weightedPick([1, Number.NaN], rng)).toThrow();
     expect(() => weightedPick([1, Number.POSITIVE_INFINITY], rng)).toThrow();
   });
+
+  it('합계 상한 2^32: 넘으면 throw, 딱 상한이면 뽑는다 (RNG가 32비트 값을 낸다)', () => {
+    const rng = createRng(1);
+    // 낱개는 정수 검사를 통과하지만 합계가 Infinity
+    expect(() => weightedPick([1e308, 1e308], rng)).toThrow(/2\^32/);
+    expect(() => weightedPick([2 ** 32, 1], rng)).toThrow(/2\^32/);
+    expect(() => weightedPick([2 ** 31, 2 ** 31, 1], rng)).toThrow(/2\^32/);
+
+    for (const seed of [0, 1, 2, 42, -7]) {
+      const start = createRng(seed);
+      expect(weightedPick([2 ** 32], start)).toEqual([0, next(start)[1]]);
+      expect(weightedPick([0, 2 ** 31, 2 ** 31], start)[0]).toBeGreaterThanOrEqual(1);
+    }
+  });
 });
 
 describe('generateTray', () => {
