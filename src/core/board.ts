@@ -2,8 +2,19 @@
 
 import type { Board, PieceDef, Pos } from './types';
 
+/**
+ * 보드 안의 정수 좌표인지 본다. 정수가 아닌 좌표(소수, NaN, ±Infinity)도 보드 밖으로 본다:
+ * `Pos`는 number라 타입으로 막지 못하고, 소수는 `r * size + c`가 다른 정수 칸이 될 수 있다 (0.125 * 8 = 1).
+ */
 function inBounds(board: Board, pos: Pos): boolean {
-  return pos.r >= 0 && pos.r < board.size && pos.c >= 0 && pos.c < board.size;
+  return (
+    Number.isInteger(pos.r) &&
+    Number.isInteger(pos.c) &&
+    pos.r >= 0 &&
+    pos.r < board.size &&
+    pos.c >= 0 &&
+    pos.c < board.size
+  );
 }
 
 /** 빈 보드 */
@@ -16,7 +27,7 @@ export function cellsAt(piece: PieceDef, anchor: Pos): Pos[] {
   return piece.cells.map((cell) => ({ r: anchor.r + cell.r, c: anchor.c + cell.c }));
 }
 
-/** 모든 칸이 보드 안이고 빈 칸이면 true */
+/** 모든 칸이 보드 안의 정수 좌표이고 빈 칸이면 true */
 export function canPlace(board: Board, piece: PieceDef, anchor: Pos): boolean {
   return cellsAt(piece, anchor).every(
     (pos) => inBounds(board, pos) && board.cells[pos.r * board.size + pos.c] === null,
@@ -33,7 +44,7 @@ export function canPlaceAnywhere(board: Board, piece: PieceDef): boolean {
   return false;
 }
 
-/** 지정한 칸에 색을 넣은 새 보드. 보드 밖 좌표는 무시한다 (cells 길이를 지킨다) */
+/** 지정한 칸에 색을 넣은 새 보드. 보드 밖 좌표와 정수가 아닌 좌표는 무시한다 (cells 길이를 지킨다) */
 export function fillCells(board: Board, cells: readonly Pos[], color: number): Board {
   const next = board.cells.slice();
   for (const pos of cells) {

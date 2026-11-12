@@ -193,6 +193,31 @@ describe('core/board canPlace', () => {
     expect(canPlace(EMPTY_8, o2, { r: 0, c: 7 })).toBe(false);
   });
 
+  it('소수 행 좌표 → false (index가 다른 정수 칸으로 계산되지 않는다)', () => {
+    // 0.125 * 8 + 0 = 1 이라 정수 검사가 없으면 (0,1) 칸으로 통과한다
+    expect(canPlace(EMPTY_8, dot, { r: 0.125, c: 0 })).toBe(false);
+    expect(canPlace(EMPTY_8, dot, { r: 1.5, c: 2 })).toBe(false);
+  });
+
+  it('소수 열 좌표 → false', () => {
+    expect(canPlace(EMPTY_8, dot, { r: 0, c: 0.5 })).toBe(false);
+  });
+
+  it('NaN, Infinity, -Infinity 좌표 → false', () => {
+    expect(canPlace(EMPTY_8, dot, { r: NaN, c: 0 })).toBe(false);
+    expect(canPlace(EMPTY_8, dot, { r: 0, c: NaN })).toBe(false);
+    expect(canPlace(EMPTY_8, dot, { r: Infinity, c: 0 })).toBe(false);
+    expect(canPlace(EMPTY_8, dot, { r: 0, c: Infinity })).toBe(false);
+    expect(canPlace(EMPTY_8, dot, { r: -Infinity, c: 0 })).toBe(false);
+    expect(canPlace(EMPTY_8, dot, { r: 0, c: -Infinity })).toBe(false);
+  });
+
+  it('정수 좌표는 정수 검사 뒤에도 true', () => {
+    expect(canPlace(EMPTY_8, dot, { r: 0, c: 0 })).toBe(true);
+    expect(canPlace(EMPTY_8, dot, { r: 0, c: 1 })).toBe(true);
+    expect(canPlace(EMPTY_8, dot, { r: 7, c: 7 })).toBe(true);
+  });
+
   it('오른쪽으로 넘친 칸이 다음 줄의 빈 칸으로 계산되지 않는다', () => {
     // (0,6) (0,7) (0,8): 1차원 index로는 8 = (1,0)이라 잘못 구현하면 true가 된다
     expect(canPlace(EMPTY_8, i3h, { r: 0, c: 6 })).toBe(false);
@@ -366,6 +391,26 @@ describe('core/board fillCells', () => {
       4,
     );
     expect(result).toEqual({ size: 2, cells: [null, null, 4, null] });
+  });
+  it('소수 좌표는 무시한다 (다른 정수 칸을 채우지 않는다)', () => {
+    // 0.125 * 8 + 0 = 1 이라 정수 검사가 없으면 (0,1)이 채워진다
+    const result = fillCells(EMPTY_8, [{ r: 0.125, c: 0 }], 0);
+    expect(result.cells[1]).toBeNull();
+    expect(result.cells).toHaveLength(64);
+    expect(result.cells.every((cell) => cell === null)).toBe(true);
+  });
+
+  it('NaN 좌표는 무시한다', () => {
+    const result = fillCells(
+      EMPTY_8,
+      [
+        { r: NaN, c: 0 },
+        { r: 0, c: NaN },
+      ],
+      0,
+    );
+    expect(result.cells).toHaveLength(64);
+    expect(result.cells.every((cell) => cell === null)).toBe(true);
   });
 });
 
