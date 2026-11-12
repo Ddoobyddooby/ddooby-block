@@ -24,9 +24,10 @@
     - 원래 `Board` 객체가 바뀌지 않음 (불변)
   - 완료 기준: 위 테스트 통과
   - 확인 메모 (2026-11-12, `ca3bd46`·`09f30a5`): lint·typecheck·build 통과, 테스트 77개 통과 (`board.test.ts` 46개). Codex 독립 리뷰 재리뷰 1 통과: 소수·NaN 좌표가 다른 정수 칸으로 계산되던 것을 `inBounds`의 정수 검사로 막았다. `PieceDef`는 `types.ts`에 둔다 (PLAN 4.1에 추가). `fillCells`는 보드 밖·정수가 아닌 좌표를 무시하고, `clearLines`는 `fullLines` 결과를 그대로 받는 전제로 줄 번호를 검사하지 않는다
-- [ ] **W1-03** 🧪 조각 세트: `pieces.ts`, `PIECE_WEIGHTS` (PLAN 4.2) ⛓ W1-02
+- [x] **W1-03** 🧪 조각 세트: `pieces.ts`, `PIECE_WEIGHTS` (PLAN 4.2) ⛓ W1-02
   - 테스트 (`tests/core/pieces.test.ts`): 29개, ID 중복 없음, 그룹별 칸 수가 SPEC 3.2 표와 같음(`o3` 9칸, `l5a` 5칸 등), 모든 모양의 최소 r·c = 0, `PIECE_WEIGHTS`의 키가 `PIECES` ID와 정확히 같고 모두 양수
   - 완료 기준: 위 테스트 통과
+  - 확인 메모 (2026-11-12, `e36a551`): lint·typecheck·build 통과, 테스트 209개 통과 (`pieces.test.ts` 132개). Codex 독립 리뷰 1차 통과, 지적 없음. `PIECES`와 조각·칸은 `Object.freeze`로 얼리고 `PIECE_WEIGHTS`는 얼리지 않는다. `getPiece(id)`는 없는 ID에 `undefined`를 돌려주므로 엔진(W1-05)·저장 복원(W2-05)이 이를 확인해야 한다. 가중치 합계 109
 - [ ] **W1-04** 🧪 조각 생성 + 보정: `generator.ts` (PLAN 4.4) ⛓ W1-03
   - 테스트 (`tests/core/generator.test.ts`):
     - 같은 seed → 같은 트레이와 같은 다음 RNG 상태

@@ -90,6 +90,13 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 직접 확인 (테스트가 잡는지): `src/core/board.ts`에서 `if (seen.has(index)) return;` 한 줄을 지우고 `npm test` → 교차 칸이 두 번 나와 테스트가 실패한다. 되돌린다
 - 직접 확인 (소수 좌표): `src/core/board.ts`의 `inBounds`에서 `Number.isInteger` 두 줄을 지우고 `npm test` → "소수 행 좌표" 테스트가 실패한다. 되돌린다
 
+### W1-03 조각 세트
+
+- `npm test` → 파일 4개, 209개 통과. 조각만 보려면 `npx vitest run tests/core/pieces.test.ts` → 132개
+- 화면에 보이는 변화는 없다 (조각 정의와 가중치만 생겼다)
+- 직접 확인 (표 대조): `tests/core/pieces.test.ts`의 `EXPECTED` 표 29줄을 `docs/PLAN.md` 4.2 표, `docs/SPEC.md` 3.2 표와 눈으로 맞춰 본다 (모양, 칸 수, 색, 가중치)
+- 직접 확인 (테스트가 잡는지): `src/core/pieces.ts`에서 `l3a`의 모양을 `'.#/##'`로 바꾸고 `npm test` → 모양 테스트가 실패한다. 되돌린다
+
 ## 5. 문제 해결
 
 | 증상 | 해결 |
@@ -135,3 +142,13 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **얼린 입력으로 불변 검사**: `Object.freeze`로 입력을 얼려 두면 구현이 입력을 고치는 순간 에러가 난다 → `tests/core/board.test.ts`의 `frozen`
 - **변형 확인**: 구현을 일부러 망가뜨려 테스트가 정말 실패하는지 본다. 통과만 하는 테스트는 아무것도 지키지 못할 수 있다
 - 참고: [Number.isInteger (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Number/isInteger), [Object.freeze (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze)
+
+### W1-03 조각 세트
+
+- **문자열로 모양 정의하기**: 좌표 목록 대신 `'#./##'` 같은 그림으로 적고, 모듈을 읽을 때 한 번 `Pos[]`로 바꾼다. 사람이 보고 틀린 곳을 찾기 쉽다 → `src/core/pieces.ts`의 `parseShape`
+- **회전 없는 조각 세트**: 돌릴 수 없으니 방향마다 다른 조각으로 센다. 그래서 29종이고, 모든 모양이 (0,0)에서 시작해 기준점 계산이 단순하다 → `PIECES`
+- **순서도 규칙이다**: 가중치 추첨은 배열을 앞에서부터 더해 가며 고른다. `PIECES` 순서가 바뀌면 같은 seed에서 다른 조각이 나온다. 그래서 순서를 테스트로 고정하고, 바꿀 때는 `RULES_VERSION`을 올린다 → `src/core/pieces.ts`, `src/config.ts`의 `PIECE_WEIGHTS`
+- **`readonly`와 `Object.freeze`**: `readonly`는 컴파일할 때만 막고, 얼리면 실행 중에도 막는다. 겉만 얼기 때문에 배열·조각·칸을 각각 얼린다 → `parseShape`, `def`
+- **기대값은 구현과 따로 적기**: 기대값을 구현에서 가져오면 구현이 틀려도 통과한다. 그림 비교에 더해 조각 7개는 좌표를 직접 적는다. 가로·세로를 양쪽에서 똑같이 뒤집으면 그림 비교는 통과하기 때문이다 → `tests/core/pieces.test.ts`
+- **객체 대신 `Map`으로 찾기**: 일반 객체는 `constructor` 같은 기본 속성도 조회된다. 저장 데이터에 이상한 ID가 들어와도 조각으로 착각하지 않게 `Map`을 쓴다 → `getPiece`
+- 참고: [Map (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Map)
