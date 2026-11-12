@@ -57,6 +57,30 @@ export const COMBO = { graceMisses: 2, step: 0.5 } as const;
 
 export const REPLAY = { minIntervalMs: 200 } as const;
 
+/**
+ * 화면 수치 (PLAN 6.1). 규칙이 아니라서 바꿔도 RULES_VERSION과 무관하다.
+ * screen은 논리 좌표(폭 GAME.width, 기준 높이 GAME.height)에서의 구역이고 view/layout.ts의 screenLayout이 읽는다.
+ */
+export const VIEW = {
+  /** 드래그 중인 조각의 중심을 손가락보다 몇 칸 위에 둘지 (SPEC 3.4) */
+  dragLiftCells: 1.5,
+  /** 트레이에 놓인 조각의 크기 (보드 칸 대비) */
+  trayScale: 0.55,
+  screen: {
+    /** HUD 높이 (화면 맨 위부터) */
+    hudH: 180,
+    /** 보드 (정사각형). boardY는 기준 높이에서의 값이다 */
+    boardX: 40,
+    boardY: 200,
+    boardSize: 640,
+    /** 트레이 높이와 화면 아래 여백. 트레이는 화면 아래에 붙는다 */
+    trayH: 260,
+    trayBottom: 40,
+    /** 기준 높이보다 늘어난 만큼 중 보드를 아래로 내리는 비율 */
+    boardShare: 0.6,
+  },
+} as const;
+
 export const ANIM = {
   place: 90,
   clearPerCell: 25,
