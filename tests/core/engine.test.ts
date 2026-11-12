@@ -204,6 +204,45 @@ describe('place: 실패', () => {
       expectFail(mk(BOARD_TEXT, TRAY), { trayIndex: 0, row, col }, 'blocked');
     }
   });
+
+  // 배치 로그는 JSON으로 저장·전송되므로 타입을 어긴 값이 런타임에 들어올 수 있다 (리플레이, 이어하기, 서버 검증).
+  // `null + 0 = 0`, `true + 0 = 1`처럼 더하면 정수가 되는 값은 더하기 전에 걸러야 한다
+  const NOT_NUMBERS: readonly unknown[] = [null, true, false, '0', undefined, [], {}];
+
+  it('숫자가 아닌 좌표(null·boolean·문자열·누락·배열·객체) → blocked, 미리보기는 null', () => {
+    const actions: PlaceAction[] = [];
+    for (const value of NOT_NUMBERS) {
+      actions.push({ trayIndex: 0, row: value, col: 4 } as unknown as PlaceAction);
+      actions.push({ trayIndex: 0, row: 4, col: value } as unknown as PlaceAction);
+      actions.push({ trayIndex: 0, row: value, col: value } as unknown as PlaceAction);
+    }
+    // 필드 누락
+    actions.push({ trayIndex: 0, col: 4 } as unknown as PlaceAction);
+    actions.push({ trayIndex: 0, row: 4 } as unknown as PlaceAction);
+    actions.push({ trayIndex: 0 } as unknown as PlaceAction);
+
+    for (const action of actions) {
+      expectFail(mk(BOARD_TEXT, TRAY), action, 'blocked');
+
+      const state = mk(BOARD_TEXT, TRAY);
+      const snapshot = structuredClone(state);
+      const frozen = freeze(state);
+      const label = JSON.stringify(action);
+      expect(previewPlacement(frozen, action), label).toBeNull();
+      expect(frozen, label).toEqual(snapshot);
+    }
+  });
+
+  it('숫자가 아닌 trayIndex(null·boolean·문자열·누락) → emptySlot', () => {
+    const actions: PlaceAction[] = [null, true, false, '0', [], {}].map(
+      (trayIndex) => ({ trayIndex, row: 4, col: 4 }) as unknown as PlaceAction,
+    );
+    actions.push({ row: 4, col: 4 } as unknown as PlaceAction);
+    for (const action of actions) {
+      expectFail(mk(BOARD_TEXT, TRAY), action, 'emptySlot');
+      expect(previewPlacement(mk(BOARD_TEXT, TRAY), action), JSON.stringify(action)).toBeNull();
+    }
+  });
 });
 
 describe('place: 성공', () => {
@@ -536,6 +575,9 @@ describe('결정성: 같은 seed + 같은 배치 순서 = 같은 상태와 이�
         placements += 1;
       }
       checkInvariants(a, `seed ${seed}, 끝`);
+      // 한도에 걸린 판을 조용히 통과시키지 않는다: 이 seed 범위는 모두 한도 전에 게임 오버로 끝난다
+      expect(a.over, `seed ${seed}: ${MAX_PLACEMENTS}회 안에 게임 오버로 끝나지 않았다`).toBe(true);
+      expect(placements, `seed ${seed}`).toBeLessThan(MAX_PLACEMENTS);
       expect(a).toEqual(b);
       // 이 판에서 트레이 재생성과 줄 제거가 실제로 일어났다
       expect(trayEvents, `seed ${seed}: tray`).toBeGreaterThanOrEqual(1);

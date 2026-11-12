@@ -32,6 +32,7 @@ type Check =
 /**
  * 배치 검사. 순서: over → 슬롯 → 위치 (PLAN 4.5의 1단계).
  * 범위 밖·정수가 아닌 trayIndex, 빈 슬롯, 모르는 조각 ID(깨진 저장 데이터)는 모두 `emptySlot`이다.
+ * 정수가 아닌 좌표(소수, NaN, 숫자가 아닌 값)는 `blocked`이다.
  */
 function check(state: GameState, action: PlaceAction): Check {
   if (state.over) return { ok: false, reason: 'over' };
@@ -44,6 +45,11 @@ function check(state: GameState, action: PlaceAction): Check {
   const piece = id === null || id === undefined ? undefined : getPiece(id);
   if (piece === undefined) return { ok: false, reason: 'emptySlot' };
 
+  // 원값을 먼저 본다. cellsAt이 더한 뒤에는 `null + 0 = 0`, `true + 0 = 1`처럼 정수가 되어
+  // canPlace의 정수 검사를 통과한다 (배치 로그는 JSON이라 타입을 어긴 값이 들어올 수 있다)
+  if (!Number.isInteger(action.row) || !Number.isInteger(action.col)) {
+    return { ok: false, reason: 'blocked' };
+  }
   const anchor: Pos = { r: action.row, c: action.col };
   if (!canPlace(state.board, piece, anchor)) return { ok: false, reason: 'blocked' };
   return { ok: true, piece, cells: cellsAt(piece, anchor) };
