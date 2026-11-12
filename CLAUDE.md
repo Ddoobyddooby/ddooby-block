@@ -77,7 +77,7 @@ npm run build
 
 명령별 상세 (생기는 태스크는 `docs/DEVELOPMENT.md` 2절):
 
-- `npm run dev`: 개발 서버 (http://localhost:5180). 사용자가 띄워 두었을 수 있으므로 5180 포트가 사용 중이면 끄지 말고 그 서버를 쓴다
+- `npm run dev`: 개발 서버 (http://localhost:5180). 사용자가 띄워 두었을 수 있으므로 5180 포트가 사용 중이면 끄지 않는다. 그 서버가 block 서버(페이지 제목 `Ddooby-Block`)일 때만 그대로 쓰고, 다른 프로그램이면 `npm run dev`로 Vite가 띄운 다른 포트(터미널에 찍힌 주소)를 쓴다
 - `npm run typecheck`: `tsc --noEmit` / `npm run build`: 타입체크 + 프로덕션 빌드 (`dist/`)
 - `npm test`: Vitest 한 번 실행 (`tests/**/*.test.ts`) / `npm run test:watch`: 감시 모드
 - `npm run lint`: ESLint (`src/core/**`의 phaser·view·scenes·storage·online import, `Math.random`, DOM 사용을 에러로 막는다)

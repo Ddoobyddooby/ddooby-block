@@ -84,7 +84,7 @@ npm run build
 
 커밋 전 검증: `npm run lint && npm run typecheck && npm test && npm run build`. 화면 관련 태스크는 390×844 브라우저에서 검증하고 콘솔 오류와 DEV `view ≠ board` 오류가 없어야 한다. `?seed=N`, `?fill=`, `?over`, `npm run sim`은 해당 태스크가 구현된 후에만 사용한다.
 
-명령별 상세(`format`, `test:watch`, `sim`, `android:sync`), 개발 URL 옵션, 버전 고정 이유(Phaser 3.x, TypeScript `~6.0`)는 `CLAUDE.md` 6절과 같다. 5180 포트가 사용 중이면 사용자의 개발 서버이므로 끄지 말고 그 서버를 쓴다.
+명령별 상세(`format`, `test:watch`, `sim`, `android:sync`), 개발 URL 옵션, 버전 고정 이유(Phaser 3.x, TypeScript `~6.0`)는 `CLAUDE.md` 6절과 같다. 5180 포트가 사용 중이면 끄지 않는다. 그 서버가 block 서버(페이지 제목 `Ddooby-Block`)일 때만 그대로 쓰고, 다른 프로그램이면 `npm run dev`로 Vite가 띄운 다른 포트(터미널에 찍힌 주소)를 쓴다.
 
 ## 7. 소스 수정 규칙 (사용자가 직접 지시한 경우만)
 

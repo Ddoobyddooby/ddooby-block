@@ -47,12 +47,13 @@
     - 남은 조각 2개가 모두 놓을 수 없으면 즉시 `gameOver` (SPEC 11절 4번)
   - 완료 기준: 위 테스트 통과
   - 확인 메모 (2026-11-13, `e2ec568`·`9626a44`): lint·typecheck·build 통과, 테스트 261개 통과 (`engine.test.ts` 27개, `engine.trayOver.test.ts` 5개). Codex 테스트 전략 → 독립 리뷰 재리뷰 1 통과: 숫자가 아닌 좌표(`row: null` 등)가 0으로 바뀌어 배치되던 것을 막았다. 🔎 "새 트레이 직후 게임 오버"는 생성기가 놓을 수 있는 조각을 최소 1개 보장하므로 실제 생성기로는 일어나지 않는다. 판정 순서는 `engine.trayOver.test.ts`에서 `vi.mock`으로 생성기를 바꿔 고정했다 (엔진 시그니처에 생성기 주입 없음). `score`·`combo` 이벤트와 점수·콤보 계산은 W2-01에서 `place`의 4단계에 넣는다. `trayIndex` 문제·모르는 조각 ID는 `emptySlot`, 좌표 문제는 `blocked`
-- [ ] **W1-06** 🧪🔎 화면 구역 + 드래그 계산: `view/layout.ts`(pang 복사 + 구역), `view/drag.ts` (PLAN 6.1) ⛓ W1-01
+- [x] **W1-06** 🧪🔎 화면 구역 + 드래그 계산: `view/layout.ts`(pang 복사 + 구역), `view/drag.ts` (PLAN 6.1) ⛓ W1-01
   - 테스트 (`tests/view/drag.test.ts`, `layout.test.ts`):
     - 손가락 위치가 같으면 조각은 1.5칸 위에 그려지고 anchor는 그 위치 기준 (SPEC 11절 마지막)
     - 🔎 경계: 조각 왼쪽이 보드 왼쪽에서 0.4칸 밖 → anchor c = 0, 0.6칸 밖 → c = −1 (반올림)
     - `traySlotRect` 3개가 겹치지 않고 화면 폭 720 안에 있음
   - 완료 기준: 위 테스트 통과
+  - 확인 메모 (2026-11-13, `8a4da3f`): lint·typecheck·build 통과, 테스트 315개 통과 (`tests/view` 54개). Codex 테스트 전략 → 독립 리뷰 1차 통과, 지적 없음. 구역 수치(`VIEW.screen`: HUD 180, 보드 x 40·y 200·640, 트레이 높이 260·아래 여백 40, `boardShare` 0.6)는 화면에 그려 보지 않은 초안이라 W1-07에서 조정한다. W1-07로 넘긴 것: 가로로 넓은 창의 가운데 정렬(논리 폭이 720을 넘을 수 있다), 390×844의 실제 논리 높이, safe-area, 슬롯 경계 터치. 3행 이상 조각은 중심이 1.5칸 위여도 아래쪽이 손가락에 닿는다(`i5v`는 맨 아래 칸이 가려진다) → W1-07·W1-08에서 보고 사용자가 정한다
 - [ ] **W1-07** 👀🧪🔎 게임 화면: 블록 텍스처, `BoardView`, `TrayView`, `DragController`, `GameScene`(seed는 `?seed=N` 또는 `crypto.getRandomValues`), 메뉴는 "새 게임" 버튼만 ⛓ W1-05, W1-06
   - 테스트: 입력 잠금 규칙을 순수 함수 `canPickUp(state: { playing: boolean; paused: boolean; over: boolean })`로 빼서 테스트 (`tests/view/dragRules.test.ts`)
   - 완료 기준 (390×844, `?seed=1`): 드래그하면 조각이 손가락 위에 뜨고 고스트와 채워질 줄 하이라이트가 보임 · 보드 밖이나 겹치는 곳에서 놓으면 트레이로 돌아감 · 줄이 지워짐 · 3개를 놓으면 새 트레이 · 게임 오버가 되면 "게임 오버" 글자(임시) · 🔎 줄 제거 재생 중에 다른 조각을 집을 수 없음 · 두 번째 손가락 무시 · DEV에서 매 배치 후 view ↔ core 보드 대조 통과, 콘솔 오류 0 · 캡처를 남긴다

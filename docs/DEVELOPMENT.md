@@ -111,11 +111,18 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 직접 확인 (판정 순서): `src/core/engine.ts`의 `place`에서 7단계(`isGameOver`)를 6단계(새 트레이 생성) 앞으로 옮기고 `npm test` → 세 번째 조각 테스트와 결정성 테스트가 실패한다. 트레이가 빈 순간에 판정하면 놓을 조각이 없어 게임 오버로 잘못 본다. 되돌린다
 - 직접 확인 (이상한 좌표): `check`에서 `Number.isInteger(action.row)` 검사를 지우고 `npm test` → "숫자가 아닌 좌표" 테스트가 실패한다. 되돌린다
 
+### W1-06 화면 구역 + 드래그 계산
+
+- `npm test` → 파일 9개, 315개 통과. 화면 계산만 보려면 `npx vitest run tests/view` → 파일 2개, 54개
+- 화면에 보이는 변화는 아직 없다 (좌표 계산 함수만 생겼다). 실제 드래그는 W1-07에서 본다
+- 직접 확인 (반올림): `src/view/drag.ts`의 `dragAnchor`에서 `Math.round`를 `Math.floor`로 바꾸고 `npm test` → 경계 테스트가 실패한다. 조각이 칸의 절반을 넘어야 다음 칸으로 붙는 것이 반올림이다. 되돌린다
+- 직접 확인 (화면 수치): `src/config.ts`의 `VIEW.screen`에서 `trayH`를 400으로 바꾸고 `npm test` → 트레이가 화면 아래 1/4을 벗어나 테스트가 실패한다. 되돌린다
+
 ## 5. 문제 해결
 
 | 증상 | 해결 |
 |---|---|
-| `Port 5180 is in use` | 다른 터미널에서 block 서버가 이미 떠 있다. 그 터미널에서 `Ctrl+C`, 또는 Vite가 제안하는 다른 포트를 쓴다. 5181·5182는 구현 탭 몫이다 (WORKFLOW 6절) |
+| `Port 5180 is in use` | 다른 터미널에서 block 서버가 이미 떠 있거나 다른 프로그램이 5180을 쓰고 있다. block 서버면 그 터미널에서 `Ctrl+C`, 아니면 Vite가 제안하는 다른 포트를 쓴다 (열린 페이지 제목이 `Ddooby-Block`인지 확인). 5181·5182는 구현 탭 몫이다 (WORKFLOW 6절) |
 | `vite: command not found` 등 | `npm install`을 안 했거나 실패했다. 다시 실행 |
 | 휴대폰에서 `Network` 주소가 안 열림 | 같은 Wi-Fi인지 확인. macOS 방화벽이 Node 연결을 막고 있는지 확인 |
 | 화면이 갱신 안 됨 | 브라우저 강력 새로고침 `Cmd+Shift+R` |
@@ -185,3 +192,14 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **만들 수 없는 상황 테스트하기**: "새 트레이 직후 게임 오버"는 생성기가 막아 주므로 실제로는 안 생긴다. 그래도 순서를 지키는지 보려고 테스트에서만 `vi.mock`으로 생성기를 가짜로 바꾼다. 가짜는 분기 확인용일 뿐이다 → `tests/core/engine.trayOver.test.ts`
 - **봇으로 결정성 보기**: 같은 seed로 두 판을 만들어 같은 순서로 놓고 단계마다 상태와 이벤트가 같은지 비교한다. 도는 동안 "꽉 찬 줄이 남지 않는다" 같은 불변식도 같이 본다 → `tests/core/engine.test.ts`
 - 참고: [Vitest 모듈 mock](https://vitest.dev/guide/mocking/modules)
+
+### W1-06 화면 구역 + 드래그 계산
+
+- pang에서 이미 본 것: 칸 좌표 ↔ 화면 좌표 변환(`createLayout`, `cellCenter`, `cellAt`) → ddooby-pang `docs/DEVELOPMENT.md` 6절
+- **그리드 스냅은 반올림이다**: 조각의 왼쪽 위 모서리를 칸 크기로 나눠 반올림하면 가장 가까운 칸에 붙는다. 점이 어느 칸 안에 있는지 볼 때(`cellAt`)는 내림을 쓴다. 둘을 섞으면 반 칸씩 어긋난다 → `src/view/drag.ts`의 `dragAnchor`, `src/view/layout.ts`의 `cellAt`
+- **`-0`이라는 숫자**: `Math.round(-0.4)`는 `-0`이다. `0`과 `===`로는 같지만 `Object.is`나 테스트의 `toEqual`에서는 다르게 취급된다. `+ 0`을 더해 `0`으로 만든다 → `dragAnchor`
+- **보인 곳에 놓이게 하기**: 조각을 그리는 위치(`dragTopLeft`)와 놓일 칸(`dragAnchor`)이 같은 계산을 쓴다. 따로 계산하면 고스트가 보인 칸과 실제로 놓인 칸이 달라질 수 있다 → `src/view/drag.ts`
+- **손가락보다 위에 띄우기**: 조각 중심을 손가락보다 1.5칸 위에 둔다. 다만 세로로 긴 조각은 아래쪽이 손가락에 닿는다. 숫자 하나로 모든 모양을 해결하지 못하는 예다 → `VIEW.dragLiftCells`
+- **화면 구역을 높이의 함수로**: 휴대폰마다 세로 길이가 달라서 구역을 고정 좌표로 두지 않고 `screenLayout(height)`가 계산한다. 트레이는 엄지가 닿도록 아래에 붙이고, 남는 공간은 보드 위아래로 나눈다 → `src/view/layout.ts`, `src/main.ts`의 `Scale.EXPAND`
+- **Phaser 없이 테스트하기**: 화면 코드에서도 계산만 하는 부분은 순수 함수로 떼어 내면 브라우저 없이 테스트할 수 있다 → `tests/view/`
+- 참고: [Math.round (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Math/round), [Phaser Scale Manager](https://docs.phaser.io/phaser/concepts/scale-manager)
