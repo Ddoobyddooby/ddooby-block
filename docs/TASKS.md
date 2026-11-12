@@ -28,14 +28,15 @@
   - 테스트 (`tests/core/pieces.test.ts`): 29개, ID 중복 없음, 그룹별 칸 수가 SPEC 3.2 표와 같음(`o3` 9칸, `l5a` 5칸 등), 모든 모양의 최소 r·c = 0, `PIECE_WEIGHTS`의 키가 `PIECES` ID와 정확히 같고 모두 양수
   - 완료 기준: 위 테스트 통과
   - 확인 메모 (2026-11-12, `e36a551`): lint·typecheck·build 통과, 테스트 209개 통과 (`pieces.test.ts` 132개). Codex 독립 리뷰 1차 통과, 지적 없음. `PIECES`와 조각·칸은 `Object.freeze`로 얼리고 `PIECE_WEIGHTS`는 얼리지 않는다. `getPiece(id)`는 없는 ID에 `undefined`를 돌려주므로 엔진(W1-05)·저장 복원(W2-05)이 이를 확인해야 한다. 가중치 합계 109
-- [ ] **W1-04** 🧪 조각 생성 + 보정: `generator.ts` (PLAN 4.4) ⛓ W1-03
+- [x] **W1-04** 🧪 조각 생성 + 보정: `generator.ts` (PLAN 4.4) ⛓ W1-03
   - 테스트 (`tests/core/generator.test.ts`):
     - 같은 seed → 같은 트레이와 같은 다음 RNG 상태
     - `weightedPick`: 가중치 `[0, 1, 0]` → 항상 1. seed 1~10000으로 뽑은 빈도가 가중치 비율 ±2%p
     - **seed 1~1000** × (빈 보드, seed로 40~60칸을 무작위로 채우고 꽉 찬 줄은 지운 보드) → 트레이 중 최소 1개 `canPlaceAnywhere` (SPEC 11절)
     - 빈 칸이 (0,0) 하나뿐인 보드 → 보정이 일어나고 트레이에 놓을 수 있는 조각이 있음 (그 조각은 `dot`)
   - 완료 기준: 위 테스트 통과
-- [ ] **W1-05** 🧪🔎 엔진: `createGame`, `place`, `previewPlacement`, `isGameOver` (PLAN 4.5, 4.7). 점수·콤보 필드는 0으로만 둔다 (W2-01) ⛓ W1-04
+  - 확인 메모 (2026-11-13, `bf6d756`·`1598654`): lint·typecheck·build 통과, 테스트 261개 통과 (`generator.test.ts` 20개). Codex 테스트 전략 → 독립 리뷰 재리뷰 1 통과: `weightedPick`의 가중치 합계 상한(2^32)을 추가했다. RNG는 mock하지 않고 테스트 안의 기준 구현과 seed 탐색으로 검증한다. seed 1~1000 × 보드 2종에서 보정은 0회(재추첨 63회)라 보정 경로는 전용 테스트(빈 칸 한 개·두 개 보드)가 지킨다. SPEC 3.3의 "재추첨 최대 N회"는 PLAN 4.4대로 총 10번 시도로 구현했다
+- [x] **W1-05** 🧪🔎 엔진: `createGame`, `place`, `previewPlacement`, `isGameOver` (PLAN 4.5, 4.7). 점수·콤보 필드는 0으로만 둔다 (W2-01) ⛓ W1-04
   - 테스트 (`tests/core/engine.test.ts`):
     - 놓을 수 없는 위치 → `{ ok: false, reason: 'blocked' }`, 상태 그대로 (SPEC 11절 1번의 core 쪽)
     - 빈 슬롯 → `emptySlot`, `over` 상태 → `over`
@@ -45,6 +46,7 @@
     - 🔎 마지막 조각을 놓아 새 트레이가 나온 직후 놓을 곳이 없으면 그 배치에서 바로 `gameOver` (트레이가 비었을 때 판정하지 않음)
     - 남은 조각 2개가 모두 놓을 수 없으면 즉시 `gameOver` (SPEC 11절 4번)
   - 완료 기준: 위 테스트 통과
+  - 확인 메모 (2026-11-13, `e2ec568`·`9626a44`): lint·typecheck·build 통과, 테스트 261개 통과 (`engine.test.ts` 27개, `engine.trayOver.test.ts` 5개). Codex 테스트 전략 → 독립 리뷰 재리뷰 1 통과: 숫자가 아닌 좌표(`row: null` 등)가 0으로 바뀌어 배치되던 것을 막았다. 🔎 "새 트레이 직후 게임 오버"는 생성기가 놓을 수 있는 조각을 최소 1개 보장하므로 실제 생성기로는 일어나지 않는다. 판정 순서는 `engine.trayOver.test.ts`에서 `vi.mock`으로 생성기를 바꿔 고정했다 (엔진 시그니처에 생성기 주입 없음). `score`·`combo` 이벤트와 점수·콤보 계산은 W2-01에서 `place`의 4단계에 넣는다. `trayIndex` 문제·모르는 조각 ID는 `emptySlot`, 좌표 문제는 `blocked`
 - [ ] **W1-06** 🧪🔎 화면 구역 + 드래그 계산: `view/layout.ts`(pang 복사 + 구역), `view/drag.ts` (PLAN 6.1) ⛓ W1-01
   - 테스트 (`tests/view/drag.test.ts`, `layout.test.ts`):
     - 손가락 위치가 같으면 조각은 1.5칸 위에 그려지고 anchor는 그 위치 기준 (SPEC 11절 마지막)

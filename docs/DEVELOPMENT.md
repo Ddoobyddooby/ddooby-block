@@ -97,6 +97,20 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 직접 확인 (표 대조): `tests/core/pieces.test.ts`의 `EXPECTED` 표 29줄을 `docs/PLAN.md` 4.2 표, `docs/SPEC.md` 3.2 표와 눈으로 맞춰 본다 (모양, 칸 수, 색, 가중치)
 - 직접 확인 (테스트가 잡는지): `src/core/pieces.ts`에서 `l3a`의 모양을 `'.#/##'`로 바꾸고 `npm test` → 모양 테스트가 실패한다. 되돌린다
 
+### W1-04 조각 생성 + 보정
+
+- `npm test` → 파일 7개, 261개 통과. 생성기만 보려면 `npx vitest run tests/core/generator.test.ts` → 20개
+- 화면에 보이는 변화는 없다 (조각 3개를 뽑는 함수만 생겼다)
+- 직접 확인 (추첨을 건너뛰면 안 되는 이유): `src/core/generator.ts`의 `generateTray`에서 3개를 다 뽑기 전에 `return`하도록 바꾸면 `npm test`가 실패한다. 추첨 횟수가 달라지면 같은 seed에서 다음 조각이 달라지기 때문이다. 되돌린다
+- 직접 확인 (구간 경계): `weightedPick`의 `roll < acc`를 `roll <= acc`로 바꾸고 `npm test` → 구간 경계 테스트가 실패한다. 되돌린다
+
+### W1-05 엔진
+
+- `npm test` → 파일 7개, 261개 통과. 엔진만 보려면 `npx vitest run tests/core/engine` → 파일 2개, 32개
+- 화면은 W1-07부터 보인다. 그 전에는 테스트로만 확인한다
+- 직접 확인 (판정 순서): `src/core/engine.ts`의 `place`에서 7단계(`isGameOver`)를 6단계(새 트레이 생성) 앞으로 옮기고 `npm test` → 세 번째 조각 테스트와 결정성 테스트가 실패한다. 트레이가 빈 순간에 판정하면 놓을 조각이 없어 게임 오버로 잘못 본다. 되돌린다
+- 직접 확인 (이상한 좌표): `check`에서 `Number.isInteger(action.row)` 검사를 지우고 `npm test` → "숫자가 아닌 좌표" 테스트가 실패한다. 되돌린다
+
 ## 5. 문제 해결
 
 | 증상 | 해결 |
@@ -152,3 +166,22 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **기대값은 구현과 따로 적기**: 기대값을 구현에서 가져오면 구현이 틀려도 통과한다. 그림 비교에 더해 조각 7개는 좌표를 직접 적는다. 가로·세로를 양쪽에서 똑같이 뒤집으면 그림 비교는 통과하기 때문이다 → `tests/core/pieces.test.ts`
 - **객체 대신 `Map`으로 찾기**: 일반 객체는 `constructor` 같은 기본 속성도 조회된다. 저장 데이터에 이상한 ID가 들어와도 조각으로 착각하지 않게 `Map`을 쓴다 → `getPiece`
 - 참고: [Map (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Map)
+
+### W1-04 조각 생성 + 보정
+
+- **가중치 추첨**: 가중치를 앞에서부터 더해 구간을 만들고(`dot` 0~3, `i2h` 4~9, …), 0부터 합계 - 1 사이 정수 하나를 뽑아 어느 구간에 들어가는지 본다. 구간은 `[앞 누적합, 누적합)`이라 `<`와 `<=`를 헷갈리면 경계에서 옆 조각이 뽑힌다 → `src/core/generator.ts`의 `weightedPick`
+- **RNG 호출 수를 고정하기**: 한 시도에서 놓을 수 있는 조각이 먼저 나와도 3개를 끝까지 뽑는다. 상황에 따라 호출 수가 달라지면 같은 seed와 같은 배치 로그로 다시 돌릴 때 다른 조각이 나온다 → `generateTray`
+- **재추첨 + 보정**: 10번까지 다시 뽑고, 그래도 안 되면 슬롯 하나를 놓을 수 있는 조각으로 바꾼다. 실제로는 seed 1~1000에서 보정이 한 번도 일어나지 않았다. 드문 경로일수록 일부러 그 상황을 만드는 테스트가 필요하다 → `generateTray`, `tests/core/generator.test.ts`
+- **mock 없이 순수 함수 검증하기**: 랜덤을 가짜로 바꾸지 않고, 테스트 안에 따로 적은 기준 구현으로 기대값을 계산한다. 원하는 상황(30번 모두 `dot`이 안 나옴)은 seed를 찾아서 만들고, 찾은 seed가 정말 그 상황인지 먼저 확인한다 → `tests/core/generator.test.ts`
+- **계약과 상한**: "0 이상의 정수"만으로는 부족했다. RNG가 32비트라 합계가 2^32를 넘으면 뽑히지 않는 값이 생긴다. 함수가 지킬 수 있는 범위를 적고 벗어나면 바로 에러를 낸다 → `MAX_TOTAL_WEIGHT`
+
+### W1-05 엔진
+
+- pang에서 이미 본 것: `(state, action) → { state, events }` 리듀서 형태, 판별 유니온 → ddooby-pang `docs/DEVELOPMENT.md` 6절
+- **이벤트 순서가 곧 연출 순서**: `place → clear → boardClear → tray → gameOver`. 화면은 이 배열을 앞에서부터 재생만 한다. 판정을 화면에서 다시 하지 않는다 → `src/core/engine.ts`의 `place`, `src/core/types.ts`의 `GameEvent`
+- **판정 순서도 규칙이다**: 게임 오버는 줄을 지운 뒤 보드로, 새 트레이를 만든 뒤에 본다. 순서를 바꾸면 빈 트레이를 게임 오버로 보거나, 줄을 지우면 생길 자리를 못 본다 → `place`의 6·7단계
+- **타입은 실행 중에 사라진다**: TypeScript는 `row: number`라고 적어도 JSON에서 온 `null`을 막지 못한다. `null + 0`은 0이라 정상 좌표처럼 통과했다. 밖에서 들어오는 값은 더하기 전에 `Number.isInteger`로 확인한다 → `check`
+- **실패를 값으로 돌려주기**: 놓을 수 없을 때 예외를 던지지 않고 `{ ok: false, reason }`을 돌려준다. 화면은 이유에 따라 조각을 트레이로 돌려보내기만 하면 된다 → `PlaceResult`
+- **만들 수 없는 상황 테스트하기**: "새 트레이 직후 게임 오버"는 생성기가 막아 주므로 실제로는 안 생긴다. 그래도 순서를 지키는지 보려고 테스트에서만 `vi.mock`으로 생성기를 가짜로 바꾼다. 가짜는 분기 확인용일 뿐이다 → `tests/core/engine.trayOver.test.ts`
+- **봇으로 결정성 보기**: 같은 seed로 두 판을 만들어 같은 순서로 놓고 단계마다 상태와 이벤트가 같은지 비교한다. 도는 동안 "꽉 찬 줄이 남지 않는다" 같은 불변식도 같이 본다 → `tests/core/engine.test.ts`
+- 참고: [Vitest 모듈 mock](https://vitest.dev/guide/mocking/modules)

@@ -172,7 +172,7 @@ generateTray(board, rng) → [tray: PieceId[3], rng]
   tray[slot] = placeable 안에서 가중치 추첨
   반환
 ```
-- `weightedPick(weights: readonly number[], rng): [index, rng]`: `nextInt(rng, 합계)` 하나로 누적합 구간을 찾는다. RNG 호출 수가 고정이라 재현된다
+- `weightedPick(weights: readonly number[], rng): [index, rng]`: `nextInt(rng, 합계)` 하나로 누적합 구간을 찾는다. RNG 호출 수가 고정이라 재현된다. 가중치는 0 이상의 정수, 합계는 1 이상 2^32 이하이고 어기면 `throw`
 - `placeable`은 비지 않는다: 줄 제거가 끝난 보드는 꽉 찰 수 없고(꽉 차면 모든 줄이 지워진다) `dot`은 빈 칸 하나만 있어도 놓인다. 그래도 비면 `throw` (버그로 본다)
 - 첫 트레이도 같은 함수로 만든다 (빈 보드라 보정이 일어나지 않음)
 - **v0.1에서는 위 알고리즘을 그대로 사용한다.** 후속 버전의 전략형 보정은 아래 10절의 검토안이며 현재 생성·검증 로직에 포함하지 않는다.
@@ -191,6 +191,7 @@ type PlaceResult =
 
 `place` 처리 순서 (이 순서가 이벤트 순서이고 리플레이 결과를 정한다):
 1. 검사: `over`면 `over`, 슬롯이 비었거나 범위 밖이면 `emptySlot`, `canPlace`가 거짓이면 `blocked`. 실패는 상태를 바꾸지 않는다
+   - `trayIndex`가 정수가 아니거나 슬롯의 조각 ID를 모르면(깨진 저장 데이터) `emptySlot`. `row`·`col`이 정수가 아니면(소수, NaN, `null` 등 숫자가 아닌 값) `blocked`. 배치 로그는 JSON이라 타입을 어긴 값이 들어올 수 있다
 2. 칸 채움 → `place` 이벤트
 3. `fullLines` → 있으면 `clearLines` → `clear` 이벤트
 4. 콤보 갱신, 점수 계산 (4.6) → `score` 이벤트, 콤보가 바뀌면 `combo`
@@ -198,7 +199,9 @@ type PlaceResult =
 6. 트레이 슬롯을 null로. 셋 다 null이면 `generateTray` → `tray` 이벤트
 7. **새 트레이를 만든 뒤에** `isGameOver` → 참이면 `over: true`, `gameOver` 이벤트
 
-`previewPlacement`는 상태를 바꾸지 않고 고스트·줄 하이라이트용 정보만 준다. 놓을 수 없으면 null.
+`previewPlacement`는 상태를 바꾸지 않고 고스트·줄 하이라이트용 정보만 준다. `place`가 실패할 조건(`over` 포함)이면 null.
+
+`isGameOver`는 모르는 조각 ID를 놓을 수 없는 조각으로 본다. `boardClear`는 줄을 지운 결과 보드가 전부 비었을 때만 나온다. 7단계의 "새 트레이 직후 게임 오버"는 4.4의 보장 때문에 실제 생성기로는 일어나지 않지만, 판정 순서는 그대로 지킨다 (먼저 판정하면 빈 트레이를 게임 오버로 오판한다).
 
 ### 4.6 점수·콤보 (`core/scoring.ts`)
 
