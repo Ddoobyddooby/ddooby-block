@@ -43,3 +43,22 @@ export interface PlaceAction {
 export interface Placement extends PlaceAction {
   readonly t: number;
 }
+
+/**
+ * `place`가 돌려주는 이벤트 (PLAN 4.7). 배열 순서가 곧 연출 순서다.
+ * 좌표는 모두 보드 절대 좌표다.
+ */
+export type GameEvent =
+  | { type: 'place'; trayIndex: number; pieceId: PieceId; cells: Pos[]; color: number }
+  | { type: 'clear'; rows: number[]; cols: number[]; cells: Pos[] }
+  | { type: 'score'; delta: number; lines: number; combo: number }
+  /** combo 0 = 끊김 */
+  | { type: 'combo'; combo: number }
+  | { type: 'boardClear' }
+  | { type: 'tray'; tray: PieceId[] }
+  | { type: 'gameOver'; score: number };
+
+/** `place`의 결과 (PLAN 4.5). 실패는 상태를 바꾸지 않으므로 이유만 준다 */
+export type PlaceResult =
+  | { ok: true; state: GameState; events: GameEvent[] }
+  | { ok: false; reason: 'over' | 'emptySlot' | 'blocked' };
