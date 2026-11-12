@@ -16,13 +16,14 @@
   - 파일: `package.json`, `tsconfig.json`, `vite.config.ts`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `.gitignore`(지금 것에 pang 항목을 합친다), `src/main.ts`, `src/config.ts`, `src/core/rng.ts`, `src/scenes/BootScene.ts`, `tests/core/rng.test.ts`, `tests/lint/coreGuard.test.ts`, `index.html`, `.vscode/`, `package-lock.json`, `CLAUDE.md`, `AGENTS.md`(실제 세팅과 다를 때만 수정)
   - 완료 기준: `npm run lint && npm test && npm run build` 통과. `src/core/`에 `Math.random()`, `import Phaser`, `import '../view/x'`를 임시로 넣으면 lint 에러가 남 (확인 후 지움). `npm run dev`에서 빈 화면에 콘솔 오류 0
   - 확인 메모 (2026-11-11, `b54baf1`·`f3d8679`·`d58b92e`): lint·typecheck·build 통과, 테스트 31개 통과, 390×844 빈 화면 콘솔 오류 0 (5183 포트). Codex 독립 리뷰 3회차 통과: core 차단을 금지 목록에서 허용 목록(브라우저·Node 전역 끔 + `no-undef`)으로 바꾸고 `Date`·동적 import 금지와 차단 테스트 추가. 의존성은 phaser와 개발 도구만 (Capacitor·Supabase는 W3·W4). `PIECE_WEIGHTS`(W1-03)·`VIEW`(W1-06)·`FX`(2주차)는 해당 태스크에서 `config.ts`에 넣는다. 남은 한계는 FEEDBACK R1
-- [ ] **W1-02** 🧪 core 타입 + 보드: `types.ts`, `board.ts` (PLAN 4.1, 4.3), 테스트 헬퍼 `boardFrom` ⛓ W1-01
+- [x] **W1-02** 🧪 core 타입 + 보드: `types.ts`, `board.ts` (PLAN 4.1, 4.3), 테스트 헬퍼 `boardFrom` ⛓ W1-01
   - 테스트 (`tests/core/board.test.ts`):
     - `canPlace`: 보드 밖(음수, 8 이상), 채워진 칸과 겹침 → false. 오른쪽 아래 끝에 딱 맞음 → true
     - `fullLines`: 가로 1줄, 세로 1줄, 가로 2 + 세로 1 동시
     - `clearLines`: 가로 3번 + 세로 5번 → `cleared` 15칸, 교차 칸 (3,5)는 한 번만, 순서는 PLAN 4.3대로
     - 원래 `Board` 객체가 바뀌지 않음 (불변)
   - 완료 기준: 위 테스트 통과
+  - 확인 메모 (2026-11-12, `ca3bd46`·`09f30a5`): lint·typecheck·build 통과, 테스트 77개 통과 (`board.test.ts` 46개). Codex 독립 리뷰 재리뷰 1 통과: 소수·NaN 좌표가 다른 정수 칸으로 계산되던 것을 `inBounds`의 정수 검사로 막았다. `PieceDef`는 `types.ts`에 둔다 (PLAN 4.1에 추가). `fillCells`는 보드 밖·정수가 아닌 좌표를 무시하고, `clearLines`는 `fullLines` 결과를 그대로 받는 전제로 줄 번호를 검사하지 않는다
 - [ ] **W1-03** 🧪 조각 세트: `pieces.ts`, `PIECE_WEIGHTS` (PLAN 4.2) ⛓ W1-02
   - 테스트 (`tests/core/pieces.test.ts`): 29개, ID 중복 없음, 그룹별 칸 수가 SPEC 3.2 표와 같음(`o3` 9칸, `l5a` 5칸 등), 모든 모양의 최소 r·c = 0, `PIECE_WEIGHTS`의 키가 `PIECES` ID와 정확히 같고 모두 양수
   - 완료 기준: 위 테스트 통과

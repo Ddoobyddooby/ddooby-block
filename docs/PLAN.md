@@ -110,6 +110,9 @@ export interface Board { readonly size: number; readonly cells: readonly (number
 
 export type PieceId = string; // 4.2절 표의 ID
 
+/** 조각 정의 (4.2절). cells는 bounding box가 (0,0)에서 시작하는 상대 좌표, color는 색 그룹(0~6) */
+export interface PieceDef { readonly id: PieceId; readonly cells: readonly Pos[]; readonly color: number }
+
 export interface GameState {
   readonly board: Board;
   /** 길이 3. 놓은 칸은 null. 셋 다 null이 되면 바로 새 트레이로 바뀐다 */
@@ -150,9 +153,9 @@ export interface Placement extends PlaceAction { readonly t: number }
 |---|---|
 | `createBoard(size: number): Board` | 빈 보드 |
 | `cellsAt(piece: PieceDef, anchor: Pos): Pos[]` | 조각 칸을 기준점만큼 옮긴 좌표 |
-| `canPlace(board, piece, anchor): boolean` | 모든 칸이 보드 안이고 빈 칸 |
+| `canPlace(board, piece, anchor): boolean` | 모든 칸이 보드 안이고 빈 칸. 정수가 아닌 좌표(소수, NaN)는 보드 밖으로 본다 |
 | `canPlaceAnywhere(board, piece): boolean` | 64칸 기준점 전수 검사 (SPEC 9.1, 최적화 안 함) |
-| `fillCells(board, cells, color): Board` | 불변 갱신 |
+| `fillCells(board, cells, color): Board` | 불변 갱신. 보드 밖 좌표는 무시한다 |
 | `fullLines(board): { rows: number[]; cols: number[] }` | 꽉 찬 가로·세로 줄 번호 (오름차순) |
 | `clearLines(board, rows, cols): { board; cleared: Pos[] }` | 교차 칸은 한 번만. `cleared` 순서 = 가로 줄 먼저(위→아래, 왼→오), 그다음 세로 줄에서 아직 안 나온 칸(왼→오, 위→아래). view가 이 순서로 파티클을 뿌린다 |
 

@@ -82,6 +82,14 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 직접 확인 (core 보호 규칙): `src/core/tmp.ts`를 만들어 `export const a = Math.random();`을 넣고 `npm run lint` → "랜덤은 core/rng.ts의 seed RNG만 쓴다" 에러. `export const b = document;`, `import 'phaser';`로 바꿔 가며 에러를 본 뒤 파일을 지운다
 - 직접 확인 (테스트가 규칙을 지키는지): `eslint.config.js`에서 `Math.random` 금지 줄을 잠깐 주석 처리하고 `npm test` → `coreGuard` 테스트가 실패한다. 되돌린다
 
+### W1-02 core 타입 + 보드
+
+- `npm test` → 파일 3개, 77개 통과. 보드만 보려면 `npx vitest run tests/core/board.test.ts` → 46개
+- 화면에 보이는 변화는 없다 (보드 계산 함수만 생겼다)
+- 직접 확인 (그림과 기대값 대조): `tests/core/board.test.ts`에서 `CROSS` 보드 그림과 `cleared` 기대값 15줄을 눈으로 맞춰 본다. 가로 3번 줄 8칸이 먼저, 이어서 세로 5번 줄의 나머지 7칸
+- 직접 확인 (테스트가 잡는지): `src/core/board.ts`에서 `if (seen.has(index)) return;` 한 줄을 지우고 `npm test` → 교차 칸이 두 번 나와 테스트가 실패한다. 되돌린다
+- 직접 확인 (소수 좌표): `src/core/board.ts`의 `inBounds`에서 `Number.isInteger` 두 줄을 지우고 `npm test` → "소수 행 좌표" 테스트가 실패한다. 되돌린다
+
 ## 5. 문제 해결
 
 | 증상 | 해결 |
@@ -115,3 +123,15 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **core에서 시간·랜덤을 막는 이유**: 서버가 같은 seed와 배치 로그로 판을 다시 돌려 점수를 검증한다. core가 `Math.random`이나 `Date.now`를 읽으면 다시 돌릴 때 결과가 달라진다 → `src/core/rng.ts`, `eslint.config.js`
 - **수치 한곳 관리와 규칙 버전**: `as const`로 값을 고정하고, 규칙에 영향을 주는 값을 바꾸면 `RULES_VERSION`을 올린다 → `src/config.ts`
 - 참고: [ESLint 설정 파일 (globals)](https://eslint.org/docs/latest/use/configure/language-options), [ESLint Node.js API](https://eslint.org/docs/latest/integrate/nodejs-api)
+
+### W1-02 core 타입 + 보드
+
+- pang에서 이미 본 것: 불변 업데이트(`slice()`로 복사한 뒤 고치기), `readonly` 타입 → ddooby-pang `docs/DEVELOPMENT.md` 6절
+- **1차원 보드와 줄 넘침**: 보드를 `index = r * size + c` 한 줄 배열로 둔다. 그래서 (0,8)은 index 8, 곧 (1,0)과 같은 칸이 된다. `canPlace`는 index를 계산하기 전에 r·c 범위를 먼저 본다 → `src/core/board.ts`의 `inBounds`
+- **타입이 못 막는 값은 경계에서 막기**: 좌표 타입은 `number`라 0.125나 `NaN`도 들어올 수 있다. `0.125 * 8 = 1`이라 소수 좌표가 엉뚱한 정수 칸이 됐다. 서버가 배치 로그를 다시 돌려 검증할 때 잘못된 로그가 통과하지 않도록 `Number.isInteger`로 거른다 → `src/core/board.ts`의 `inBounds`
+- **고정 모양 조각과 기준점**: 조각은 (0,0)에서 시작하는 상대 좌표이고 `cellsAt`이 기준점만큼 옮긴다. 회전이 없어서 "놓을 곳이 있나"는 64개 기준점을 전부 해 보면 된다 → `cellsAt`, `canPlaceAnywhere`
+- **가로·세로 동시 제거와 교차 칸**: `Set`으로 이미 지운 칸을 기억해 한 번만 센다. `cleared`의 순서는 화면이 파티클을 뿌리는 순서로 쓰이므로 순서도 약속이다 → `clearLines`
+- **문자열 그림으로 테스트 쓰기**: 보드를 `#`과 `.`으로 그려 기대값을 사람이 눈으로 검증한다. 채운 칸의 색을 0으로 둬서 "0은 빈 칸(`null`)이 아니다"도 같이 검사한다 → `tests/helpers/board.ts`
+- **얼린 입력으로 불변 검사**: `Object.freeze`로 입력을 얼려 두면 구현이 입력을 고치는 순간 에러가 난다 → `tests/core/board.test.ts`의 `frozen`
+- **변형 확인**: 구현을 일부러 망가뜨려 테스트가 정말 실패하는지 본다. 통과만 하는 테스트는 아무것도 지키지 못할 수 있다
+- 참고: [Number.isInteger (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Number/isInteger), [Object.freeze (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze)
