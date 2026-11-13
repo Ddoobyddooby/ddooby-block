@@ -2,7 +2,18 @@
 
 8×8 보드에 블록 조각을 놓아 가로·세로 줄을 지우고 점수를 쌓는 블록 퍼즐 게임입니다.
 
-> **현재 상태: 기획 단계.** v0.1 MVP의 요구사항은 [SPEC](docs/SPEC.md)에 정리되어 있습니다. 게임 코드와 실행 방법은 구현이 시작되면 추가합니다.
+> **현재 상태: 1주차 진행 중.** 게임 규칙(core)과 화면 구역·드래그 계산까지 구현했고, 게임 화면은 W1-07에서 구현합니다. 지금 실행하면 빈 화면만 보입니다. 진행 상황은 [TASKS](docs/TASKS.md)에서 확인합니다.
+
+## 실행
+
+```bash
+npm install
+npm run dev     # http://localhost:5180
+npm test
+npm run build
+```
+
+명령별 설명과 확인 방법은 [개발 가이드](docs/DEVELOPMENT.md)에 있습니다.
 
 ## v0.1에서 만들 것
 
@@ -23,6 +34,6 @@
 
 ## 개발 방향
 
-Phaser 3, TypeScript, Vite, Capacitor, Supabase, Vitest를 사용할 계획입니다. 게임 규칙은 Phaser에 의존하지 않는 순수 TypeScript로 작성하고, 화면과 연출은 별도로 구현합니다.
+Phaser 3, TypeScript, Vite, Vitest를 사용하고, Supabase(3주차)와 Capacitor(4주차)는 해당 주차에 추가합니다. 게임 규칙은 Phaser에 의존하지 않는 순수 TypeScript(`src/core`)로 작성하고, 화면·입력·연출은 Phaser로 구현합니다. 서버가 같은 규칙 코드로 점수를 다시 계산해 검증하기 위해서입니다.
 
-이 프로젝트는 ddooby-pang과 독립적으로 운영합니다. 검증된 코드와 설계 패턴만 복사해 활용하며, Supabase 프로젝트와 계정, 데이터는 공유하지 않습니다. 구현은 ddooby-pang v0.2의 3주차 작업(Supabase와 랭킹)이 끝난 뒤 시작할 예정입니다.
+이 프로젝트는 ddooby-pang과 독립적으로 운영합니다. 검증된 코드와 설계 패턴만 복사해 활용하며, Supabase 프로젝트와 계정, 데이터는 공유하지 않습니다. 구현은 ddooby-pang v0.2의 3주차 작업(Supabase와 랭킹)이 끝난 뒤 시작했습니다.
