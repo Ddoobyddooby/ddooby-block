@@ -206,6 +206,36 @@ describe('DragController: 취소', () => {
     expect(t.drag.dragging).toBe(false);
   });
 
+  it('추적 중인 포인터가 캔버스 밖에서 떼어지면 놓지 않고 되돌린다 (유효한 칸 위였어도)', () => {
+    const t = setup();
+    t.drag.onDown(pointer(1, SLOT0));
+    t.drag.onMove(pointer(1, ON_BOARD));
+    t.calls.length = 0;
+    t.drag.onUpOutside(pointer(1, { x: -50, y: 600 }));
+    expect(t.calls).toEqual(['hidePreview', 'returnHome 0']);
+    expect(t.drops).toEqual([]);
+    expect(t.drag.dragging).toBe(false);
+  });
+
+  it('다른 포인터가 캔버스 밖에서 떼어져도 하던 드래그는 그대로다', () => {
+    const t = setup();
+    t.drag.onDown(pointer(1, SLOT0));
+    t.drag.onMove(pointer(1, ON_BOARD));
+    t.calls.length = 0;
+    t.drag.onUpOutside(pointer(2, { x: -50, y: 600 }));
+    expect(t.calls).toEqual([]);
+    expect(t.drag.dragging).toBe(true);
+    // 원래 포인터는 그대로 놓인다
+    t.drag.onUp(pointer(1, ON_BOARD));
+    expect(t.drops).toEqual([{ index: 0, anchor: ON_BOARD_ANCHOR }]);
+  });
+
+  it('드래그가 없을 때 밖에서 떼어지면 아무것도 하지 않는다', () => {
+    const t = setup();
+    t.drag.onUpOutside(pointer(1, { x: -50, y: 600 }));
+    expect(t.calls).toEqual([]);
+  });
+
   it('cancel: 고스트를 숨기고 되돌린다. 그 뒤의 move·up은 무시한다', () => {
     const t = setup();
     t.drag.onDown(pointer(1, SLOT0));

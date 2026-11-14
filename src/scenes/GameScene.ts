@@ -68,10 +68,12 @@ export class GameScene extends Phaser.Scene {
     const cancel = (): void => drag.cancel();
     this.input.on('pointerdown', (pointer: PointerLike) => drag.onDown(pointer));
     this.input.on('pointermove', (pointer: PointerLike) => drag.onMove(pointer));
-    // 손가락을 떼면 캔버스 안이든 밖이든, touchcancel이든 드래그가 끝난다
+    // 캔버스 안에서 떼면 놓기를 시도한다 (touchcancel이면 취소)
     this.input.on('pointerup', (pointer: PointerLike) => drag.onUp(pointer));
-    this.input.on('pointerupoutside', (pointer: PointerLike) => drag.onUp(pointer));
-    // 포인터가 캔버스를 벗어나거나 창이 가려지면 드래그를 취소한다 (조각이 손가락에 붙은 채 남지 않게)
+    // 캔버스를 벗어나면 드래그를 취소한다. 화면 밖에서 뗀 것은 놓기로 치지 않는다 (보이지 않는 곳에서 놓이면 안 된다).
+    // 보통 gameout이 먼저 와서 취소되고, pointerupoutside는 gameout이 오지 않았을 때의 안전장치다 (이때도 놓지 않는다).
+    // 창이 가려져도 취소한다 (조각이 손가락에 붙은 채 남지 않게)
+    this.input.on('pointerupoutside', (pointer: PointerLike) => drag.onUpOutside(pointer));
     this.input.on('gameout', cancel);
     this.game.events.on(Phaser.Core.Events.BLUR, cancel);
     this.game.events.on(Phaser.Core.Events.HIDDEN, cancel);

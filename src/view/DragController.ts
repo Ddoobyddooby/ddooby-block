@@ -72,8 +72,9 @@ export class DragController {
   }
 
   /**
-   * 떼기: 마지막으로 계산한 anchor로 놓는다. up 이벤트의 좌표로 다시 계산하지 않는다
+   * 캔버스 안에서 떼기: 마지막으로 계산한 anchor로 놓는다. up 이벤트의 좌표로 다시 계산하지 않는다
    * (고스트가 보인 칸과 놓이는 칸이 달라질 수 있다). 실패하면 슬롯으로 되돌린다.
+   * touchcancel로 끝났으면 놓지 않고 취소한다. 캔버스 밖에서 뗀 것은 `onUpOutside`가 받는다.
    */
   onUp(pointer: PointerLike): void {
     const { drag } = this;
@@ -87,7 +88,19 @@ export class DragController {
     if (!this.host.drop(drag.trayIndex, drag.anchor)) this.host.returnHome(drag.trayIndex);
   }
 
-  /** 드래그를 취소하고 조각을 슬롯으로 되돌린다 (잠김, 포인터가 캔버스를 벗어남, 창이 가려짐, 화면 크기 변경) */
+  /**
+   * 캔버스 밖에서 떼기: 놓지 않고 취소한다 (보이지 않는 곳에서 놓이면 안 된다).
+   * 추적 중인 포인터일 때만이다. 다른 손가락이 밖에서 떼어져도 하던 드래그는 그대로다.
+   */
+  onUpOutside(pointer: PointerLike): void {
+    if (this.drag === null || pointer.id !== this.drag.pointerId) return;
+    this.cancel();
+  }
+
+  /**
+   * 드래그를 취소하고 조각을 슬롯으로 되돌린다. 어느 포인터인지 가리지 않는다
+   * (잠김, 포인터가 캔버스를 벗어남, 창이 가려짐, 화면 크기 변경).
+   */
   cancel(): void {
     const { drag } = this;
     if (drag === null) return;
