@@ -53,15 +53,15 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 5. 에러가 나면 개발자도구의 **Console** 탭을 확인한다
 6. **배포된 주소**: W4-03 이후 https://ddoobyddooby.github.io/ddooby-block/ — main에 push하면 1~2분 뒤 자동으로 새로 배포된다
 
-**URL 옵션 (개발용, 예정)**
+**URL 옵션 (개발용)** — "(예정)"이 붙은 것은 아직 없다
 
 | 주소 | 동작 | 생기는 태스크 |
 |---|---|---|
-| `?seed=1001` | 항상 같은 조각 순서. 버그를 봤으면 seed를 적어두고 이 주소로 재현 | W1-07 |
-| `?fill=<패턴>` | (개발 모드) 보드를 미리 채운 상태로 시작. 줄 제거·콤보·전체 비우기 연출 확인용 | W2-04 |
-| `?over` | (개발 모드) 게임 없이 게임 오버 화면만 띄운다 | W2-06 |
+| `?seed=1001` | 항상 같은 조각 순서. 메뉴를 건너뛰고 바로 게임으로 간다. 버그를 봤으면 seed를 적어두고 이 주소로 재현. 0~4294967295의 정수만 받는다 | W1-07 |
+| `?fill=<패턴>` | (개발 모드) 보드를 미리 채운 상태로 시작. 줄 제거·콤보·전체 비우기 연출 확인용 | W2-04 (예정) |
+| `?over` | (개발 모드) 게임 없이 게임 오버 화면만 띄운다 | W2-06 (예정) |
 
-개발 모드(`npm run dev`)에서는 매 배치 후 화면과 게임 상태가 같은지 검사한다 (W1-07). Console에 `view ≠ board`가 찍히면 버그이니 seed와 함께 기록해두자.
+개발 모드(`npm run dev`)에서는 매 배치 후 화면과 게임 상태가 같은지 검사한다 (W1-07). Console에 `view ≠ board`가 찍히면 버그이니 seed와 함께 기록해두자. seed는 게임을 시작할 때 Console에 `seed 123`처럼 찍힌다.
 
 ## 4. 작업별 확인 방법
 
@@ -117,6 +117,22 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 화면에 보이는 변화는 아직 없다 (좌표 계산 함수만 생겼다). 실제 드래그는 W1-07에서 본다
 - 직접 확인 (반올림): `src/view/drag.ts`의 `dragAnchor`에서 `Math.round`를 `Math.floor`로 바꾸고 `npm test` → 경계 테스트가 실패한다. 조각이 칸의 절반을 넘어야 다음 칸으로 붙는 것이 반올림이다. 되돌린다
 - 직접 확인 (화면 수치): `src/config.ts`의 `VIEW.screen`에서 `trayH`를 400으로 바꾸고 `npm test` → 트레이가 화면 아래 1/4을 벗어나 테스트가 실패한다. 되돌린다
+
+### W1-07 게임 화면
+
+- `npm test` → 파일 14개, 372개 통과
+- `npm run dev` → 터미널에 뜬 주소를 연다. 탭 제목이 `Ddooby-Block`인지 먼저 확인한다 (다른 페이지가 뜨면 `localhost` 대신 `127.0.0.1`로 연다)
+- 개발자도구 기기 툴바에서 390×844, 터치 모드로 `/?seed=1`을 연다. 첫 트레이는 작은 L, 점, 작은 L이다
+- 직접 확인:
+  1. 조각을 끌면 손가락 위에 뜨고, 보드 위에서 놓일 자리(고스트)가 보인다
+  2. 보드 밖이나 이미 찬 칸 위에서 놓으면 트레이로 돌아온다
+  3. 오른쪽 아래 구석과 맨 아랫줄에 놓아 본다. 고스트가 보인 칸과 놓인 칸이 같다
+  4. 한 줄을 채우면 채워질 줄이 미리 밝아지고, 놓으면 지워진다. 지워지는 동안에는 다른 조각이 집히지 않는다
+  5. 3개를 다 놓으면 새 조각 3개가 나온다
+  6. 놓을 곳이 없어질 때까지 하면 "게임 오버" 글자가 뜨고, 화면을 누르면 메뉴로 간다
+  7. Console에 빨간 오류와 `view ≠ board`가 없다
+  8. 주소를 `/`로 열면 메뉴가 나오고 "새 게임"으로 들어간다. 창을 가로로 넓히면 보드가 가운데에 온다
+- 실제 휴대폰: 3절 4번대로 `Network` 주소를 연다. 세로로 긴 조각(5칸 막대)을 끌 때 손가락에 가려지는지 본다 (FEEDBACK R2)
 
 ## 5. 문제 해결
 
@@ -203,3 +219,17 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **화면 구역을 높이의 함수로**: 휴대폰마다 세로 길이가 달라서 구역을 고정 좌표로 두지 않고 `screenLayout(height)`가 계산한다. 트레이는 엄지가 닿도록 아래에 붙이고, 남는 공간은 보드 위아래로 나눈다 → `src/view/layout.ts`, `src/main.ts`의 `Scale.EXPAND`
 - **Phaser 없이 테스트하기**: 화면 코드에서도 계산만 하는 부분은 순수 함수로 떼어 내면 브라우저 없이 테스트할 수 있다 → `tests/view/`
 - 참고: [Math.round (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Math/round), [Phaser Scale Manager](https://docs.phaser.io/phaser/concepts/scale-manager)
+
+### W1-07 게임 화면
+
+- pang에서 이미 본 것: Phaser 씬 구조(`create`, `update`), 코드로 텍스처 만들기, 트윈 → ddooby-pang `docs/DEVELOPMENT.md` 6절
+- **드래그 앤 드롭의 세 단계**: 누르기(집기) → 움직이기(따라가기, 고스트 갱신) → 떼기(놓기 또는 복귀). 단계마다 "지금 드래그 중인가"를 하나의 변수로 관리한다 → `src/view/DragController.ts`의 `onDown`·`onMove`·`onUp`
+- **판정과 그리기의 분리**: 화면은 놓을 수 있는지를 스스로 계산하지 않는다. core의 `previewPlacement`에 물어서 고스트를 그리고, `place`의 결과를 재생한다. 규칙이 한곳에만 있어야 서버 검증과 어긋나지 않는다 → `src/scenes/GameScene.ts`
+- **마지막 anchor로 놓기**: 손을 뗄 때의 좌표로 다시 계산하지 않고, 마지막으로 고스트를 그릴 때 쓴 칸에 놓는다. 그래야 "보인 곳에 놓인다" → `DragController.onUp`
+- **포인터 하나만 추적하기**: 처음 누른 손가락의 `pointer.id`를 기억하고 다른 id의 이벤트는 무시한다. 안 그러면 두 번째 손가락이 조각을 낚아챈다 → `DragController`
+- **이벤트 재생과 입력 잠금**: `place`가 돌려준 이벤트를 `await`로 하나씩 재생하고, 그동안은 `playing = true`라 조각을 집을 수 없다. 재생이 끝난 뒤에 상태를 바꾼다 → `GameScene.play`, `src/view/dragRules.ts`의 `canPickUp`
+- **드래그가 끝나지 않는 경우 막기**: 손가락이 화면 밖으로 나가거나, 전화가 오거나(창이 가려짐), 화면이 돌아가면 "떼기" 이벤트가 오지 않을 수 있다. 이런 경우를 모두 취소로 처리해 조각이 손가락에 붙은 채 남지 않게 한다 → `GameScene.create`의 리스너들
+- **Phaser 없이 테스트하도록 떼어 내기**: `DragController`는 Phaser 객체 대신 필요한 함수 묶음(host)만 받는다. 테스트에서는 가짜 host를 넣어 브라우저 없이 규칙을 검증한다 → `tests/view/DragController.test.ts`
+- **개발 중에만 도는 검사**: `import.meta.env.DEV`가 참일 때만 화면의 보드와 core의 보드를 대조한다. 배포용 빌드에서는 이 코드가 통째로 빠진다 → `GameScene.play`, `src/view/boardCheck.ts`
+- **`Scale.EXPAND`와 가운데 정렬**: 논리 폭 720을 기준으로 화면 비율에 따라 높이(또는 폭)가 늘어난다. 구역을 화면 크기의 함수로 계산하고, 크기가 바뀌면 다시 그린다 → `src/view/layout.ts`의 `screenLayout`, `GameScene.onResize`
+- 참고: [Phaser Input](https://docs.phaser.io/phaser/concepts/input), [Vite 환경 변수 (`import.meta.env`)](https://vite.dev/guide/env-and-mode)

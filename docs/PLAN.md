@@ -275,6 +275,8 @@ export const SAVE = { key: 'ddooby-block-save', runKey: 'ddooby-block-run' };
 - 이동: 조각을 실제 칸 크기로 키워 `pointer`보다 1.5칸 위에 그린다. `dragAnchor` → `previewPlacement`가 있으면 고스트(반투명 칸)와 채워질 줄 하이라이트, 없으면 고스트를 숨긴다
 - 놓기: **마지막으로 계산한 anchor**로 `place`를 부른다. 실패하면 조각을 슬롯으로 되돌린다 (`ANIM.returnToTray`, 페널티 없음)
 - 입력 잠금: `place` 이벤트 재생 중, 일시정지, 게임 오버에는 집을 수 없다. 드래그 중에 잠기면(일시정지 등) 그 드래그는 취소하고 조각을 슬롯으로 되돌린다
+- 캔버스를 벗어나면(`gameout`, `pointerupoutside`, 창 blur·hidden, 화면 크기 변경, `touchcancel`) 드래그를 취소하고 조각을 슬롯으로 되돌린다. 보이지 않는 곳에서 놓이지 않게 한다
+- `DragController`는 Phaser에 직접 기대지 않고 필요한 것만 host 인터페이스로 받는다 (가짜 host로 테스트)
 
 ### 6.2 저장과 이어하기 (`storage/`)
 
@@ -300,7 +302,7 @@ Boot → Menu ─┬─ 새 게임 → Game ⇄ Pause → GameOver ─┬─ 다
              ├─ 이어하기 (저장된 run이 있을 때만) → Game   └─ 메뉴
              └─ 주간 랭킹 → Ranking (3주차)
 ```
-GameOver: 점수, 최고 점수, (3주차) 이번 주 순위. 개발 URL 옵션: `?seed=N`(seed 고정), `?fill=<패턴>`(DEV 전용, 보드 미리 채우기), `?over`(게임 오버 화면 미리보기).
+GameOver: 점수, 최고 점수, (3주차) 이번 주 순위. 개발 URL 옵션: `?seed=N`(seed 고정. 0~4294967295의 10진 정수만 받고 그 밖의 값은 없는 것으로 본다. 있으면 메뉴를 건너뛰고 바로 Game), `?fill=<패턴>`(DEV 전용, 보드 미리 채우기), `?over`(게임 오버 화면 미리보기).
 
 ### 6.4 연출 (2주차, SPEC 5절)
 
