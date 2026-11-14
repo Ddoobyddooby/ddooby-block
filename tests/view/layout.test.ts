@@ -167,6 +167,29 @@ describe('screenLayout', () => {
     expect(screenLayout(Number.POSITIVE_INFINITY)).toEqual(screenLayout(1280));
   });
 
+  it('폭을 안 주거나 720이면 왼쪽 끝은 0', () => {
+    expect(screenLayout(1280, 720)).toEqual(screenLayout(1280));
+    expect(screenLayout(1558, 720)).toEqual(screenLayout(1558));
+  });
+
+  it('폭이 720보다 넓으면 구역이 가로 가운데로 간다 (2048×1280 = 1280×800 창)', () => {
+    // 남는 폭 2048 − 720 = 1328, 절반 664
+    expect(screenLayout(1280, 2048)).toEqual({
+      width: 720,
+      height: 1280,
+      hud: { x: 664, y: 0, w: 720, h: 180 },
+      board: { x: 704, y: 200, w: 640, h: 640 },
+      tray: { x: 664, y: 980, w: 720, h: 260 },
+    });
+    expect(boardLayout(screenLayout(1280, 2048)).x).toBe(704);
+  });
+
+  it('폭이 720보다 좁거나 유한한 수가 아니면 옮기지 않는다', () => {
+    for (const width of [0, 500, -100, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(screenLayout(1280, width)).toEqual(screenLayout(1280));
+    }
+  });
+
   it('boardLayout: 보드 구역에 맞춘 8×8, 칸 80', () => {
     expect(boardLayout(screenLayout(1280))).toEqual({
       rows: 8,

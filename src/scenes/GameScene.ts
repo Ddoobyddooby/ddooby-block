@@ -1,0 +1,188 @@
+// 게임 화면. 판정은 core가 하고, 여기서는 입력을 core에 넘기고 돌아온 이벤트를 순서대로 재생한다.
+
+import Phaser from 'phaser';
+import { VIEW } from '../config';
+import { createGame, place, previewPlacement } from '../core/engine';
+import type { GameEvent, GameState, PlaceAction, Pos } from '../core/types';
+import { createBlockTextures } from '../view/blockTexture';
+import { diffBoard } from '../view/boardCheck';
+import { BoardView } from '../view/BoardView';
+import { DragController, type PointerLike } from '../view/DragController';
+import { boardLayout, screenLayout, type Layout, type ScreenLayout } from '../view/layout';
+import { TrayView } from '../view/TrayView';
+import { parseSeedParam, randomSeed } from './seed';
+import { cssColor } from './text';
+
+export class GameScene extends Phaser.Scene {
+  private seed = 0;
+  private state!: GameState;
+  /** 성공한 배치 (DEV 대조가 어긋났을 때 재현용으로 찍는다. 저장은 W2-05) */
+  private placements: PlaceAction[] = [];
+  /** `place` 이벤트를 재생하는 중 */
+  private playing = false;
+  private screen!: ScreenLayout;
+  private layout!: Layout;
+  private boardView!: BoardView;
+  private trayView!: TrayView;
+  private dragController!: DragController;
+  private gameOverUi: Phaser.GameObjects.GameObject[] = [];
+  /** 판 번호. 씬 객체는 다시 쓰이므로, 끝난 판의 재생이 새 판을 건드리지 않게 구분한다 */
+  private run = 0;
+
+  constructor() {
+    super('Game');
+  }
+
+  create(): void {
+    this.seed = parseSeedParam(window.location.search) ?? randomSeed();
+    this.state = createGame(this.seed);
+    this.placements = [];
+    this.playing = false;
+    this.gameOverUi = [];
+    this.run += 1;
+
+    this.cameras.main.setBackgroundColor(VIEW.colors.background);
+    createBlockTextures(this);
+    this.screen = screenLayout(this.scale.height, this.scale.width);
+    this.layout = boardLayout(this.screen);
+    this.boardView = new BoardView(this, this.layout);
+    this.boardView.render(this.state.board);
+    this.trayView = new TrayView(this, this.screen);
+    this.trayView.render(this.state.tray);
+
+    const { boardView, trayView } = this;
+    this.dragController = new DragController({
+      lock: () => ({ playing: this.playing, paused: false, over: this.state.over }),
+      screen: () => this.screen,
+      layout: () => this.layout,
+      pieceAt: (index) => trayView.pieceAt(index),
+      lift: (index, topLeft) => trayView.lift(index, topLeft),
+      returnHome: (index) => trayView.returnHome(index),
+      preview: (trayIndex, anchor) => previewPlacement(this.state, toAction(trayIndex, anchor)),
+      showPreview: (preview, color) => boardView.showPreview(preview, color),
+      hidePreview: () => boardView.hidePreview(),
+      drop: (trayIndex, anchor) => this.drop(toAction(trayIndex, anchor)),
+    });
+
+    const drag = this.dragController;
+    const cancel = (): void => drag.cancel();
+    this.input.on('pointerdown', (pointer: PointerLike) => drag.onDown(pointer));
+    this.input.on('pointermove', (pointer: PointerLike) => drag.onMove(pointer));
+    // 손가락을 떼면 캔버스 안이든 밖이든, touchcancel이든 드래그가 끝난다
+    this.input.on('pointerup', (pointer: PointerLike) => drag.onUp(pointer));
+    this.input.on('pointerupoutside', (pointer: PointerLike) => drag.onUp(pointer));
+    // 포인터가 캔버스를 벗어나거나 창이 가려지면 드래그를 취소한다 (조각이 손가락에 붙은 채 남지 않게)
+    this.input.on('gameout', cancel);
+    this.game.events.on(Phaser.Core.Events.BLUR, cancel);
+    this.game.events.on(Phaser.Core.Events.HIDDEN, cancel);
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off(Phaser.Core.Events.BLUR, cancel);
+      this.game.events.off(Phaser.Core.Events.HIDDEN, cancel);
+      this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
+    });
+
+    if (import.meta.env.DEV) console.info('seed', this.seed);
+  }
+
+  override update(): void {
+    this.dragController.update();
+  }
+
+  /** 화면 크기가 바뀌면 구역을 다시 계산해 그림을 옮긴다. 하던 드래그는 취소한다 */
+  private onResize(): void {
+    this.dragController.cancel();
+    this.screen = screenLayout(this.scale.height, this.scale.width);
+    this.layout = boardLayout(this.screen);
+    this.boardView.setLayout(this.layout);
+    this.trayView.setLayout(this.screen);
+    if (this.gameOverUi.length > 0) this.showGameOver();
+  }
+
+  /** core `place`를 부르고, 성공하면 이벤트 재생을 시작한다 */
+  private drop(action: PlaceAction): boolean {
+    const result = place(this.state, action);
+    if (!result.ok) return false;
+    this.placements.push(action);
+    void this.play(result.events, result.state, action);
+    return true;
+  }
+
+  /** 이벤트를 순서대로 재생한다. 재생 중에는 조각을 집을 수 없고(`playing`), 끝나면 상태를 바꾼다 */
+  private async play(events: GameEvent[], next: GameState, action: PlaceAction): Promise<void> {
+    const { run } = this;
+    this.playing = true;
+    for (const event of events) {
+      switch (event.type) {
+        case 'place':
+          this.trayView.remove(event.trayIndex);
+          await this.boardView.playPlace(event);
+          break;
+        case 'clear':
+          await this.boardView.playClear(event);
+          break;
+        case 'tray':
+          await this.trayView.playTrayIn(event.tray);
+          break;
+        case 'gameOver':
+          this.showGameOver();
+          break;
+        default:
+          // score·combo·boardClear는 W2에서 그린다
+          break;
+      }
+      // 재생 도중에 씬이 끝났거나 새 판이 시작됐으면 그만둔다
+      if (run !== this.run || !this.sys.isActive()) return;
+    }
+    this.state = next;
+    this.playing = false;
+
+    if (import.meta.env.DEV) {
+      const diff = diffBoard(this.boardView.filledCells(), next.board);
+      if (diff.length > 0) {
+        console.error('view ≠ board', {
+          seed: this.seed,
+          placement: action,
+          placementCount: this.placements.length,
+          placements: this.placements,
+          diff,
+        });
+      }
+    }
+  }
+
+  /** "게임 오버" 글자(임시, 화면은 W2-06). 그 뒤 화면을 누르면 메뉴로 돌아간다 */
+  private showGameOver(): void {
+    const first = this.gameOverUi.length === 0;
+    for (const object of this.gameOverUi) object.destroy();
+    const { width, height } = this.scale;
+    const { gameOver, colors, fontFamily, depth } = VIEW;
+    const overlay = this.add
+      .rectangle(0, 0, width, height, colors.overlay, gameOver.overlayAlpha)
+      .setOrigin(0)
+      .setDepth(depth.overlay);
+    const title = this.add
+      .text(width / 2, height / 2, '게임 오버', {
+        fontFamily,
+        fontSize: gameOver.titleSize,
+        fontStyle: 'bold',
+        color: cssColor(colors.text),
+      })
+      .setOrigin(0.5)
+      .setDepth(depth.overlay);
+    const hint = this.add
+      .text(width / 2, height / 2 + gameOver.hintGap, '화면을 누르면 메뉴로', {
+        fontFamily,
+        fontSize: gameOver.hintSize,
+        color: cssColor(colors.textDim),
+      })
+      .setOrigin(0.5)
+      .setDepth(depth.overlay);
+    this.gameOverUi = [overlay, title, hint];
+    if (first) this.input.once('pointerdown', () => this.scene.start('Menu'));
+  }
+}
+
+function toAction(trayIndex: number, anchor: Pos): PlaceAction {
+  return { trayIndex, row: anchor.r, col: anchor.c };
+}

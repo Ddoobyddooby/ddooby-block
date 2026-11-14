@@ -25,6 +25,7 @@ export interface Layout {
 
 /** 화면 구역 (논리 좌표). 위→아래로 hud → board → tray */
 export interface ScreenLayout {
+  /** 구역 폭 (GAME.width 고정). 화면이 더 넓으면 구역은 가로 가운데에 온다 (왼쪽 끝 = hud.x) */
   readonly width: number;
   /** 구역 계산에 쓴 높이 (기준 높이보다 작지 않다) */
   readonly height: number;
@@ -35,20 +36,28 @@ export interface ScreenLayout {
 }
 
 /**
- * 화면 높이에 맞춘 구역 배치 (PLAN 6.1). 폭은 GAME.width로 고정이다.
+ * 화면 크기에 맞춘 구역 배치 (PLAN 6.1). 구역 폭은 GAME.width로 고정이다.
  * 기준 높이(GAME.height)보다 긴 만큼(extra): HUD는 위에 그대로, 보드는 extra × boardShare만큼 내려가고,
  * 트레이는 화면 아래에 붙는다. 기준보다 짧거나 유한한 수가 아니면 기준 높이로 본다.
+ * 화면 폭(width)이 GAME.width보다 넓으면(가로로 넓은 창) 남는 폭의 절반만큼 모든 구역을 오른쪽으로 옮긴다.
+ * 기준보다 좁거나 유한한 수가 아니면 옮기지 않는다.
  */
-export function screenLayout(height: number): ScreenLayout {
+export function screenLayout(height: number, width: number = GAME.width): ScreenLayout {
   const s = VIEW.screen;
   const h = Number.isFinite(height) ? Math.max(height, GAME.height) : GAME.height;
   const extra = h - GAME.height;
+  const left = Number.isFinite(width) ? Math.max(width - GAME.width, 0) / 2 : 0;
   return {
     width: GAME.width,
     height: h,
-    hud: { x: 0, y: 0, w: GAME.width, h: s.hudH },
-    board: { x: s.boardX, y: s.boardY + extra * s.boardShare, w: s.boardSize, h: s.boardSize },
-    tray: { x: 0, y: h - s.trayBottom - s.trayH, w: GAME.width, h: s.trayH },
+    hud: { x: left, y: 0, w: GAME.width, h: s.hudH },
+    board: {
+      x: left + s.boardX,
+      y: s.boardY + extra * s.boardShare,
+      w: s.boardSize,
+      h: s.boardSize,
+    },
+    tray: { x: left, y: h - s.trayBottom - s.trayH, w: GAME.width, h: s.trayH },
   };
 }
 
