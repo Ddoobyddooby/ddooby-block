@@ -246,7 +246,7 @@ describe('place: 실패', () => {
 });
 
 describe('place: 성공', () => {
-  it('칸과 색을 채우고 놓은 슬롯만 null. place 이벤트 하나, RNG·점수 그대로', () => {
+  it('칸과 색을 채우고 놓은 슬롯만 null. 줄을 못 지우면 place → score(칸 수), RNG 그대로', () => {
     const start = freeze(mk(EMPTY_TEXT, ['dot', 'o2', 'i3h']));
     const snapshot = structuredClone(start);
     const { state, events } = okResult(start, { trayIndex: 1, row: 2, col: 3 });
@@ -262,12 +262,15 @@ describe('place: 성공', () => {
     for (const index of [19, 20, 27, 28]) expectedCells[index] = 2;
     expect(state.board).toEqual({ size: 8, cells: expectedCells });
     expect(state.tray).toEqual(['dot', null, 'i3h']);
-    expect(events).toEqual([{ type: 'place', trayIndex: 1, pieceId: 'o2', cells, color: 2 }]);
+    expect(events).toEqual([
+      { type: 'place', trayIndex: 1, pieceId: 'o2', cells, color: 2 },
+      { type: 'score', delta: 4, lines: 0, combo: 0 },
+    ]);
 
     expect(state.rngState).toBe(start.rngState);
-    expect(state.score).toBe(0);
+    expect(state.score).toBe(4);
     expect(state.combo).toBe(0);
-    expect(state.missStreak).toBe(0);
+    expect(state.missStreak).toBe(1);
     expect(state.over).toBe(false);
 
     // 입력은 그대로이고 결과와 배열을 공유하지 않는다
@@ -280,7 +283,7 @@ describe('place: 성공', () => {
     const start = mk(EMPTY_TEXT, ['dot', null, 'i3h']);
     const { state, events } = okResult(start, { trayIndex: 2, row: 7, col: 5 });
     expect(state.tray).toEqual(['dot', null, null]);
-    expect(types(events)).toEqual(['place']);
+    expect(types(events)).toEqual(['place', 'score']);
     expect(state.rngState).toBe(start.rngState);
     expect(state.over).toBe(false);
   });
@@ -312,19 +315,168 @@ describe('place: 성공', () => {
     expect(events).toEqual([
       { type: 'place', trayIndex: 1, pieceId: 'dot', cells: [{ r: 3, c: 4 }], color: 0 },
       { type: 'clear', rows: [3], cols: [4], cells: cleared },
+      // 교차 칸은 한 번 지우지만 줄은 가로 1 + 세로 1 = 2줄: 1칸 + 300, 콤보 1
+      { type: 'score', delta: 301, lines: 2, combo: 1 },
+      { type: 'combo', combo: 1 },
     ]);
     expect(state.board).toEqual(boardFrom(EMPTY_TEXT.replace('........', '#.......')));
     expect(state.tray).toEqual(['i2h', null, 'i2v']);
-    expect(state.score).toBe(0);
+    expect(state.score).toBe(301);
     expect(state.over).toBe(false);
   });
 
-  it('줄을 지워 보드가 전부 비면 place → clear → boardClear', () => {
+  it('줄을 지워 보드가 전부 비면 place → clear → score → combo → boardClear, delta에 3000 포함', () => {
     const start = mk(CROSS_TEXT, ['i2h', 'dot', 'i2v']);
     const { state, events } = okResult(start, { trayIndex: 1, row: 3, col: 4 });
-    expect(types(events)).toEqual(['place', 'clear', 'boardClear']);
+    expect(types(events)).toEqual(['place', 'clear', 'score', 'combo', 'boardClear']);
+    // 1칸 + 300(2줄, 콤보 1) + 3000
+    expect(events[2]).toEqual({ type: 'score', delta: 3301, lines: 2, combo: 1 });
+    expect(state.score).toBe(3301);
     expect(state.board).toEqual(createBoard(8));
     expect(state.over).toBe(false);
+  });
+});
+
+describe('place: 점수·콤보 (PLAN 4.6)', () => {
+  /** 0번 줄에서 (0,7)만, 1번 줄에서 (1,7)만 비었다. 그 둘에 dot을 놓으면 한 줄씩 지워진다 */
+  const TWO_ROWS = `
+    #######.
+    #######.
+    ........
+    ........
+    ........
+    ........
+    ........
+    ........
+  `;
+  const DOTS: readonly PieceId[] = ['dot', 'dot', 'dot'];
+
+  /** dot 하나를 놓고, 다음 배치를 위해 트레이를 dot 3개로 되돌린다 (트레이 재생성과 무관하게 흐름만 본다) */
+  function step(state: GameState, row: number, col: number) {
+    const result = okResult({ ...state, tray: [...DOTS] }, { trayIndex: 0, row, col });
+    return { ...result, next: result.state };
+  }
+
+  it('줄을 지우지 않는 배치: score { delta: 칸 수, lines: 0, combo: 0 }, combo 이벤트 없음', () => {
+    const start = mk(EMPTY_TEXT, ['i3h', 'dot', 'o2'], { score: 10 });
+    const { state, events } = okResult(start, { trayIndex: 0, row: 4, col: 2 });
+    expect(types(events)).toEqual(['place', 'score']);
+    expect(events[1]).toEqual({ type: 'score', delta: 3, lines: 0, combo: 0 });
+    expect(state.score).toBe(13);
+    expect(state.combo).toBe(0);
+  });
+
+  it('3칸 조각으로 1줄 = 103, 콤보 1, place → clear → score → combo', () => {
+    // 0번 줄 앞의 5칸이 차 있고 i3h로 나머지 3칸을 채운다 ((7,7)은 보드가 비지 않게 하는 칸)
+    const start = mk(EMPTY_TEXT.replace('........', '#####...').replace(/\.{8}$/, '.......#'), [
+      'i3h',
+      'dot',
+      'o2',
+    ]);
+    const { state, events } = okResult(start, { trayIndex: 0, row: 0, col: 5 });
+    expect(types(events)).toEqual(['place', 'clear', 'score', 'combo']);
+    expect(events[2]).toEqual({ type: 'score', delta: 103, lines: 1, combo: 1 });
+    expect(events[3]).toEqual({ type: 'combo', combo: 1 });
+    expect(state.score).toBe(103);
+    expect(state.combo).toBe(1);
+    expect(state.missStreak).toBe(0);
+  });
+
+  it('콤보 1에서 가로 1 + 세로 1을 한 번에 지우면 combo 2, 2줄 = floor(300 × 1.5) + 칸 수', () => {
+    const start = mk(CROSS_TEXT.replace('....#...', '#...#...'), ['i2h', 'dot', 'i2v'], {
+      score: 50,
+      combo: 1,
+    });
+    const { state, events } = okResult(start, { trayIndex: 1, row: 3, col: 4 });
+    expect(events[2]).toEqual({ type: 'score', delta: 451, lines: 2, combo: 2 });
+    expect(events[3]).toEqual({ type: 'combo', combo: 2 });
+    expect(state.score).toBe(501);
+  });
+
+  it('지움 → 못 지움 ×2 → 지움 = 콤보 2, 줄 점수에 ×1.5', () => {
+    const first = step(mk(TWO_ROWS, DOTS), 0, 7);
+    expect(first.events[2]).toEqual({ type: 'score', delta: 101, lines: 1, combo: 1 });
+
+    const miss1 = step(first.next, 7, 0);
+    expect(types(miss1.events)).toEqual(['place', 'score']);
+    expect(miss1.next).toMatchObject({ score: 102, combo: 1, missStreak: 1 });
+
+    const miss2 = step(miss1.next, 7, 2);
+    expect(types(miss2.events)).toEqual(['place', 'score']);
+    expect(miss2.next).toMatchObject({ score: 103, combo: 1, missStreak: 2 });
+
+    const second = step(miss2.next, 1, 7);
+    expect(types(second.events)).toEqual(['place', 'clear', 'score', 'combo']);
+    // 1칸 + floor(100 × 1.5)
+    expect(second.events[2]).toEqual({ type: 'score', delta: 151, lines: 1, combo: 2 });
+    expect(second.events[3]).toEqual({ type: 'combo', combo: 2 });
+    expect(second.next).toMatchObject({ score: 254, combo: 2, missStreak: 0 });
+  });
+
+  it('지움 → 못 지움 ×3 → 세 번째에서 combo { combo: 0 } 이벤트, 다음 지움은 콤보 1 (SPEC 11절 5번)', () => {
+    const first = step(mk(TWO_ROWS, DOTS), 0, 7);
+    const miss1 = step(first.next, 7, 0);
+    const miss2 = step(miss1.next, 7, 2);
+    expect(types(miss1.events)).not.toContain('combo');
+    expect(types(miss2.events)).not.toContain('combo');
+
+    const miss3 = step(miss2.next, 7, 4);
+    expect(types(miss3.events)).toEqual(['place', 'score', 'combo']);
+    expect(miss3.events[1]).toEqual({ type: 'score', delta: 1, lines: 0, combo: 0 });
+    expect(miss3.events[2]).toEqual({ type: 'combo', combo: 0 });
+    expect(miss3.next).toMatchObject({ score: 104, combo: 0, missStreak: 0 });
+
+    const again = step(miss3.next, 1, 7);
+    expect(again.events[2]).toEqual({ type: 'score', delta: 101, lines: 1, combo: 1 });
+    expect(again.events[3]).toEqual({ type: 'combo', combo: 1 });
+    expect(again.next).toMatchObject({ score: 205, combo: 1, missStreak: 0 });
+  });
+
+  it('콤보 0에서 못 지움이 이어져도 combo 이벤트가 없다', () => {
+    let state = mk(EMPTY_TEXT, DOTS);
+    for (let i = 0; i < 4; i++) {
+      const result = step(state, 7, i);
+      expect(types(result.events), `배치 ${i}`).toEqual(['place', 'score']);
+      expect(result.next.combo).toBe(0);
+      state = result.next;
+    }
+    expect(state.score).toBe(4);
+  });
+
+  it('보드 전체 비움 점수는 콤보가 높아도 배율이 없다: 콤보 3에서 1 + 300 × 2 + 3000', () => {
+    const start = mk(CROSS_TEXT, ['i2h', 'dot', 'i2v'], { combo: 2 });
+    const { state, events } = okResult(start, { trayIndex: 1, row: 3, col: 4 });
+    // 새 콤보 3 → 배율 2 → 300 × 2 = 600
+    expect(events[2]).toEqual({ type: 'score', delta: 3601, lines: 2, combo: 3 });
+    expect(state.score).toBe(3601);
+  });
+
+  it('gameOver 이벤트의 score는 이번 배치까지 더한 최종 점수와 같다', () => {
+    const start = mk(X_TEXT, ['dot', 'o3', 'i5h'], { score: 40 });
+    const { state, events } = okResult(start, { trayIndex: 0, row: 0, col: 0 });
+    expect(types(events)).toEqual(['place', 'score', 'gameOver']);
+    expect(state.over).toBe(true);
+    expect(state.score).toBe(41);
+    expect(events[2]).toEqual({ type: 'gameOver', score: state.score });
+  });
+
+  it('실패한 place·previewPlacement는 점수·콤보·missStreak를 바꾸지 않는다', () => {
+    const start = freeze(
+      mk(CROSS_TEXT, ['i2h', 'dot', null], { score: 77, combo: 3, missStreak: 1 }),
+    );
+    const snapshot = structuredClone(start);
+    expect(place(start, { trayIndex: 0, row: 0, col: 3 })).toStrictEqual({
+      ok: false,
+      reason: 'blocked',
+    });
+    expect(place(start, { trayIndex: 2, row: 0, col: 0 })).toStrictEqual({
+      ok: false,
+      reason: 'emptySlot',
+    });
+    expect(previewPlacement(start, { trayIndex: 1, row: 3, col: 4 })).not.toBeNull();
+    expect(previewPlacement(start, { trayIndex: 0, row: 0, col: 3 })).toBeNull();
+    expect(start).toEqual(snapshot);
+    expect(start).toMatchObject({ score: 77, combo: 3, missStreak: 1 });
   });
 });
 
@@ -344,12 +496,12 @@ describe('place: 세 번째 조각', () => {
       expect(state.rngState).not.toBe(start.rngState);
 
       // gameOver가 없다 = 빈 트레이로 판정하지 않았다
-      expect(types(events)).toEqual(['place', 'tray']);
-      expect(events[1]).toEqual({ type: 'tray', tray });
+      expect(types(events)).toEqual(['place', 'score', 'tray']);
+      expect(events[2]).toEqual({ type: 'tray', tray });
       expect(state.over).toBe(false);
 
       // 이벤트의 배열은 상태의 트레이와 다른 배열이다
-      const trayEvent = events[1];
+      const trayEvent = events[2];
       if (trayEvent?.type !== 'tray') throw new Error('tray 이벤트가 아니다');
       expect(trayEvent.tray).not.toBe(state.tray);
     }
@@ -364,7 +516,7 @@ describe('place: 세 번째 조각', () => {
 
     const after = boardFrom(afterText);
     const [tray, rngState] = generateTray(after, createRng(31));
-    expect(types(events)).toEqual(['place', 'clear', 'tray']);
+    expect(types(events)).toEqual(['place', 'clear', 'score', 'combo', 'tray']);
     expect(state.board).toEqual(after);
     expect(state.tray).toEqual(tray);
     expect(state.rngState).toBe(rngState);
@@ -376,8 +528,8 @@ describe('place: 남은 조각으로 게임 오버 (SPEC 11절 4번)', () => {
   it('남은 2개가 모두 놓을 수 없으면 그 배치에서 over, 마지막 이벤트가 gameOver', () => {
     const start = mk(X_TEXT, ['dot', 'o3', 'i5h']);
     const { state, events } = okResult(start, { trayIndex: 0, row: 0, col: 0 });
-    expect(types(events)).toEqual(['place', 'gameOver']);
-    expect(events[1]).toEqual({ type: 'gameOver', score: 0 });
+    expect(types(events)).toEqual(['place', 'score', 'gameOver']);
+    expect(events[2]).toEqual({ type: 'gameOver', score: 1 });
     expect(state.over).toBe(true);
     expect(state.tray).toEqual([null, 'o3', 'i5h']);
     expect(state.rngState).toBe(start.rngState);
@@ -393,7 +545,7 @@ describe('place: 남은 조각으로 게임 오버 (SPEC 11절 4번)', () => {
     // o2는 가운데 2×2에 놓인다
     const start = mk(X_TEXT, ['dot', 'o3', 'o2']);
     const { state, events } = okResult(start, { trayIndex: 0, row: 0, col: 0 });
-    expect(types(events)).toEqual(['place']);
+    expect(types(events)).toEqual(['place', 'score']);
     expect(state.over).toBe(false);
   });
 
@@ -403,7 +555,7 @@ describe('place: 남은 조각으로 게임 오버 (SPEC 11절 4번)', () => {
     expect(isGameOver(start.board, ['i5h'])).toBe(true);
 
     const { state, events } = okResult(start, { trayIndex: 0, row: 0, col: 0 });
-    expect(types(events)).toEqual(['place', 'clear']);
+    expect(types(events)).toEqual(['place', 'clear', 'score', 'combo']);
     expect(state.board).toEqual(boardFrom(CHECKER_AFTER_TEXT));
     expect(state.over).toBe(false);
   });
@@ -535,9 +687,9 @@ describe('결정성: 같은 seed + 같은 배치 순서 = 같은 상태와 이�
 
   function checkInvariants(state: GameState, label: string): void {
     expect(state.tray, label).toHaveLength(3);
-    expect(state.score, label).toBe(0);
-    expect(state.combo, label).toBe(0);
-    expect(state.missStreak, label).toBe(0);
+    expect(Number.isInteger(state.score), label).toBe(true);
+    expect(state.combo, label).toBeGreaterThanOrEqual(0);
+    expect(state.missStreak, label).toBeLessThanOrEqual(2);
     expect(fullLines(state.board), label).toEqual({ rows: [], cols: [] });
     // isGameOver를 쓰지 않고 직접 본다
     const anyPlaceable = state.tray.some((id) => {
@@ -566,6 +718,12 @@ describe('결정성: 같은 seed + 같은 배치 순서 = 같은 상태와 이�
         expect(rb, label).toEqual(ra);
         if (!ra.ok || !rb.ok) throw new Error(`${label}: 배치 실패`);
 
+        // 점수는 줄어들지 않고, 배치마다 score 이벤트의 delta만큼 늘어난다
+        const scoreEvent = ra.events.find((event) => event.type === 'score');
+        if (scoreEvent?.type !== 'score') throw new Error(`${label}: score 이벤트가 없다`);
+        expect(scoreEvent.delta, label).toBeGreaterThan(0);
+        expect(ra.state.score, label).toBe(a.score + scoreEvent.delta);
+
         const last = ra.events[ra.events.length - 1];
         expect(last?.type === 'gameOver', label).toBe(ra.state.over);
         trayEvents += ra.events.filter((event) => event.type === 'tray').length;
@@ -579,6 +737,7 @@ describe('결정성: 같은 seed + 같은 배치 순서 = 같은 상태와 이�
       expect(a.over, `seed ${seed}: ${MAX_PLACEMENTS}회 안에 게임 오버로 끝나지 않았다`).toBe(true);
       expect(placements, `seed ${seed}`).toBeLessThan(MAX_PLACEMENTS);
       expect(a).toEqual(b);
+      expect(a.score, `seed ${seed}`).toBeGreaterThan(0);
       // 이 판에서 트레이 재생성과 줄 제거가 실제로 일어났다
       expect(trayEvents, `seed ${seed}: tray`).toBeGreaterThanOrEqual(1);
       expect(clearEvents, `seed ${seed}: clear`).toBeGreaterThanOrEqual(1);

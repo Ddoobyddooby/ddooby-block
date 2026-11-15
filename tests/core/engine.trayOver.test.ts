@@ -87,9 +87,9 @@ describe('새 트레이 직후 게임 오버 (generateTray 대역)', () => {
 
   it('새 트레이의 조각을 하나도 놓을 수 없으면 그 배치에서 tray 다음 gameOver', () => {
     const { state, events } = run(X_TEXT, ['o3', 'i5h', 'i5v']);
-    expect(events.map((event) => event.type)).toEqual(['place', 'tray', 'gameOver']);
-    expect(events[1]).toEqual({ type: 'tray', tray: ['o3', 'i5h', 'i5v'] });
-    expect(events[2]).toEqual({ type: 'gameOver', score: 0 });
+    expect(events.map((event) => event.type)).toEqual(['place', 'score', 'tray', 'gameOver']);
+    expect(events[2]).toEqual({ type: 'tray', tray: ['o3', 'i5h', 'i5v'] });
+    expect(events[3]).toEqual({ type: 'gameOver', score: 1 });
     expect(state.over).toBe(true);
     expect(state.tray).toEqual(['o3', 'i5h', 'i5v']);
     expect(state.rngState).toBe(NEXT_RNG);
@@ -97,7 +97,7 @@ describe('새 트레이 직후 게임 오버 (generateTray 대역)', () => {
 
   it('새 트레이에 놓을 수 있는 조각이 있으면 tray만 있고 gameOver는 없다', () => {
     const { state, events } = run(X_TEXT, ['o3', 'i5h', 'dot']);
-    expect(events.map((event) => event.type)).toEqual(['place', 'tray']);
+    expect(events.map((event) => event.type)).toEqual(['place', 'score', 'tray']);
     expect(state.over).toBe(false);
     expect(state.tray).toEqual(['o3', 'i5h', 'dot']);
     expect(state.rngState).toBe(NEXT_RNG);
@@ -117,6 +117,8 @@ describe('새 트레이 직후 게임 오버 (generateTray 대역)', () => {
     expect(blocked.events.map((event) => event.type)).toEqual([
       'place',
       'clear',
+      'score',
+      'combo',
       'tray',
       'gameOver',
     ]);
@@ -125,7 +127,13 @@ describe('새 트레이 직후 게임 오버 (generateTray 대역)', () => {
 
     // 지우기 전에는 못 놓던 i5h가 지운 뒤 0번 줄에 놓인다 → 게임 오버가 아니다
     const open = run(CHECKER_TEXT, ['o2', 'o3', 'i5h']);
-    expect(open.events.map((event) => event.type)).toEqual(['place', 'clear', 'tray']);
+    expect(open.events.map((event) => event.type)).toEqual([
+      'place',
+      'clear',
+      'score',
+      'combo',
+      'tray',
+    ]);
     expect(open.state.over).toBe(false);
   });
 

@@ -14,6 +14,7 @@ import {
 import { generateTray } from './generator';
 import { getPiece } from './pieces';
 import { createRng } from './rng';
+import { nextCombo, placementScore } from './scoring';
 import type {
   Board,
   GameEvent,
@@ -98,14 +99,17 @@ export function place(state: GameState, action: PlaceAction): PlaceResult {
     events.push({ type: 'clear', rows, cols, cells: result.cleared });
   }
 
-  // 4. 콤보 갱신·점수 계산은 W2-01에서 여기에 넣는다 (`score`, `combo` 이벤트도 이 자리).
-  //    그때까지 score·combo·missStreak는 받은 값 그대로다 (createGame이 0으로 만든다).
-  const { score, combo, missStreak } = state;
+  // 4. 콤보 갱신 → 새 콤보로 점수 계산 → score 이벤트, 콤보가 바뀌었으면 combo 이벤트 (PLAN 4.6)
+  const lines = rows.length + cols.length;
+  const boardCleared = clearedAny && board.cells.every((cell) => cell === null);
+  const { combo, missStreak } = nextCombo(state, clearedAny);
+  const delta = placementScore({ cells: cells.length, lines, combo, boardCleared });
+  const score = state.score + delta;
+  events.push({ type: 'score', delta, lines, combo });
+  if (combo !== state.combo) events.push({ type: 'combo', combo });
 
   // 5. 줄을 지워서 보드가 전부 비었으면
-  if (clearedAny && board.cells.every((cell) => cell === null)) {
-    events.push({ type: 'boardClear' });
-  }
+  if (boardCleared) events.push({ type: 'boardClear' });
 
   // 6. 놓은 슬롯을 비운다. 다 비었을 때만 새 트레이를 뽑는다 (그때만 RNG를 쓴다)
   let tray: (PieceId | null)[] = state.tray.map((id, i) => (i === action.trayIndex ? null : id));
