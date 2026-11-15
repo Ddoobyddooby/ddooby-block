@@ -14,8 +14,9 @@ import { Hud } from '../view/Hud';
 import { boardLayout, screenLayout, type Layout, type ScreenLayout } from '../view/layout';
 import { Sfx } from '../view/Sfx';
 import { TrayView } from '../view/TrayView';
-import { recordBest, startBest } from './bestScore';
+import { readBest, recordBest, startBest } from './bestScore';
 import { fillState, parseFillParam } from './devFill';
+import { buildGameOverData } from './gameOverRules';
 import type { GameStartData } from './gameStart';
 import { canPause, RETRY_EVENT } from './pauseRules';
 import { getPersistence } from './persistenceRegistry';
@@ -23,7 +24,6 @@ import { PlayClock } from './playClock';
 import { playEvents } from './playback';
 import { RunSession } from './runSession';
 import { parseSeedParam, randomSeed } from './seed';
-import { cssColor } from './text';
 
 export class GameScene extends Phaser.Scene {
   private seed = 0;
@@ -52,7 +52,10 @@ export class GameScene extends Phaser.Scene {
   private paused = false;
   /** 씬이 끝남(SHUTDOWN). 일시정지(PAUSED)와 다르다 */
   private ended = false;
-  private gameOverUi: Phaser.GameObjects.GameObject[] = [];
+  /** 게임 오버 이벤트를 재생하기 시작했다 (이후 일시정지 불가. 화면은 재생이 끝난 뒤 GameOver 씬이 뜬다) */
+  private overStarted = false;
+  /** 이 판을 시작하기 전의 최고 점수 ("최고 기록 갱신" 판정 기준. 이어한 판도 저장돼 있던 최고 점수) */
+  private bestAtStart = 0;
   /** 판 번호. 씬 객체는 다시 쓰이므로, 끝난 판의 재생이 새 판을 건드리지 않게 구분한다 */
   private run = 0;
 
@@ -94,9 +97,11 @@ export class GameScene extends Phaser.Scene {
     this.playing = false;
     this.paused = false;
     this.ended = false;
-    this.gameOverUi = [];
+    this.overStarted = false;
     this.run += 1;
 
+    // startBest가 이어한 판의 점수로 화면용 최고 점수를 올리기 전에 기억한다
+    this.bestAtStart = readBest(this.game.registry);
     this.cameras.main.setBackgroundColor(VIEW.colors.background);
     createBlockTextures(this);
     this.screen = screenLayout(this.scale.height, this.scale.width);
@@ -204,7 +209,6 @@ export class GameScene extends Phaser.Scene {
     this.trayView.setLayout(this.screen);
     this.hud.setLayout(this.screen);
     this.fx.setLayout(this.layout);
-    if (this.gameOverUi.length > 0) this.showGameOver();
   }
 
   /**
@@ -212,7 +216,7 @@ export class GameScene extends Phaser.Scene {
    * 이벤트 재생 중에도 멈출 수 있다: 씬이 멈추면 트윈도 같이 멈췄다가 [계속] 뒤에 이어서 끝까지 재생된다.
    */
   private pause(): void {
-    if (!canPause({ over: this.state.over || this.gameOverUi.length > 0, paused: this.paused })) {
+    if (!canPause({ over: this.state.over || this.overStarted, paused: this.paused })) {
       return;
     }
     this.paused = true;
@@ -280,6 +284,25 @@ export class GameScene extends Phaser.Scene {
         });
       }
     }
+    if (next.over) this.openGameOver(next.score);
+  }
+
+  /** 게임 오버 화면을 끝난 보드 위에 띄운다. 저장(기록·최고 점수·run 삭제)은 배치가 수락된 순간 RunSession이 이미 했다 */
+  private openGameOver(score: number): void {
+    const data = buildGameOverData({
+      score,
+      startBest: this.bestAtStart,
+      currentBest: readBest(this.game.registry),
+      replayable: this.replayable,
+    });
+    this.scene.launch('GameOver', data);
+  }
+
+  /** 씬 시계로 기다린다 (씬이 끝나면 시계가 멈춰 풀리지 않지만, 그때는 재생 루프가 버려진다) */
+  private wait(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      this.time.delayedCall(ms, resolve);
+    });
   }
 
   /** 이벤트 하나의 연출. 연출이 끝나면 풀린다 */
@@ -301,8 +324,10 @@ export class GameScene extends Phaser.Scene {
         await this.trayView.playTrayIn(event.tray);
         break;
       case 'gameOver':
+        // 소리를 내고 잠시 보여 준 뒤 끝난다. 화면(GameOver 씬)은 재생이 모두 끝나고 상태가 바뀐 뒤 `openGameOver`가 띄운다
+        this.overStarted = true;
         this.sfx.play('gameOver');
-        this.showGameOver();
+        await this.wait(VIEW.gameOver.showDelayMs);
         break;
       case 'score':
         this.hud.setScore(this.hud.shownScore + event.delta);
@@ -334,37 +359,6 @@ export class GameScene extends Phaser.Scene {
       this.events.once(Phaser.Scenes.Events.RESUME, done);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, done);
     });
-  }
-
-  /** "게임 오버" 글자(임시, 화면은 W2-06). 그 뒤 화면을 누르면 메뉴로 돌아간다 */
-  private showGameOver(): void {
-    const first = this.gameOverUi.length === 0;
-    for (const object of this.gameOverUi) object.destroy();
-    const { width, height } = this.scale;
-    const { gameOver, colors, fontFamily, depth } = VIEW;
-    const overlay = this.add
-      .rectangle(0, 0, width, height, colors.overlay, gameOver.overlayAlpha)
-      .setOrigin(0)
-      .setDepth(depth.overlay);
-    const title = this.add
-      .text(width / 2, height / 2, '게임 오버', {
-        fontFamily,
-        fontSize: gameOver.titleSize,
-        fontStyle: 'bold',
-        color: cssColor(colors.text),
-      })
-      .setOrigin(0.5)
-      .setDepth(depth.overlay);
-    const hint = this.add
-      .text(width / 2, height / 2 + gameOver.hintGap, '화면을 누르면 메뉴로', {
-        fontFamily,
-        fontSize: gameOver.hintSize,
-        color: cssColor(colors.textDim),
-      })
-      .setOrigin(0.5)
-      .setDepth(depth.overlay);
-    this.gameOverUi = [overlay, title, hint];
-    if (first) this.input.once('pointerdown', () => this.scene.start('Menu'));
   }
 }
 

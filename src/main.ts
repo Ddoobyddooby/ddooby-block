@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME, VIEW } from './config';
 import { BootScene } from './scenes/BootScene';
+import { GameOverScene } from './scenes/GameOverScene';
 import { GameScene } from './scenes/GameScene';
 import { MenuScene } from './scenes/MenuScene';
 import { PauseScene } from './scenes/PauseScene';
@@ -17,5 +18,5 @@ new Phaser.Game({
   },
   // 터치 포인터 수 (마우스 제외). 두 번째 손가락도 이벤트로 받아서 DragController가 직접 무시한다
   input: { activePointers: VIEW.touchPointers },
-  scene: [BootScene, MenuScene, GameScene, PauseScene],
+  scene: [BootScene, MenuScene, GameScene, PauseScene, GameOverScene],
 });

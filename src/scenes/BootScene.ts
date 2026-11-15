@@ -11,6 +11,7 @@ import { Persistence } from '../storage/persistence';
 import { sfxKey, type SfxName } from '../view/Sfx';
 import { applyLoaded } from './bootLoad';
 import { parseFillParam } from './devFill';
+import { parseOverParam } from './gameOverRules';
 import { hasResumeParam, type GameStartData } from './gameStart';
 import { putPersistence } from './persistenceRegistry';
 import { parseSeedParam } from './seed';
@@ -61,8 +62,16 @@ export class BootScene extends Phaser.Scene {
     const start = (): void => {
       if (started) return;
       started = true;
+      // DEV 전용 `?over`: 게임 없이 게임 오버 화면만 본다 (예시 값, 저장소는 건드리지 않는다). 프로덕션 빌드에서는 이 분기가 지워진다
+      if (import.meta.env.DEV) {
+        const over = parseOverParam(window.location.search, true);
+        if (over !== null) {
+          this.scene.start('GameOver', over);
+          return;
+        }
+      }
       const data: GameStartData = {};
-      // DEV 전용: 메뉴의 이어하기 버튼(W2-06) 전에 이어하기를 확인한다. 프로덕션 빌드에서는 이 분기가 지워진다
+      // DEV 전용 `?resume`: 메뉴의 이어하기 버튼과 같은 길로 바로 이어한다 (자동 확인용). 프로덕션 빌드에서는 이 분기가 지워진다
       if (import.meta.env.DEV && hasResumeParam(window.location.search, true)) {
         const resume = persistence.resumable();
         if (resume === null) console.warn('[boot] ?resume: 이어할 수 있는 판이 없음');

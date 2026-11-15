@@ -10,6 +10,7 @@ import { drawPanel } from '../view/ui/Panel';
 import { Sfx } from '../view/Sfx';
 import { readMuted, setMuted } from './muteSetting';
 import { getPersistence } from './persistenceRegistry';
+import { newGameData } from './gameStart';
 import { pauseButtons, RETRY_EVENT, type PauseButton } from './pauseRules';
 import { cssColor } from './text';
 
@@ -115,7 +116,7 @@ export class PauseScene extends Phaser.Scene {
         this.scene.get('Game').events.emit(RETRY_EVENT);
         // 멈춘 Game을 끝내고 처음부터 다시. seed는 GameScene이 정한다 (?seed=N이면 같은 seed, 아니면 새로)
         this.scene.stop('Game');
-        this.scene.start('Game');
+        this.scene.start('Game', newGameData());
         break;
       case 'menu':
         this.scene.stop('Game');

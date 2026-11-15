@@ -150,8 +150,8 @@ export const VIEW = {
     buttonH: 120,
     buttonRadius: 28,
     buttonTextSize: 48,
-    /** 버튼을 누르고 있을 때의 투명도 */
-    buttonDownAlpha: 0.75,
+    /** [이어하기]는 [새 게임] 위로 이만큼 (px) 떨어진다. [새 게임]은 이어하기 유무와 상관없이 제자리다 */
+    buttonStep: 148,
   },
   /** HUD (view/Hud.ts). 위치는 화면 구역의 hud 안, y는 hud 위쪽 기준 (px) */
   hud: {
@@ -188,12 +188,33 @@ export const VIEW = {
     muteRadius: 36,
     muteInset: 72,
   },
+  /** 게임 오버 화면 (scenes/GameOverScene.ts). 일시정지 창과 같은 판 + 버튼 */
   gameOver: {
-    overlayAlpha: 0.72,
-    titleSize: 88,
-    hintSize: 34,
-    /** 제목과 안내 사이 간격 (px) */
-    hintGap: 100,
+    dimAlpha: 0.72,
+    panelW: 560,
+    panelRadius: 32,
+    panelPad: 52,
+    titleSize: 72,
+    /** 제목 아래 간격 */
+    titleGap: 44,
+    scoreLabelSize: 30,
+    scoreSize: 104,
+    /** 점수 아래 간격 */
+    scoreGap: 20,
+    bestSize: 38,
+    newBestSize: 44,
+    /** 최고 점수 아래(또는 최고 기록 문구 아래) 버튼까지 간격 */
+    textGap: 22,
+    buttonsGap: 40,
+    buttonW: 440,
+    buttonH: 104,
+    buttonStep: 128,
+    buttonRadius: 28,
+    buttonTextSize: 44,
+    /** 마지막 연출·게임 오버 소리를 보여 준 뒤 이 시간(ms) 지나서 화면이 뜬다 */
+    showDelayMs: 700,
+    /** 화면이 뜬 뒤 이 시간(ms) 동안은 버튼이 눌리지 않는다 (마지막 배치를 놓던 손가락이 바로 누르지 않게) */
+    inputDelayMs: 600,
   },
 } as const;
 
