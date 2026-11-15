@@ -13,6 +13,7 @@ import { boardLayout, screenLayout, type Layout, type ScreenLayout } from '../vi
 import { TrayView } from '../view/TrayView';
 import { readBest, recordBest } from './bestScore';
 import { canPause } from './pauseRules';
+import { playEvents } from './playback';
 import { parseSeedParam, randomSeed } from './seed';
 import { cssColor } from './text';
 
@@ -31,6 +32,8 @@ export class GameScene extends Phaser.Scene {
   private hud!: Hud;
   /** 일시정지 중 (PauseScene이 떠 있는 동안) */
   private paused = false;
+  /** 씬이 끝남(SHUTDOWN). 일시정지(PAUSED)와 다르다 */
+  private ended = false;
   private gameOverUi: Phaser.GameObjects.GameObject[] = [];
   /** 판 번호. 씬 객체는 다시 쓰이므로, 끝난 판의 재생이 새 판을 건드리지 않게 구분한다 */
   private run = 0;
@@ -45,6 +48,7 @@ export class GameScene extends Phaser.Scene {
     this.placements = [];
     this.playing = false;
     this.paused = false;
+    this.ended = false;
     this.gameOverUi = [];
     this.run += 1;
 
@@ -96,6 +100,7 @@ export class GameScene extends Phaser.Scene {
     };
     this.events.on(Phaser.Scenes.Events.RESUME, onResume);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.ended = true;
       this.events.off(Phaser.Scenes.Events.RESUME, onResume);
       this.game.events.off(Phaser.Core.Events.BLUR, cancel);
       this.game.events.off(Phaser.Core.Events.HIDDEN, cancel);
@@ -147,35 +152,13 @@ export class GameScene extends Phaser.Scene {
   private async play(events: GameEvent[], next: GameState, action: PlaceAction): Promise<void> {
     const { run } = this;
     this.playing = true;
-    for (const event of events) {
-      switch (event.type) {
-        case 'place':
-          this.trayView.remove(event.trayIndex);
-          await this.boardView.playPlace(event);
-          break;
-        case 'clear':
-          await this.boardView.playClear(event);
-          break;
-        case 'tray':
-          await this.trayView.playTrayIn(event.tray);
-          break;
-        case 'gameOver':
-          this.showGameOver();
-          break;
-        case 'score':
-          this.hud.setScore(this.hud.shownScore + event.delta);
-          this.hud.setBest(recordBest(this.game.registry, this.hud.shownScore));
-          break;
-        case 'combo':
-          this.hud.setCombo(event.combo);
-          break;
-        default:
-          // boardClear 연출은 W2-04
-          break;
-      }
-      // 재생 도중에 씬이 끝났거나 새 판이 시작됐으면 그만둔다
-      if (run !== this.run || !this.sys.isActive()) return;
-    }
+    const completed = await playEvents(events, (event) => this.playEvent(event), {
+      // 판이 바뀌었거나 씬이 끝났으면 버린다. 일시정지는 버리지 않고 [계속]까지 기다린다
+      isCurrent: () => run === this.run && !this.ended,
+      isPaused: () => this.paused,
+      waitResume: () => this.waitResume(),
+    });
+    if (!completed) return;
     this.state = next;
     this.playing = false;
 
@@ -200,6 +183,48 @@ export class GameScene extends Phaser.Scene {
         });
       }
     }
+  }
+
+  /** 이벤트 하나의 연출. 연출이 끝나면 풀린다 */
+  private async playEvent(event: GameEvent): Promise<void> {
+    switch (event.type) {
+      case 'place':
+        this.trayView.remove(event.trayIndex);
+        await this.boardView.playPlace(event);
+        break;
+      case 'clear':
+        await this.boardView.playClear(event);
+        break;
+      case 'tray':
+        await this.trayView.playTrayIn(event.tray);
+        break;
+      case 'gameOver':
+        this.showGameOver();
+        break;
+      case 'score':
+        this.hud.setScore(this.hud.shownScore + event.delta);
+        this.hud.setBest(recordBest(this.game.registry, this.hud.shownScore));
+        break;
+      case 'combo':
+        this.hud.setCombo(event.combo);
+        break;
+      default:
+        // boardClear 연출은 W2-04
+        break;
+    }
+  }
+
+  /** [계속](RESUME)이나 씬 종료(SHUTDOWN) 중 먼저 오는 쪽에서 풀린다. 둘 다 리스너를 남기지 않는다 */
+  private waitResume(): Promise<void> {
+    return new Promise((resolve) => {
+      const done = (): void => {
+        this.events.off(Phaser.Scenes.Events.RESUME, done);
+        this.events.off(Phaser.Scenes.Events.SHUTDOWN, done);
+        resolve();
+      };
+      this.events.once(Phaser.Scenes.Events.RESUME, done);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, done);
+    });
   }
 
   /** "게임 오버" 글자(임시, 화면은 W2-06). 그 뒤 화면을 누르면 메뉴로 돌아간다 */
