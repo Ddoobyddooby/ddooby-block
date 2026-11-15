@@ -142,6 +142,14 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 직접 확인 (유예 경계): `src/core/scoring.ts`의 `nextCombo`에서 `missStreak > COMBO.graceMisses`를 `>=`로 바꾸고 `npm test` → 콤보 테스트가 실패한다. 2번까지는 봐주고 3번째에 끊기는 것이 `>`다. 되돌린다
 - 직접 확인 (수치는 config에): `src/config.ts`의 `SCORE.lines`에서 100을 200으로 바꾸고 `npm test` → 점수 테스트가 실패한다. 테스트는 기대값을 따로 적어 두었기 때문에 설정을 잘못 바꾸면 알려 준다. 되돌린다
 
+### W2-02 리플레이
+
+- `npm test` → 파일 16개, 427개 통과. 리플레이만 보려면 `npx vitest run tests/core/replay.test.ts` → 31개
+- 화면에서 볼 것은 없다. 이어하기(W2-05)와 서버 점수 검증(3주차)이 이 함수를 쓴다
+- 테스트가 하는 일: 무작위 봇이 seed 1~200을 게임 오버까지 두고, 그 기록을 처음부터 다시 돌려 200판 모두 같은 상태가 나오는지 본다
+- 직접 확인 (규칙이 바뀌면 알려 주는가): `src/config.ts`의 `SCORE.lines`에서 100을 200으로 바꾸고 `npx vitest run tests/core/replay.test.ts` → "고정 로그 fixture" 테스트 4개가 실패한다. 200판 비교 테스트는 그대로 통과한다(원래 플레이도 같은 규칙으로 틀리기 때문). 되돌린다
+- 직접 확인 (깨진 기록): "깨진 로그 항목" 묶음의 테스트가 `null`·숫자·문자열이 섞인 기록을 넣는다. 예외로 멈추지 않고 몇 번째가 잘못됐는지 돌려준다
+
 ## 5. 문제 해결
 
 | 증상 | 해결 |
@@ -251,3 +259,13 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **계산 순서도 규칙이다**: 콤보를 먼저 올리고 그 값으로 배율을 구한다. 순서를 바꾸면 첫 연속 제거에 배율이 안 붙는다 → `src/core/engine.ts`의 `place` 4단계
 - **테스트에서 설정 바꿔 끼우기**: `vi.doMock`으로 `config` 모듈을 다른 값으로 바꾼 뒤 `scoring`을 다시 불러온다. 실제 설정으로는 안 드러나는 경우를 확인할 때 쓴다 → `tests/core/scoring.test.ts`
 - 참고: [부동소수점 (MDN Number)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Number#number_인코딩), [vi.doMock](https://vitest.dev/api/vi.html#vi-domock)
+
+### W2-02 리플레이
+
+- **결과 대신 기록을 저장한다**: 보드를 통째로 저장하지 않고 "seed + 어디에 놓았는지"만 저장해도 판을 똑같이 되살릴 수 있다. 랜덤이 seed로 정해지고 엔진이 순수 함수이기 때문이다. 서버가 점수를 믿지 않고 직접 다시 계산할 수 있는 것도 같은 이유다 → `src/core/replay.ts`의 `replay`
+- **성공·실패를 값으로 돌려주기**: `{ ok: true, state }` 또는 `{ ok: false, index, reason }`. `ok`를 확인해야만 `state`를 꺼낼 수 있어서 실패 처리를 빼먹기 어렵다 (구별된 유니언) → `ReplayResult`
+- **타입은 실행 중에 지켜 주지 않는다**: `readonly PlaceAction[]`이라고 적어도 JSON에서 읽은 값은 `null`일 수 있다. 바깥에서 들어오는 데이터는 `Array.isArray`, `typeof`로 직접 확인한다 → `isPlainObject`, `checkIntervals`
+- **같은 코드로 두 번 돌려 비교하는 테스트의 한계**: 원래 플레이와 리플레이가 같은 엔진을 쓰면, 엔진이 틀려도 둘이 똑같이 틀려서 통과한다. 기대값을 숫자로 적어 둔 테스트(고정 로그)가 따로 있어야 한다 → `tests/core/replay.test.ts`의 "고정 로그"
+- **무작위 봇**: 테스트 안에서 seed로 만든 난수로 아무 데나 두는 플레이어. 사람이 만들기 힘든 기록 200개를 매번 똑같이 만들어 준다. `Math.random`을 쓰지 않아서 실패해도 다시 재현된다 → `tests/core/replay.test.ts`
+- **시간 검사는 따로**: 언제 놓았는지(`t`)는 판의 결과를 바꾸지 않는다. 그래서 상태 재현(`replay`)과 사람 같은 속도인지(`checkIntervals`)를 함수 둘로 나눴다 → `checkIntervals`
+- 참고: [구별된 유니언 (TypeScript 핸드북)](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions), [Array.isArray (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Array/isArray)

@@ -237,10 +237,16 @@ type GameEvent =
 ```ts
 replay(seed: number, placements: readonly PlaceAction[]):
   | { ok: true; state: GameState }
-  | { ok: false; index: number; reason: 'over' | 'emptySlot' | 'blocked' }
+  | { ok: false; index: number; reason: 'over' | 'emptySlot' | 'blocked' | 'invalid' }
 checkIntervals(placements: readonly Placement[], minMs: number): boolean // t가 늘어나고 간격 ≥ minMs
 ```
 `createGame(seed)`에서 `place`를 차례로 적용한다. 이어하기 복원(6.2)과 서버 검증(7절)이 이 함수 하나를 쓴다.
+
+- **깨진 입력은 예외 대신 실패**: 로그는 JSON으로 저장·전송되므로 타입을 믿지 않는다. `placements`가 배열이 아니면 index 0에서 `'invalid'`, 항목이 객체가 아니면(`null`, 숫자, 문자열, 배열, 빈 구멍) 그 index에서 `'invalid'`. 객체이지만 필드가 잘못된 항목은 엔진이 `emptySlot`·`blocked`로 판정한다(4.5). `'invalid'`는 리플레이 전용이며 엔진의 `PlaceResult`에는 없다
+- **`replay`는 `t`를 보지 않는다.** 시간은 상태에 영향을 주지 않는다. 간격은 `checkIntervals`가 따로 본다
+- **`checkIntervals`**: `t`가 엄격히 늘어나고(같으면 false) 이웃 간격이 `minMs` 이상이면 true. 0개·1개는 true. 배열이 아님, 항목이 객체가 아님, `t`가 유한한 수가 아니거나 음수, `minMs`가 유한한 수가 아니거나 음수면 false. 첫 배치의 `t`에는 하한이 없다
+- **호출부 책임**: seed 검증과 로그 길이 한도는 `replay`가 하지 않는다. 저장 파서(6.2)와 서버(7절)가 하고, `'invalid'`를 포함한 모든 `reason`을 처리한다
+- **고정 로그 테스트**: "원래 플레이와 다시 돌린 결과가 같다"는 엔진이 일관되게 틀려도 통과한다. seed·로그·기대 상태를 숫자로 적은 fixture(`tests/core/replay.test.ts`)가 규칙 변경을 잡는다. 이 테스트가 실패하면 `RULES_VERSION` 증가를 검토한다
 
 ## 5. config 값 (`src/config.ts`)
 
