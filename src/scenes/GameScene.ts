@@ -16,7 +16,7 @@ import { Sfx } from '../view/Sfx';
 import { TrayView } from '../view/TrayView';
 import { readBest, recordBest, startBest } from './bestScore';
 import { fillState, parseFillParam } from './devFill';
-import { buildGameOverData } from './gameOverRules';
+import { buildGameOverData, raiseStartBest } from './gameOverRules';
 import type { GameStartData } from './gameStart';
 import { canPause, RETRY_EVENT } from './pauseRules';
 import { getPersistence } from './persistenceRegistry';
@@ -102,6 +102,7 @@ export class GameScene extends Phaser.Scene {
 
     // startBest가 이어한 판의 점수로 화면용 최고 점수를 올리기 전에 기억한다
     this.bestAtStart = readBest(this.game.registry);
+    this.watchLateBest();
     this.cameras.main.setBackgroundColor(VIEW.colors.background);
     createBlockTextures(this);
     this.screen = screenLayout(this.scale.height, this.scale.width);
@@ -285,6 +286,21 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (next.over) this.openGameOver(next.score);
+  }
+
+  /**
+   * 부팅 읽기가 3초를 넘겨 이 판이 최고 점수를 모르는 채 시작했다면, 읽기가 끝났을 때 저장돼 있던 최고 점수로 비교 기준을 올린다.
+   * 이 판의 score 이벤트가 올린 registry 값은 쓰지 않고 읽기 결과(`LoadResult.bestScore`)만 쓴다. 이미 끝난 판은 건드리지 않는다
+   * (게임 오버 저장이 읽기 결과에 이번 점수를 섞었을 수 있다). `?fill=` 판은 갱신이 없으므로 상관없다.
+   */
+  private watchLateBest(): void {
+    const { run } = this;
+    void getPersistence(this.registry)
+      ?.load()
+      .then((loaded) => {
+        if (run !== this.run || this.ended || this.session.state.over) return;
+        this.bestAtStart = raiseStartBest(this.bestAtStart, loaded.bestScore);
+      });
   }
 
   /** 게임 오버 화면을 끝난 보드 위에 띄운다. 저장(기록·최고 점수·run 삭제)은 배치가 수락된 순간 RunSession이 이미 했다 */

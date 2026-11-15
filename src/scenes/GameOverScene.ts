@@ -8,6 +8,7 @@ import { drawPanel } from '../view/ui/Panel';
 import {
   gameOverButtons,
   gameOverTexts,
+  inputDelayLeft,
   type GameOverButton,
   type GameOverData,
 } from './gameOverRules';
@@ -20,11 +21,12 @@ const LABELS: Record<GameOverButton, string> = {
 };
 
 /** 화면 크기가 바뀌어 다시 그릴 때는 입력 지연을 또 주지 않는다 */
-type SceneData = GameOverData & { relayout?: boolean };
+type SceneData = GameOverData & { unlockAt?: number };
 
 export class GameOverScene extends Phaser.Scene {
   private data0: GameOverData = { score: 0, best: 0, newBest: false };
-  private relayout = false;
+  /** 버튼 입력이 풀리는 시각 (performance.now 기준). 처음 뜰 때 정하고 resize로 다시 그려도 그대로 쓴다 */
+  private unlockAt = 0;
 
   constructor() {
     super('GameOver');
@@ -33,7 +35,7 @@ export class GameOverScene extends Phaser.Scene {
   init(data?: SceneData): void {
     if (data !== undefined) {
       this.data0 = { score: data.score, best: data.best, newBest: data.newBest };
-      this.relayout = data.relayout === true;
+      this.unlockAt = data.unlockAt ?? performance.now() + VIEW.gameOver.inputDelayMs;
     }
   }
 
@@ -95,10 +97,11 @@ export class GameOverScene extends Phaser.Scene {
     }
 
     const firstY = y + g.buttonsGap + g.buttonH / 2;
-    // 처음 뜰 때는 잠시 눌리지 않는다 (PressLock이 눌린 상태로 시작했다가 풀린다)
-    const lock: PressLock = { pressed: !this.relayout };
-    if (!this.relayout) {
-      this.time.delayedCall(g.inputDelayMs, () => {
+    // 처음 뜬 뒤 잠시는 눌리지 않는다 (PressLock이 눌린 상태로 시작했다가 남은 시간이 지나면 풀린다). resize 뒤에도 남은 시간만 적용
+    const left = inputDelayLeft(this.unlockAt, performance.now());
+    const lock: PressLock = { pressed: left > 0 };
+    if (left > 0) {
+      this.time.delayedCall(left, () => {
         lock.pressed = false;
       });
     }
@@ -130,7 +133,7 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   private redraw(): void {
-    this.scene.restart({ ...this.data0, relayout: true });
+    this.scene.restart({ ...this.data0, unlockAt: this.unlockAt });
   }
 
   private go(button: GameOverButton): void {

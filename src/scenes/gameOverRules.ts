@@ -66,3 +66,19 @@ export function parseOverParam(search: string, dev: boolean): GameOverData | nul
   if (value === 'low') return { score: 4200, best: 12840, newBest: false };
   return null;
 }
+
+/**
+ * 화면이 처음 뜬 시점 기준의 입력 잠금이 앞으로 얼마(ms) 남았나. `unlockAt`은 처음 뜬 시각 + 지연이고 resize로 다시 그려도 같은 값을 쓴다.
+ * 0이면 눌러도 된다 (이미 지났으면 추가 지연 없음).
+ */
+export function inputDelayLeft(unlockAt: number, now: number): number {
+  return Math.max(0, unlockAt - now);
+}
+
+/**
+ * 판 시작 전에 저장돼 있던 최고 점수를 부팅 읽기가 늦게 확인했다: 비교 기준을 그만큼 올린다 (낮추지는 않는다).
+ * 이 판의 score 이벤트가 올린 값은 넣지 않는다 (넣으면 정상 갱신이 사라진다).
+ */
+export function raiseStartBest(startBest: number, loadedBest: number): number {
+  return Math.max(startBest, loadedBest);
+}

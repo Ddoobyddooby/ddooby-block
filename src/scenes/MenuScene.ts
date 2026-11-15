@@ -19,6 +19,11 @@ export class MenuScene extends Phaser.Scene {
   private buttons: Phaser.GameObjects.Container[] = [];
   /** 씬이 끝남. 늦게 끝난 저장소 읽기가 끝난 메뉴를 건드리지 않게 한다 */
   private closed = false;
+  /**
+   * 이 메뉴가 떠 있는 동안 전환 요청은 최대 한 번이다. 다시 그려도(resize·늦은 읽기 완료) 같은 잠금을 쓴다.
+   * 버려진 버튼의 늦은 누름은 실행되지 않고 잠금이 풀린다 (view/ui/pressLock.ts)
+   */
+  private lock: PressLock = { pressed: false };
 
   constructor() {
     super('Menu');
@@ -28,6 +33,7 @@ export class MenuScene extends Phaser.Scene {
     const { menu, colors, fontFamily } = VIEW;
     this.cameras.main.setBackgroundColor(colors.background);
     this.closed = false;
+    this.lock = { pressed: false };
     this.buttons = [];
 
     this.title = this.add
@@ -66,7 +72,6 @@ export class MenuScene extends Phaser.Scene {
     this.title.setPosition(x, height * menu.titleY);
 
     const ids = menuButtons(getPersistence(this.registry)?.resumable() != null);
-    const lock: PressLock = { pressed: false };
     ids.forEach((id, i) => {
       const y = height * menu.buttonY - (ids.length - 1 - i) * menu.buttonStep;
       // 주 버튼(파랑): 이어하기가 있으면 이어하기, 없으면 새 게임
@@ -86,7 +91,7 @@ export class MenuScene extends Phaser.Scene {
             textColor: primary ? colors.buttonText : colors.text,
           },
           () => this.go(id),
-          lock,
+          this.lock,
         ),
       );
     });
@@ -100,6 +105,8 @@ export class MenuScene extends Phaser.Scene {
     // 누르는 순간의 저장 상태를 다시 본다. 그 사이 없어졌다면 시작하지 않고 메뉴를 다시 그린다
     const resume = getPersistence(this.registry)?.resumable() ?? null;
     if (resume === null) {
+      // 이어하기가 없어졌다: 전환하지 않고 다시 그린다. 다시 누를 수 있게 잠금을 푼다
+      this.lock.pressed = false;
       this.layout();
       return;
     }

@@ -5,6 +5,9 @@ import Phaser from 'phaser';
 import { VIEW } from '../../config';
 import { cssColor } from '../../scenes/text';
 import { Sfx } from '../Sfx';
+import { beginPress, finishPress, type PressLock } from './pressLock';
+
+export type { PressLock };
 
 export interface ButtonSpec {
   label: string;
@@ -14,11 +17,6 @@ export interface ButtonSpec {
   fontSize: number;
   fill: number;
   textColor: number;
-}
-
-/** 한 화면에서 버튼이 한 번만 눌리게 한다 (화면을 떠나는 중에 다른 버튼이 또 눌리지 않게) */
-export interface PressLock {
-  pressed: boolean;
 }
 
 export function addButton(
@@ -49,8 +47,7 @@ export function addButton(
 
   const sfx = new Sfx(scene);
   button.on('pointerup', () => {
-    if (lock.pressed) return;
-    lock.pressed = true;
+    if (!beginPress(lock)) return;
     sfx.play('button');
     scene.tweens.add({
       targets: button,
@@ -58,7 +55,8 @@ export function addButton(
       duration: VIEW.button.pressMs,
       yoyo: true,
       ease: 'Quad.easeOut',
-      onComplete: onPress,
+      // 눌리는 동안 화면이 다시 그려져 버튼이 버려졌으면 실행하지 않는다 (destroy해도 트윈의 onComplete는 실행된다)
+      onComplete: () => finishPress(lock, button.active, onPress),
     });
   });
   return button;

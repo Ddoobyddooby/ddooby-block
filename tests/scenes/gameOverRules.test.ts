@@ -3,7 +3,9 @@ import {
   buildGameOverData,
   gameOverButtons,
   gameOverTexts,
+  inputDelayLeft,
   parseOverParam,
+  raiseStartBest,
 } from '../../src/scenes/gameOverRules';
 
 describe('gameOverButtons', () => {
@@ -98,5 +100,46 @@ describe('parseOverParam', () => {
     for (const search of ['?over', '?over=new', '?over=low']) {
       expect(parseOverParam(search, false), search).toBeNull();
     }
+  });
+});
+
+describe('inputDelayLeft (resize해도 처음 뜬 시점 기준 지연을 지킨다)', () => {
+  // 화면이 처음 뜬 때 = 0, 잠금 만료 = 600
+  it('100ms에 resize하면 500ms가 남는다', () => {
+    expect(inputDelayLeft(600, 100)).toBe(500);
+  });
+  it('599ms까지는 남아 있고(거부) 600ms부터 0(수락)', () => {
+    expect(inputDelayLeft(600, 599)).toBe(1);
+    expect(inputDelayLeft(600, 600)).toBe(0);
+  });
+  it('700ms에 resize하면 추가 지연 없음', () => {
+    expect(inputDelayLeft(600, 700)).toBe(0);
+  });
+});
+
+describe('늦게 확인된 저장 최고 점수 (부팅 읽기가 3초를 넘긴 경우)', () => {
+  it('기준을 늦게 확인된 값으로 올린다. 낮은 값으로는 내리지 않는다', () => {
+    expect(raiseStartBest(0, 900)).toBe(900);
+    expect(raiseStartBest(900, 0)).toBe(900);
+  });
+  it('늦게 확인된 기존 최고 900: 최종 300은 갱신 아님, 최종 1000은 갱신', () => {
+    const startBest = raiseStartBest(0, 900);
+    expect(
+      buildGameOverData({ score: 300, startBest, currentBest: 900, replayable: true }),
+    ).toEqual({ score: 300, best: 900, newBest: false });
+    expect(
+      buildGameOverData({ score: 1000, startBest, currentBest: 1000, replayable: true }),
+    ).toEqual({ score: 1000, best: 1000, newBest: true });
+  });
+  it('늦은 읽기가 없는 보통 경우는 그대로', () => {
+    expect(raiseStartBest(500, 500)).toBe(500);
+    expect(
+      buildGameOverData({ score: 900, startBest: 500, currentBest: 900, replayable: true }).newBest,
+    ).toBe(true);
+  });
+  it('?fill= 판은 기준과 상관없이 갱신 없음, 최고 점수는 저장값', () => {
+    expect(
+      buildGameOverData({ score: 5000, startBest: 0, currentBest: 900, replayable: false }),
+    ).toEqual({ score: 5000, best: 900, newBest: false });
   });
 });
