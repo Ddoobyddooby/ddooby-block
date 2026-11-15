@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FX } from '../../src/config';
 import { createGame } from '../../src/core/engine';
 import { popupTexts } from '../../src/view/fx/popup';
-import { pickShake, shakeFor, type ShakeState } from '../../src/view/fx/shake';
+import { pickShake, shakeFor, ShakeController, type ShakeState } from '../../src/view/fx/shake';
 import { unplaceableSlots } from '../../src/view/fx/trayDim';
 import { boardFrom } from '../helpers/board';
 
@@ -144,5 +144,47 @@ describe('unplaceableSlots', () => {
       ........
     `);
     expect(unplaceableSlots(board, [null, 'dot', 'nope'])).toEqual([false, false, true]);
+  });
+});
+
+describe('ShakeController (resize·종료 때 흔들림 정리)', () => {
+  const makeCamera = () => {
+    const calls: string[] = [];
+    return {
+      calls,
+      shake: (d: number, i: number, force: boolean) => calls.push(`shake ${d} ${i} ${force}`),
+      resetFX: () => calls.push('reset'),
+    };
+  };
+
+  it('요청하면 카메라를 흔들고, 같은 세기 이하는 흔들리는 동안 무시한다', () => {
+    const camera = makeCamera();
+    let now = 1000;
+    const shaker = new ShakeController(camera, () => now);
+    shaker.request({ duration: 200, intensity: 0.008 });
+    now = 1100;
+    shaker.request({ duration: 120, intensity: 0.003 });
+    expect(camera.calls).toEqual(['shake 200 0.008 true']);
+  });
+
+  it('reset하면 카메라 효과를 끄고, 이어지는 약한 흔들림도 다시 시작한다', () => {
+    const camera = makeCamera();
+    let now = 1000;
+    const shaker = new ShakeController(camera, () => now);
+    shaker.request({ duration: 200, intensity: 0.008 });
+    shaker.reset();
+    now = 1050;
+    shaker.request({ duration: 120, intensity: 0.003 });
+    expect(camera.calls).toEqual(['shake 200 0.008 true', 'reset', 'shake 120 0.003 true']);
+  });
+
+  it('카메라가 이미 없어져도 reset이 던지지 않는다', () => {
+    const camera = {
+      shake: () => {},
+      resetFX: () => {
+        throw new Error('destroyed');
+      },
+    };
+    expect(() => new ShakeController(camera, () => 0).reset()).not.toThrow();
   });
 });

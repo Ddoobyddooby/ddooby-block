@@ -38,3 +38,38 @@ export function shakeFor(lines: number, combo: number): ShakeRequest | null {
   const levels = FX.shake.levels;
   return levels[Math.min(level, levels.length) - 1] ?? null;
 }
+
+/** Phaser.Cameras.Scene2D.Camera에서 쓰는 부분 */
+export interface ShakeCamera {
+  shake(duration: number, intensity: number, force: boolean): unknown;
+  resetFX(): unknown;
+}
+
+/**
+ * 카메라 흔들림을 시작하고 정리한다. 지금 흔들리는 것은 `pickShake`로 기억한다.
+ * 화면 크기가 바뀔 때와 씬이 끝날 때 `reset`으로 카메라 효과와 기억을 같이 지운다 (카메라만 남은 흔들림을 이어가지 않게).
+ */
+export class ShakeController {
+  private state: ShakeState | null = null;
+
+  constructor(
+    private readonly camera: ShakeCamera,
+    private readonly now: () => number,
+  ) {}
+
+  request(request: ShakeRequest): void {
+    const next = pickShake(this.state, request, this.now());
+    if (next === null) return;
+    this.state = next;
+    this.camera.shake(request.duration, request.intensity, true);
+  }
+
+  reset(): void {
+    this.state = null;
+    try {
+      this.camera.resetFX();
+    } catch {
+      // 씬이 끝나는 중이라 카메라가 이미 없어졌어도 괜찮다
+    }
+  }
+}

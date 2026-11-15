@@ -7,7 +7,8 @@ import { VIEW } from '../config';
 import { addButton, type PressLock } from '../view/ui/Button';
 import { addMuteButton } from '../view/ui/MuteButton';
 import { drawPanel } from '../view/ui/Panel';
-import { readMuted, writeMuted } from './muteSetting';
+import { Sfx } from '../view/Sfx';
+import { readMuted, setMuted } from './muteSetting';
 import { pauseButtons, type PauseButton } from './pauseRules';
 import { cssColor } from './text';
 
@@ -52,6 +53,7 @@ export class PauseScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    const sfx = new Sfx(this);
     // 음소거 버튼: 판 오른쪽 위. 설정은 앱이 켜져 있는 동안만 기억한다 (muteSetting.ts)
     addMuteButton(
       this,
@@ -59,7 +61,11 @@ export class PauseScene extends Phaser.Scene {
       titleY,
       pause.muteRadius,
       readMuted(this.registry),
-      (muted) => writeMuted(this.registry, muted),
+      (muted) => {
+        // 저장값과 실제 출력(사운드 매니저)을 같이 바꾼다. 음소거를 켤 때는 소리가 없고, 끌 때만 확인음이 난다
+        setMuted(this.registry, this.sound, muted);
+        if (!muted) sfx.play('button');
+      },
     );
 
     const firstY = top + pause.panelPad + pause.titleSize + pause.titleGap + pause.buttonH / 2;

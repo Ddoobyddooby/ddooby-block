@@ -113,13 +113,16 @@ export class GameScene extends Phaser.Scene {
     // [계속]으로 돌아오면 입력 잠금을 풀고 멈췄던 소리를 이어서 낸다
     const onResume = (): void => {
       this.paused = false;
-      this.sound.resumeAll();
+      // 음소거를 켰다면 사운드 매니저의 mute가 출력을 막고 있어 들리지 않는다
+      this.sfx.resume();
     };
     this.events.on(Phaser.Scenes.Events.RESUME, onResume);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.ended = true;
-      // 일시정지 중에 멈춘 소리가 멈춘 채 남지 않게 풀어 준다 (짧아서 바로 끝난다)
-      this.sound.resumeAll();
+      // 정책: 씬이 끝나면(다시 하기·메뉴) 게임이 낸 소리는 이어 내지 않고 멈춰 정리한다 (이전 판의 소리가 뒤늦게 나지 않게).
+      // 방금 누른 버튼 소리는 다른 Sfx가 냈으므로 끊기지 않는다. 카메라 흔들림도 같이 치운다
+      this.sfx.stopAll();
+      this.fx.shutdown();
       this.events.off(Phaser.Scenes.Events.RESUME, onResume);
       this.game.events.off(Phaser.Core.Events.BLUR, cancel);
       this.game.events.off(Phaser.Core.Events.HIDDEN, cancel);
@@ -163,8 +166,9 @@ export class GameScene extends Phaser.Scene {
     }
     this.paused = true;
     this.dragController.cancel();
-    // 연출 소리도 같이 멈춘다 ([계속]에서 이어진다). 일시정지 중에는 새 소리가 시작되지 않는다 (재생 루프가 멈춘다)
-    this.sound.pauseAll();
+    // 게임이 낸 연출 소리도 같이 멈춘다 ([계속]에서 이어진다). 일시정지 중에는 새 소리가 시작되지 않는다 (재생 루프가 멈춘다).
+    // 일시정지 버튼을 누른 소리 같은 다른 소리는 건드리지 않는다
+    this.sfx.pause();
     this.scene.launch('Pause');
     this.scene.pause();
   }

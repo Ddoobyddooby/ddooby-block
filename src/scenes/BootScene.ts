@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SOUND } from '../config';
 import { sfxKey, type SfxName } from '../view/Sfx';
 import { parseFillParam } from './devFill';
+import { applyMuted } from './muteSetting';
 import { parseSeedParam } from './seed';
 
 /**
@@ -23,6 +24,8 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
+    // 저장값(음소거)을 실제 출력에 맞춘다
+    applyMuted(this.registry, this.sound);
     const direct =
       parseSeedParam(window.location.search) !== null ||
       parseFillParam(window.location.search, import.meta.env.DEV) !== null;

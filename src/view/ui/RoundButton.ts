@@ -21,6 +21,8 @@ export function addRoundButton(
   radius: number,
   icon: DrawIcon,
   onPress: () => void,
+  /** true면 누를 때 버튼 소리를 내지 않는다 (음소거 버튼은 누른 결과에 따라 직접 낸다) */
+  silent = false,
 ): RoundButton {
   const { colors } = VIEW;
   const g = scene.add.graphics();
@@ -40,7 +42,7 @@ export function addRoundButton(
   const sfx = new Sfx(scene);
   container.on('pointerup', () => {
     if (scene.tweens.isTweening(container)) return;
-    sfx.play('button');
+    if (!silent) sfx.play('button');
     scene.tweens.add({
       targets: container,
       scale: VIEW.button.pressScale,

@@ -15,28 +15,48 @@ import { cellCenter, type Layout } from '../layout';
 import type { Sfx } from '../Sfx';
 import { stopTweensOf, tweenAsync } from '../tween';
 import { popupTexts } from './popup';
-import { pickShake, shakeFor, type ShakeState } from './shake';
+import { shakeFor, ShakeController } from './shake';
 
 type Decor = Phaser.GameObjects.Image | Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle;
 
 export class FxDirector {
   private readonly live = new Set<Decor>();
-  private shakeState: ShakeState | null = null;
+  private readonly shaker: ShakeController;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly sfx: Sfx,
     private layout: Layout,
-  ) {}
+  ) {
+    // 카메라는 씬이 다시 시작해도 같은 것을 쓰므로 부를 때마다 읽는다
+    this.shaker = new ShakeController(
+      {
+        shake: (d, i, force) => this.scene.cameras.main.shake(d, i, force),
+        resetFX: () => this.scene.cameras.main.resetFX(),
+      },
+      () => this.scene.time.now,
+    );
+  }
 
+  /** 화면 크기가 바뀌면 장식과 카메라 흔들림을 모두 치운다 (위치가 어긋난 채 남지 않게) */
   setLayout(layout: Layout): void {
     this.layout = layout;
     this.cancelDecor();
+    this.shaker.reset();
   }
 
   /** 남은 파티클·팝업·빛을 바로 치운다 (걸린 트윈도 멈춘다) */
   cancelDecor(): void {
     for (const object of [...this.live]) this.dispose(object);
+  }
+
+  /**
+   * 씬이 끝날 때: 카메라 흔들림을 치운다. 장식 그림과 트윈은 Phaser가 씬과 함께 정리하므로
+   * (이미 정리됐을 수 있어) 여기서 건드리지 않고 목록만 비운다.
+   */
+  shutdown(): void {
+    this.live.clear();
+    this.shaker.reset();
   }
 
   /**
@@ -169,11 +189,7 @@ export class FxDirector {
   }
 
   private shake(request: { duration: number; intensity: number } | null): void {
-    if (request === null) return;
-    const next = pickShake(this.shakeState, request, this.scene.time.now);
-    if (next === null) return;
-    this.shakeState = next;
-    this.scene.cameras.main.shake(request.duration, request.intensity, true);
+    if (request !== null) this.shaker.request(request);
   }
 
   private dispose(object: Decor): void {

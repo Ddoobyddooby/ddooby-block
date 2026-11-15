@@ -13,11 +13,20 @@ export function addMuteButton(
   onToggle: (muted: boolean) => void,
 ): Phaser.GameObjects.Container {
   let current = muted;
-  const button = addRoundButton(scene, x, y, radius, speaker(current), () => {
-    current = !current;
-    button.redraw(speaker(current));
-    onToggle(current);
-  });
+  // 버튼 소리는 호출한 쪽이 정한다 (켜질 때만 낸다)
+  const button = addRoundButton(
+    scene,
+    x,
+    y,
+    radius,
+    speaker(current),
+    () => {
+      current = !current;
+      button.redraw(speaker(current));
+      onToggle(current);
+    },
+    true,
+  );
   return button.container;
 }
 

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { readMuted, writeMuted, type MuteStore } from '../../src/scenes/muteSetting';
+import {
+  applyMuted,
+  readMuted,
+  setMuted,
+  writeMuted,
+  type MuteStore,
+} from '../../src/scenes/muteSetting';
 
 function fakeStore(initial?: unknown): MuteStore {
   const map = new Map<string, unknown>();
@@ -31,5 +37,31 @@ describe('readMuted / writeMuted', () => {
     writeMuted(store, true);
     // 새 판이 시작돼도 같은 game.registry를 읽는다
     expect(readMuted(store)).toBe(true);
+  });
+});
+
+describe('applyMuted / setMuted (사운드 매니저 mute와 동기화)', () => {
+  it('applyMuted: 저장된 값을 매니저 mute에 맞춘다', () => {
+    const store = fakeStore(true);
+    const output = { mute: false };
+    applyMuted(store, output);
+    expect(output.mute).toBe(true);
+  });
+
+  it('applyMuted: 기록이 없으면 소리를 켠다 (mute false)', () => {
+    const output = { mute: true };
+    applyMuted(fakeStore(), output);
+    expect(output.mute).toBe(false);
+  });
+
+  it('setMuted: 저장값과 매니저 mute가 같이 바뀐다', () => {
+    const store = fakeStore();
+    const output = { mute: false };
+    setMuted(store, output, true);
+    expect(readMuted(store)).toBe(true);
+    expect(output.mute).toBe(true);
+    setMuted(store, output, false);
+    expect(readMuted(store)).toBe(false);
+    expect(output.mute).toBe(false);
   });
 });
