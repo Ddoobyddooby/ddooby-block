@@ -1,5 +1,5 @@
-// 최고 점수. 저장은 W2-05에서 한다. 지금은 앱이 켜져 있는 동안만 game.registry에 기억한다.
-// 읽고 쓰는 곳을 이 파일로 모아 두었으니 W2-05에서는 여기만 저장소로 바꿔 끼운다.
+// 최고 점수의 화면용 값. game.registry에 기억한다 (점수 이벤트마다 올라 HUD에 보인다).
+// 영구 저장은 여기서 하지 않는다: 게임 오버 때 Persistence.finishRun이 하고, Boot가 저장소에서 읽어 `writeBest`로 채운다.
 
 const KEY = 'bestScore';
 
@@ -17,6 +17,11 @@ export function nextBest(best: number, score: number): number {
 export function readBest(store: BestStore): number {
   const value = store.get(KEY);
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+/** 저장소에서 읽은 값을 반영한다 (Boot). 이미 더 큰 값이 있으면 그대로 둔다 */
+export function writeBest(store: BestStore, best: number): void {
+  store.set(KEY, nextBest(readBest(store), best));
 }
 
 /** 점수를 반영하고 갱신된 최고 점수를 돌려준다 */

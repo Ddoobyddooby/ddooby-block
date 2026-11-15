@@ -1,8 +1,8 @@
 // 게임 화면. 판정은 core가 하고, 여기서는 입력을 core에 넘기고 돌아온 이벤트를 순서대로 재생한다.
 
 import Phaser from 'phaser';
-import { VIEW } from '../config';
-import { createGame, place, previewPlacement } from '../core/engine';
+import { REPLAY, SAVE, VIEW } from '../config';
+import { createGame, previewPlacement } from '../core/engine';
 import type { GameEvent, GameState, PlaceAction, Pos } from '../core/types';
 import { createBlockTextures } from '../view/blockTexture';
 import { diffBoard } from '../view/boardCheck';
@@ -16,16 +16,23 @@ import { Sfx } from '../view/Sfx';
 import { TrayView } from '../view/TrayView';
 import { readBest, recordBest } from './bestScore';
 import { fillState, parseFillParam } from './devFill';
-import { canPause } from './pauseRules';
+import type { GameStartData } from './gameStart';
+import { canPause, RETRY_EVENT } from './pauseRules';
+import { getPersistence } from './persistenceRegistry';
+import { PlayClock } from './playClock';
 import { playEvents } from './playback';
+import { RunSession } from './runSession';
 import { parseSeedParam, randomSeed } from './seed';
 import { cssColor } from './text';
 
 export class GameScene extends Phaser.Scene {
   private seed = 0;
+  /** 화면에 보이는 상태. 연출이 끝나야 바뀐다. 저장하는 상태는 `session.state`(배치가 수락된 순간 바뀐다) */
   private state!: GameState;
-  /** 성공한 배치 (DEV 대조가 어긋났을 때 재현용으로 찍는다. 저장은 W2-05) */
-  private placements: PlaceAction[] = [];
+  /** 배치 로그·저장용 상태·플레이 시계·200ms 간격 판정 (PLAN 6.2) */
+  private session!: RunSession;
+  private clock!: PlayClock;
+  private startData: GameStartData = {};
   /** `place` 이벤트를 재생하는 중 */
   private playing = false;
   private screen!: ScreenLayout;
@@ -38,7 +45,7 @@ export class GameScene extends Phaser.Scene {
   private sfx!: Sfx;
   /**
    * (seed, 배치 로그)만으로 리플레이할 수 있는 판인가. DEV `?fill=`로 시작한 판은 빈 보드에서 시작하지 않아 false다.
-   * W2-05(저장·이어하기)와 W3(점수 제출)은 false인 판을 저장·제출하지 않아야 한다 (devFill.ts 설명).
+   * false인 판은 저장하지 않고(저장된 run을 지우지도 않는다) 최고 점수에도 반영하지 않는다. W3(점수 제출)도 뺀다 (devFill.ts 설명).
    */
   private replayable = true;
   /** 일시정지 중 (PauseScene이 떠 있는 동안) */
@@ -53,12 +60,37 @@ export class GameScene extends Phaser.Scene {
     super('Game');
   }
 
+  init(data?: GameStartData): void {
+    this.startData = data ?? {};
+  }
+
   create(): void {
-    this.seed = parseSeedParam(window.location.search) ?? randomSeed();
-    const fill = parseFillParam(window.location.search, import.meta.env.DEV);
-    this.state = fill === null ? createGame(this.seed) : fillState(fill, this.seed);
+    // 이어하기: 저장된 판의 seed·상태·로그·시계로 시작한다. 이어하는 판에는 ?fill=을 쓰지 않는다
+    const resume = this.startData.resume ?? null;
+    const fill =
+      resume === null ? parseFillParam(window.location.search, import.meta.env.DEV) : null;
+    this.seed = resume?.saved.seed ?? parseSeedParam(window.location.search) ?? randomSeed();
+    this.state =
+      resume !== null
+        ? resume.state
+        : fill === null
+          ? createGame(this.seed)
+          : fillState(fill, this.seed);
     this.replayable = fill === null;
-    this.placements = [];
+    // 시계는 이어한 판이면 저장된 elapsedMs에서 시작한다. 화면이 숨겨진 채 시작하면 멈춰 둔다
+    this.clock = new PlayClock(() => performance.now(), resume?.saved.elapsedMs ?? 0);
+    if (document.hidden) this.clock.block('hidden');
+    this.session = new RunSession({
+      seed: this.seed,
+      state: this.state,
+      placements: resume?.saved.placements,
+      runId: resume?.saved.runId ?? null,
+      clock: this.clock,
+      store: getPersistence(this.registry),
+      replayable: this.replayable,
+      minIntervalMs: REPLAY.minIntervalMs,
+      maxPlacements: SAVE.maxRunPlacements,
+    });
     this.playing = false;
     this.paused = false;
     this.ended = false;
@@ -84,7 +116,12 @@ export class GameScene extends Phaser.Scene {
 
     const { boardView, trayView } = this;
     this.dragController = new DragController({
-      lock: () => ({ playing: this.playing, paused: this.paused, over: this.state.over }),
+      lock: () => ({
+        playing: this.playing,
+        paused: this.paused,
+        over: this.state.over,
+        cooling: this.session.cooling(),
+      }),
       screen: () => this.screen,
       layout: () => this.layout,
       pieceAt: (index) => trayView.pieceAt(index),
@@ -108,11 +145,23 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerupoutside', (pointer: PointerLike) => drag.onUpOutside(pointer));
     this.input.on('gameout', cancel);
     this.game.events.on(Phaser.Core.Events.BLUR, cancel);
-    this.game.events.on(Phaser.Core.Events.HIDDEN, cancel);
+    // 화면이 숨겨지면 시계를 멈추고 지금까지의 플레이 시간을 저장한다. 숨겨진 동안에는 배치를 받지 않는다
+    const onHidden = (): void => {
+      cancel();
+      this.clock.block('hidden');
+      this.session.checkpoint();
+    };
+    const onVisible = (): void => this.clock.unblock('hidden');
+    this.game.events.on(Phaser.Core.Events.HIDDEN, onHidden);
+    this.game.events.on(Phaser.Core.Events.VISIBLE, onVisible);
+    // [다시 하기]: 저장된 run을 지운다
+    const onRetry = (): void => this.session.abandon();
+    this.events.on(RETRY_EVENT, onRetry);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this);
     // [계속]으로 돌아오면 입력 잠금을 풀고 멈췄던 소리를 이어서 낸다
     const onResume = (): void => {
       this.paused = false;
+      this.clock.unblock('paused');
       // 음소거를 켰다면 사운드 매니저의 mute가 출력을 막고 있어 들리지 않는다
       this.sfx.resume();
     };
@@ -125,7 +174,9 @@ export class GameScene extends Phaser.Scene {
       this.fx.shutdown();
       this.events.off(Phaser.Scenes.Events.RESUME, onResume);
       this.game.events.off(Phaser.Core.Events.BLUR, cancel);
-      this.game.events.off(Phaser.Core.Events.HIDDEN, cancel);
+      this.game.events.off(Phaser.Core.Events.HIDDEN, onHidden);
+      this.game.events.off(Phaser.Core.Events.VISIBLE, onVisible);
+      this.events.off(RETRY_EVENT, onRetry);
       this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
     });
 
@@ -165,6 +216,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.paused = true;
+    // 일시정지 동안은 플레이 시간이 흐르지 않는다. 지금까지의 시간을 저장한다
+    this.clock.block('paused');
+    this.session.checkpoint();
     this.dragController.cancel();
     // 게임이 낸 연출 소리도 같이 멈춘다 ([계속]에서 이어진다). 일시정지 중에는 새 소리가 시작되지 않는다 (재생 루프가 멈춘다).
     // 일시정지 버튼을 누른 소리 같은 다른 소리는 건드리지 않는다
@@ -173,15 +227,17 @@ export class GameScene extends Phaser.Scene {
     this.scene.pause();
   }
 
-  /** core `place`를 부르고, 성공하면 이벤트 재생을 시작한다 */
+  /**
+   * 배치를 시도한다 (RunSession: 시계·간격 판정 → core `place` → 로그·저장). 수락되면 이벤트 재생을 시작한다.
+   * 저장은 수락된 순간 끝난 판단이고 연출을 기다리지 않는다. 거부되면 조각은 트레이로 돌아간다
+   */
   private drop(action: PlaceAction): boolean {
-    const result = place(this.state, action);
-    if (!result.ok) {
+    const outcome = this.session.tryPlace(action);
+    if (!outcome.ok) {
       this.sfx.play('return');
       return false;
     }
-    this.placements.push(action);
-    void this.play(result.events, result.state, action);
+    void this.play(outcome.result.events, outcome.result.state, action);
     return true;
   }
 
@@ -218,8 +274,8 @@ export class GameScene extends Phaser.Scene {
         console.error('view ≠ board', {
           seed: this.seed,
           placement: action,
-          placementCount: this.placements.length,
-          placements: this.placements,
+          placementCount: this.session.placements.length,
+          placements: this.session.placements,
           diff,
         });
       }
@@ -250,7 +306,8 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'score':
         this.hud.setScore(this.hud.shownScore + event.delta);
-        this.hud.setBest(recordBest(this.game.registry, this.hud.shownScore));
+        // ?fill= 판은 최고 점수에 반영하지 않는다 (화면 표시값 포함)
+        if (this.replayable) this.hud.setBest(recordBest(this.game.registry, this.hud.shownScore));
         break;
       case 'combo':
         this.hud.setCombo(event.combo);

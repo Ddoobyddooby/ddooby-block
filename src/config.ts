@@ -296,4 +296,16 @@ export const SOUND = {
   minGapMs: 60,
 } as const;
 
-export const SAVE = { key: 'ddooby-block-save', runKey: 'ddooby-block-run' } as const;
+/**
+ * 저장 (PLAN 6.2). 키는 block 전용이다 (ddooby-pang 키를 읽지 않는다).
+ * maxRunPlacements: 저장하는 배치 로그 길이 한도. 넘으면 parseRun이 null이고, 플레이 중 닿으면 그 판은 계속하되 저장을 멈춘다.
+ * maxRunJsonChars: run JSON 문자열 길이 한도. JSON.parse 전에 거른다 (배치 하나 약 40~60자 × 한도 + snapshot).
+ * bootTimeoutMs: 저장소 읽기가 이만큼 늦으면 기다리지 않고 메뉴로 간다.
+ */
+export const SAVE = {
+  key: 'ddooby-block-save',
+  runKey: 'ddooby-block-run',
+  maxRunPlacements: 20000,
+  maxRunJsonChars: 2_000_000,
+  bootTimeoutMs: 3000,
+} as const;

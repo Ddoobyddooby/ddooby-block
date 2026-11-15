@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { nextBest, readBest, recordBest, type BestStore } from '../../src/scenes/bestScore';
+import {
+  nextBest,
+  readBest,
+  recordBest,
+  writeBest,
+  type BestStore,
+} from '../../src/scenes/bestScore';
 
 function fakeStore(initial?: unknown): BestStore {
   const map = new Map<string, unknown>();
@@ -30,5 +36,15 @@ describe('readBest / recordBest', () => {
     expect(recordBest(store, 80)).toBe(120);
     expect(readBest(store)).toBe(120);
     expect(recordBest(store, 121)).toBe(121);
+  });
+});
+
+describe('writeBest (저장소에서 읽은 값을 채움)', () => {
+  it('더 크면 올리고, 작거나 같으면 그대로', () => {
+    const store = fakeStore();
+    writeBest(store, 500);
+    expect(readBest(store)).toBe(500);
+    writeBest(store, 100);
+    expect(readBest(store)).toBe(500);
   });
 });

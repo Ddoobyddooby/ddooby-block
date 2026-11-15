@@ -23,7 +23,7 @@ function piece(id: string): PieceDef {
 }
 
 function setup(options: { dropOk?: boolean; previewOk?: boolean } = {}) {
-  const lock = { playing: false, paused: false, over: false };
+  const lock = { playing: false, paused: false, over: false, cooling: false };
   const tray: (PieceDef | null)[] = [piece('dot'), piece('o2'), null];
   const calls: string[] = [];
   const lifts: { index: number; topLeft: Point }[] = [];

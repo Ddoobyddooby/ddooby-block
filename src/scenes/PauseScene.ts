@@ -9,7 +9,8 @@ import { addMuteButton } from '../view/ui/MuteButton';
 import { drawPanel } from '../view/ui/Panel';
 import { Sfx } from '../view/Sfx';
 import { readMuted, setMuted } from './muteSetting';
-import { pauseButtons, type PauseButton } from './pauseRules';
+import { getPersistence } from './persistenceRegistry';
+import { pauseButtons, RETRY_EVENT, type PauseButton } from './pauseRules';
 import { cssColor } from './text';
 
 const LABELS: Record<PauseButton, string> = {
@@ -54,7 +55,7 @@ export class PauseScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const sfx = new Sfx(this);
-    // 음소거 버튼: 판 오른쪽 위. 설정은 앱이 켜져 있는 동안만 기억한다 (muteSetting.ts)
+    // 음소거 버튼: 판 오른쪽 위. 설정은 저장소에도 쓴다 (muteSetting.ts)
     addMuteButton(
       this,
       cx + pause.panelW / 2 - pause.muteInset,
@@ -63,7 +64,9 @@ export class PauseScene extends Phaser.Scene {
       readMuted(this.registry),
       (muted) => {
         // 저장값과 실제 출력(사운드 매니저)을 같이 바꾼다. 음소거를 켤 때는 소리가 없고, 끌 때만 확인음이 난다
-        setMuted(this.registry, this.sound, muted);
+        setMuted(this.registry, this.sound, muted, (value) => {
+          void getPersistence(this.registry)?.setMuted(value);
+        });
         if (!muted) sfx.play('button');
       },
     );
@@ -108,6 +111,8 @@ export class PauseScene extends Phaser.Scene {
         this.scene.stop();
         break;
       case 'retry':
+        // 저장된 run을 지우게 알린다 (?fill= 판은 지우지 않는다. 판단은 Game 씬이 한다)
+        this.scene.get('Game').events.emit(RETRY_EVENT);
         // 멈춘 Game을 끝내고 처음부터 다시. seed는 GameScene이 정한다 (?seed=N이면 같은 seed, 아니면 새로)
         this.scene.stop('Game');
         this.scene.start('Game');

@@ -11,3 +11,6 @@ export function canPause({ over, paused }: { over: boolean; paused: boolean }): 
 export function pauseButtons(): PauseButton[] {
   return ['resume', 'retry', 'menu'];
 }
+
+/** [다시 하기]를 누르면 PauseScene이 Game 씬에 보내는 이벤트. 그 판의 저장된 run을 지운다 */
+export const RETRY_EVENT = 'retry';

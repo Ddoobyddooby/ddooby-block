@@ -64,4 +64,16 @@ describe('applyMuted / setMuted (사운드 매니저 mute와 동기화)', () => 
     expect(readMuted(store)).toBe(false);
     expect(output.mute).toBe(false);
   });
+
+  it('setMuted: persist가 있으면 바뀐 값으로 한 번 부른다 (영구 저장 요청)', () => {
+    const store = fakeStore();
+    const output = { mute: false };
+    const saved: boolean[] = [];
+    setMuted(store, output, true, (muted) => saved.push(muted));
+    setMuted(store, output, false, (muted) => saved.push(muted));
+    expect(saved).toEqual([true, false]);
+    // persist 없이도 그대로 동작한다 (기존 호출부)
+    setMuted(store, output, true);
+    expect(output.mute).toBe(true);
+  });
 });
