@@ -103,13 +103,20 @@ export class BoardView {
     });
   }
 
-  /** `clear` 이벤트: `cells` 순서대로 `ANIM.clearPerCell` 간격으로 지운다 */
-  async playClear(event: ClearEvent): Promise<void> {
+  /**
+   * `clear` 이벤트: `cells` 순서대로 `ANIM.clearPerCell` 간격으로 지운다.
+   * onCell은 칸마다 한 번, 지우기 시작 전에 불린다 (파티클용. order번째 칸은 order × clearPerCell 뒤에 사라진다)
+   */
+  async playClear(
+    event: ClearEvent,
+    onCell?: (cell: { pos: Pos; color: number; order: number }) => void,
+  ): Promise<void> {
     const scale = this.cellScale() * VIEW.clearToScale;
     const jobs = event.cells.map((pos, order) => {
       const index = this.indexOf(pos);
       const block = this.blocks[index];
       if (!block) return Promise.resolve();
+      onCell?.({ pos, color: block.color, order });
       // 보드에서는 바로 뺀다. 그림만 순서대로 사라진다
       this.blocks[index] = null;
       this.fading.add(block);

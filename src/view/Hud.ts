@@ -1,5 +1,5 @@
 // HUD: 점수·최고 점수·콤보·일시정지 버튼 (PLAN 6.1). 화면 구역의 hud 영역 안에 그린다.
-// 숫자만 보여 준다. 큰 연출(팝업·파티클)은 W2-04.
+// 숫자만 보여 준다. 큰 연출(팝업·파티클)은 view/fx/FxDirector가 한다.
 
 import Phaser from 'phaser';
 import { VIEW } from '../config';
@@ -36,7 +36,14 @@ export class Hud {
     this.scoreText = text(hud.scoreSize, colors.text, true);
     this.bestText = text(hud.bestSize, colors.textDim, false);
     this.comboText = text(hud.comboSize, colors.combo, true);
-    this.pauseButton = addRoundButton(scene, 0, 0, hud.buttonRadius, drawPauseIcon, onPause);
+    this.pauseButton = addRoundButton(
+      scene,
+      0,
+      0,
+      hud.buttonRadius,
+      drawPauseIcon,
+      onPause,
+    ).container;
     this.setScore(initial.score);
     this.setBest(initial.best);
     this.setCombo(initial.combo);

@@ -1,9 +1,10 @@
 // 공통 버튼: 둥근 사각형 + 글자. 누르면 말랑하게 눌렸다가 돌아온 뒤 onPress.
-// 같은 화면의 버튼끼리 PressLock을 나눠 쓰면 하나만 눌린다. ddooby-pang의 Button에서 복사해 맞췄다 (소리는 W2-04).
+// 같은 화면의 버튼끼리 PressLock을 나눠 쓰면 하나만 눌린다. ddooby-pang의 Button에서 복사해 맞췄다 (누를 때 버튼 소리가 난다).
 
 import Phaser from 'phaser';
 import { VIEW } from '../../config';
 import { cssColor } from '../../scenes/text';
+import { Sfx } from '../Sfx';
 
 export interface ButtonSpec {
   label: string;
@@ -46,9 +47,11 @@ export function addButton(
     .setSize(w, h)
     .setInteractive({ useHandCursor: true });
 
+  const sfx = new Sfx(scene);
   button.on('pointerup', () => {
     if (lock.pressed) return;
     lock.pressed = true;
+    sfx.play('button');
     scene.tweens.add({
       targets: button,
       scale: VIEW.button.pressScale,

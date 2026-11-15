@@ -1,11 +1,18 @@
 // 동그란 아이콘 버튼: 원 + 테두리 + 아이콘(Graphics). 누르면 말랑하게 눌렸다 돌아온 뒤 onPress.
-// 눌리는 중에는 다시 받지 않는다. ddooby-pang의 RoundButton에서 복사해 맞췄다 (소리는 W2-04).
+// 눌리는 중에는 다시 받지 않는다. ddooby-pang의 RoundButton에서 복사해 맞췄다 (누를 때 버튼 소리가 난다).
 
 import Phaser from 'phaser';
 import { VIEW } from '../../config';
+import { Sfx } from '../Sfx';
 
 /** 원 안에 아이콘을 그린다 (원점 = 버튼 가운데) */
 export type DrawIcon = (g: Phaser.GameObjects.Graphics, color: number) => void;
+
+export interface RoundButton {
+  readonly container: Phaser.GameObjects.Container;
+  /** 아이콘만 다시 그린다 (음소거 켬/끔 표시 등) */
+  redraw(icon: DrawIcon): void;
+}
 
 export function addRoundButton(
   scene: Phaser.Scene,
@@ -14,22 +21,26 @@ export function addRoundButton(
   radius: number,
   icon: DrawIcon,
   onPress: () => void,
-): Phaser.GameObjects.Container {
+): RoundButton {
   const { colors } = VIEW;
-  const g = scene.add
-    .graphics()
-    .fillStyle(colors.uiFill, 1)
-    .fillCircle(0, 0, radius)
-    .lineStyle(4, colors.uiEdge, 1)
-    .strokeCircle(0, 0, radius);
-  icon(g, colors.text);
-
+  const g = scene.add.graphics();
+  const draw = (drawIcon: DrawIcon): void => {
+    g.clear()
+      .fillStyle(colors.uiFill, 1)
+      .fillCircle(0, 0, radius)
+      .lineStyle(4, colors.uiEdge, 1)
+      .strokeCircle(0, 0, radius);
+    drawIcon(g, colors.text);
+  };
+  draw(icon);
   const container = scene.add
     .container(x, y, [g])
     .setSize(radius * 2, radius * 2)
     .setInteractive({ useHandCursor: true });
+  const sfx = new Sfx(scene);
   container.on('pointerup', () => {
     if (scene.tweens.isTweening(container)) return;
+    sfx.play('button');
     scene.tweens.add({
       targets: container,
       scale: VIEW.button.pressScale,
@@ -38,7 +49,7 @@ export function addRoundButton(
       onComplete: onPress,
     });
   });
-  return container;
+  return { container, redraw: draw };
 }
 
 /** ❚❚ 두 막대 */

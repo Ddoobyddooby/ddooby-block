@@ -2,7 +2,7 @@
 // 모양: 모서리가 둥근 단색 칸에 위쪽 밝은 띠와 아래쪽 어두운 띠.
 
 import type Phaser from 'phaser';
-import { VIEW } from '../config';
+import { FX, VIEW } from '../config';
 
 /** 텍스처 키 */
 export const TEXTURE = {
@@ -11,6 +11,8 @@ export const TEXTURE = {
   ghost: 'cell-ghost',
   /** 흰색 칸. 채워질 줄 표시에 쓴다 */
   lineHighlight: 'cell-line',
+  /** 흰 동그라미. 줄 제거 파티클이 칸 색으로 tint해서 쓴다 */
+  spark: 'fx-spark',
 } as const;
 
 /** 색 그룹(0~6)의 블록 텍스처 키 */
@@ -32,7 +34,7 @@ export function mixColor(color: number, target: number, amount: number): number 
   return (channel(16) << 16) | (channel(8) << 8) | channel(0);
 }
 
-/** 블록·빈 칸·고스트·줄 하이라이트 텍스처를 만든다. 이미 있으면 건너뛴다 (씬을 다시 시작해도 한 번만) */
+/** 블록·빈 칸·고스트·줄 하이라이트·파티클 텍스처를 만든다. 이미 있으면 건너뛴다 (씬을 다시 시작해도 한 번만) */
 export function createBlockTextures(scene: Phaser.Scene): void {
   const { textureSize: size, gap, radius, band, light, dark, ghostStroke } = VIEW.block;
   const inset = size * gap;
@@ -40,11 +42,15 @@ export function createBlockTextures(scene: Phaser.Scene): void {
   const r = size * radius;
   const bandH = size * band;
 
-  const draw = (key: string, paint: (g: Phaser.GameObjects.Graphics) => void): void => {
+  const draw = (
+    key: string,
+    paint: (g: Phaser.GameObjects.Graphics) => void,
+    side: number = size,
+  ): void => {
     if (scene.textures.exists(key)) return;
     const g = scene.make.graphics({ x: 0, y: 0 }, false);
     paint(g);
-    g.generateTexture(key, size, size);
+    g.generateTexture(key, side, side);
     g.destroy();
   };
 
@@ -83,4 +89,14 @@ export function createBlockTextures(scene: Phaser.Scene): void {
     g.fillStyle(0xffffff, 1);
     g.fillRect(0, 0, size, size);
   });
+
+  const spark = FX.particles.texture;
+  draw(
+    TEXTURE.spark,
+    (g) => {
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(spark / 2, spark / 2, spark / 2);
+    },
+    spark,
+  );
 }

@@ -2,7 +2,7 @@
 // 트레이에서는 Container를 VIEW.trayScale로 줄이고, 드래그 중에는 1로 키운다.
 
 import type Phaser from 'phaser';
-import { ANIM, VIEW } from '../config';
+import { ANIM, FX, VIEW } from '../config';
 import { getPiece } from '../core/pieces';
 import type { PieceDef, PieceId } from '../core/types';
 import { blockTextureKey } from './blockTexture';
@@ -13,6 +13,8 @@ import { stopTweensOf, tweenAsync } from './tween';
 interface Slot {
   readonly piece: PieceDef;
   readonly container: Phaser.GameObjects.Container;
+  /** 보드 어디에도 놓을 수 없어 흐리게 그리는 중. 집을 수는 있다 */
+  dimmed: boolean;
 }
 
 export class TrayView {
@@ -53,6 +55,23 @@ export class TrayView {
     });
   }
 
+  /**
+   * 놓을 수 없는 조각을 흐리게 한다 (슬롯마다 true = 흐림, `ANIM.trayDim`). 판정은 호출한 쪽이 한다 (view/fx/trayDim.ts).
+   * 기다리지 않는다. 흐림 상태는 슬롯에 남아서 화면 크기가 바뀌어도 유지된다.
+   */
+  setDimmed(flags: readonly boolean[]): void {
+    this.slots.forEach((slot, index) => {
+      if (!slot) return;
+      const dimmed = flags[index] === true;
+      slot.dimmed = dimmed;
+      void tweenAsync(this.scene, {
+        targets: slot.container,
+        alpha: dimmed ? FX.dimAlpha : 1,
+        duration: ANIM.trayDim,
+      });
+    });
+  }
+
   /** 그 슬롯에 그려진 조각. 없으면 null */
   pieceAt(index: number): PieceDef | null {
     return this.slots[index]?.piece ?? null;
@@ -62,7 +81,7 @@ export class TrayView {
   lift(index: number, topLeft: Point): void {
     const slot = this.slots[index];
     if (!slot) return;
-    stopTweensOf(this.scene, slot.container);
+    this.halt(slot);
     slot.container.setDepth(VIEW.depth.drag).setScale(1).setPosition(topLeft.x, topLeft.y);
   }
 
@@ -72,7 +91,7 @@ export class TrayView {
     if (!slot) return;
     const { container, piece } = slot;
     const home = trayPieceRect(this.screen, index, piece);
-    stopTweensOf(this.scene, container);
+    this.halt(slot);
     void tweenAsync(this.scene, {
       targets: container,
       x: home.x,
@@ -110,9 +129,15 @@ export class TrayView {
         )
         .setScale(scale),
     );
-    const slot: Slot = { piece, container: this.scene.add.container(0, 0, images) };
+    const slot: Slot = { piece, container: this.scene.add.container(0, 0, images), dimmed: false };
     this.placeHome(index, slot);
     return slot;
+  }
+
+  /** 슬롯의 트윈을 멈춘다. 흐림 전환이 도중에 끊겨도 투명도는 목표 값으로 맞춘다 */
+  private halt(slot: Slot): void {
+    stopTweensOf(this.scene, slot.container);
+    slot.container.setAlpha(slot.dimmed ? FX.dimAlpha : 1);
   }
 
   private placeHome(index: number, slot: Slot): void {
@@ -121,7 +146,7 @@ export class TrayView {
     slot.container
       .setDepth(VIEW.depth.tray)
       .setScale(VIEW.trayScale)
-      .setAlpha(1)
+      .setAlpha(slot.dimmed ? FX.dimAlpha : 1)
       .setPosition(home.x, home.y);
   }
 

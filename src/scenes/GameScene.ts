@@ -8,10 +8,14 @@ import { createBlockTextures } from '../view/blockTexture';
 import { diffBoard } from '../view/boardCheck';
 import { BoardView } from '../view/BoardView';
 import { DragController, type PointerLike } from '../view/DragController';
+import { FxDirector } from '../view/fx/FxDirector';
+import { unplaceableSlots } from '../view/fx/trayDim';
 import { Hud } from '../view/Hud';
 import { boardLayout, screenLayout, type Layout, type ScreenLayout } from '../view/layout';
+import { Sfx } from '../view/Sfx';
 import { TrayView } from '../view/TrayView';
 import { readBest, recordBest } from './bestScore';
+import { fillState, parseFillParam } from './devFill';
 import { canPause } from './pauseRules';
 import { playEvents } from './playback';
 import { parseSeedParam, randomSeed } from './seed';
@@ -30,6 +34,13 @@ export class GameScene extends Phaser.Scene {
   private trayView!: TrayView;
   private dragController!: DragController;
   private hud!: Hud;
+  private fx!: FxDirector;
+  private sfx!: Sfx;
+  /**
+   * (seed, 배치 로그)만으로 리플레이할 수 있는 판인가. DEV `?fill=`로 시작한 판은 빈 보드에서 시작하지 않아 false다.
+   * W2-05(저장·이어하기)와 W3(점수 제출)은 false인 판을 저장·제출하지 않아야 한다 (devFill.ts 설명).
+   */
+  private replayable = true;
   /** 일시정지 중 (PauseScene이 떠 있는 동안) */
   private paused = false;
   /** 씬이 끝남(SHUTDOWN). 일시정지(PAUSED)와 다르다 */
@@ -44,7 +55,9 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.seed = parseSeedParam(window.location.search) ?? randomSeed();
-    this.state = createGame(this.seed);
+    const fill = parseFillParam(window.location.search, import.meta.env.DEV);
+    this.state = fill === null ? createGame(this.seed) : fillState(fill, this.seed);
+    this.replayable = fill === null;
     this.placements = [];
     this.playing = false;
     this.paused = false;
@@ -65,6 +78,9 @@ export class GameScene extends Phaser.Scene {
     this.boardView.render(this.state.board);
     this.trayView = new TrayView(this, this.screen);
     this.trayView.render(this.state.tray);
+    this.sfx = new Sfx(this);
+    this.fx = new FxDirector(this, this.sfx, this.layout);
+    this.refreshTrayDim();
 
     const { boardView, trayView } = this;
     this.dragController = new DragController({
@@ -94,20 +110,31 @@ export class GameScene extends Phaser.Scene {
     this.game.events.on(Phaser.Core.Events.BLUR, cancel);
     this.game.events.on(Phaser.Core.Events.HIDDEN, cancel);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this);
-    // [계속]으로 돌아오면 입력 잠금을 푼다
+    // [계속]으로 돌아오면 입력 잠금을 풀고 멈췄던 소리를 이어서 낸다
     const onResume = (): void => {
       this.paused = false;
+      this.sound.resumeAll();
     };
     this.events.on(Phaser.Scenes.Events.RESUME, onResume);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.ended = true;
+      // 일시정지 중에 멈춘 소리가 멈춘 채 남지 않게 풀어 준다 (짧아서 바로 끝난다)
+      this.sound.resumeAll();
       this.events.off(Phaser.Scenes.Events.RESUME, onResume);
       this.game.events.off(Phaser.Core.Events.BLUR, cancel);
       this.game.events.off(Phaser.Core.Events.HIDDEN, cancel);
       this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
     });
 
-    if (import.meta.env.DEV) console.info('seed', this.seed);
+    if (import.meta.env.DEV) {
+      console.info('seed', this.seed);
+      if (fill !== null) console.info('fill', fill, '(이 판은 리플레이 불가)');
+    }
+  }
+
+  /** `?fill=`이 아닌 판만 true. 저장·제출 쪽(W2-05·W3)이 읽는다 */
+  get isReplayable(): boolean {
+    return this.replayable;
   }
 
   override update(): void {
@@ -122,6 +149,7 @@ export class GameScene extends Phaser.Scene {
     this.boardView.setLayout(this.layout);
     this.trayView.setLayout(this.screen);
     this.hud.setLayout(this.screen);
+    this.fx.setLayout(this.layout);
     if (this.gameOverUi.length > 0) this.showGameOver();
   }
 
@@ -135,6 +163,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.paused = true;
     this.dragController.cancel();
+    // 연출 소리도 같이 멈춘다 ([계속]에서 이어진다). 일시정지 중에는 새 소리가 시작되지 않는다 (재생 루프가 멈춘다)
+    this.sound.pauseAll();
     this.scene.launch('Pause');
     this.scene.pause();
   }
@@ -142,7 +172,10 @@ export class GameScene extends Phaser.Scene {
   /** core `place`를 부르고, 성공하면 이벤트 재생을 시작한다 */
   private drop(action: PlaceAction): boolean {
     const result = place(this.state, action);
-    if (!result.ok) return false;
+    if (!result.ok) {
+      this.sfx.play('return');
+      return false;
+    }
     this.placements.push(action);
     void this.play(result.events, result.state, action);
     return true;
@@ -152,7 +185,10 @@ export class GameScene extends Phaser.Scene {
   private async play(events: GameEvent[], next: GameState, action: PlaceAction): Promise<void> {
     const { run } = this;
     this.playing = true;
-    const completed = await playEvents(events, (event) => this.playEvent(event), {
+    // 줄 제거 연출은 이 배치의 콤보를 알아야 한다 (clear 이벤트에는 없고 score 이벤트에 있다)
+    const scored = events.find((event) => event.type === 'score');
+    const combo = scored?.type === 'score' ? scored.combo : 0;
+    const completed = await playEvents(events, (event) => this.playEvent(event, combo), {
       // 판이 바뀌었거나 씬이 끝났으면 버린다. 일시정지는 버리지 않고 [계속]까지 기다린다
       isCurrent: () => run === this.run && !this.ended,
       isPaused: () => this.paused,
@@ -160,6 +196,7 @@ export class GameScene extends Phaser.Scene {
     });
     if (!completed) return;
     this.state = next;
+    this.refreshTrayDim();
     this.playing = false;
 
     if (import.meta.env.DEV) {
@@ -186,19 +223,25 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** 이벤트 하나의 연출. 연출이 끝나면 풀린다 */
-  private async playEvent(event: GameEvent): Promise<void> {
+  private async playEvent(event: GameEvent, combo: number): Promise<void> {
     switch (event.type) {
       case 'place':
+        this.sfx.play('place');
         this.trayView.remove(event.trayIndex);
         await this.boardView.playPlace(event);
         break;
       case 'clear':
-        await this.boardView.playClear(event);
+        // 팝업·흔들림·소리는 기다리지 않고 시작하고, 칸이 터지는 연출만 기다린다
+        this.fx.clearStart({ lines: event.rows.length + event.cols.length, combo });
+        await this.boardView.playClear(event, ({ pos, color, order }) =>
+          this.fx.burstCell(pos, color, order),
+        );
         break;
       case 'tray':
         await this.trayView.playTrayIn(event.tray);
         break;
       case 'gameOver':
+        this.sfx.play('gameOver');
         this.showGameOver();
         break;
       case 'score':
@@ -208,10 +251,15 @@ export class GameScene extends Phaser.Scene {
       case 'combo':
         this.hud.setCombo(event.combo);
         break;
-      default:
-        // boardClear 연출은 W2-04
+      case 'boardClear':
+        await this.fx.playBoardClear();
         break;
     }
+  }
+
+  /** 놓을 수 없는 트레이 조각을 흐리게 한다. 판정은 core `canPlaceAnywhere` (view/fx/trayDim.ts) */
+  private refreshTrayDim(): void {
+    this.trayView.setDimmed(unplaceableSlots(this.state.board, this.state.tray));
   }
 
   /** [계속](RESUME)이나 씬 종료(SHUTDOWN) 중 먼저 오는 쪽에서 풀린다. 둘 다 리스너를 남기지 않는다 */

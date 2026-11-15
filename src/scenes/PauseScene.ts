@@ -5,7 +5,9 @@
 import Phaser from 'phaser';
 import { VIEW } from '../config';
 import { addButton, type PressLock } from '../view/ui/Button';
+import { addMuteButton } from '../view/ui/MuteButton';
 import { drawPanel } from '../view/ui/Panel';
+import { readMuted, writeMuted } from './muteSetting';
 import { pauseButtons, type PauseButton } from './pauseRules';
 import { cssColor } from './text';
 
@@ -49,6 +51,16 @@ export class PauseScene extends Phaser.Scene {
         color: cssColor(colors.text),
       })
       .setOrigin(0.5);
+
+    // 음소거 버튼: 판 오른쪽 위. 설정은 앱이 켜져 있는 동안만 기억한다 (muteSetting.ts)
+    addMuteButton(
+      this,
+      cx + pause.panelW / 2 - pause.muteInset,
+      titleY,
+      pause.muteRadius,
+      readMuted(this.registry),
+      (muted) => writeMuted(this.registry, muted),
+    );
 
     const firstY = top + pause.panelPad + pause.titleSize + pause.titleGap + pause.buttonH / 2;
     const lock: PressLock = { pressed: false };
