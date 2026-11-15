@@ -97,8 +97,13 @@ export const VIEW = {
     textDim: 0x9aa6c7,
     button: 0x33b1ff,
     buttonText: 0x0d1326,
-    /** 게임 오버 때 화면을 덮는 색 */
+    /** 게임 오버·일시정지 때 화면을 덮는 색 */
     overlay: 0x0a0e1c,
+    /** 콤보 글자 */
+    combo: 0xffd43b,
+    /** 둥근 버튼·팝업 판의 바탕과 테두리 */
+    uiFill: 0x2a3558,
+    uiEdge: 0x4a5a8c,
   },
   /** 블록 텍스처 (view/blockTexture.ts). 비율은 텍스처 한 변 대비 */
   block: {
@@ -147,6 +152,38 @@ export const VIEW = {
     buttonTextSize: 48,
     /** 버튼을 누르고 있을 때의 투명도 */
     buttonDownAlpha: 0.75,
+  },
+  /** HUD (view/Hud.ts). 위치는 화면 구역의 hud 안, y는 hud 위쪽 기준 (px) */
+  hud: {
+    padX: 40,
+    labelSize: 24,
+    labelY: 26,
+    scoreSize: 80,
+    scoreY: 82,
+    comboSize: 40,
+    comboY: 146,
+    bestSize: 30,
+    bestY: 146,
+    /** 일시정지 버튼 반지름과 가운데 y */
+    buttonRadius: 40,
+    buttonY: 64,
+  },
+  /** 버튼을 눌렀을 때 말랑하게 줄었다 돌아오는 정도 */
+  button: { pressScale: 0.92, pressMs: 70 },
+  /** 일시정지 창 (scenes/PauseScene.ts) */
+  pause: {
+    dimAlpha: 0.72,
+    panelW: 520,
+    panelRadius: 32,
+    panelPad: 48,
+    titleSize: 64,
+    /** 제목 아래 간격 */
+    titleGap: 56,
+    buttonW: 400,
+    buttonH: 104,
+    buttonStep: 128,
+    buttonRadius: 28,
+    buttonTextSize: 44,
   },
   gameOver: {
     overlayAlpha: 0.72,

@@ -269,4 +269,21 @@ describe('DragController: 취소', () => {
       expect(t.drag.dragging).toBe(false);
     },
   );
+  it('일시정지: 다른 손가락이 눌러도 드래그는 유지되다가, cancel(일시정지 진입)하면 조각이 트레이로 돌아간다', () => {
+    const t = setup();
+    t.drag.onDown(pointer(1, SLOT0));
+    // 다른 손가락(일시정지 버튼)의 누르기·떼기는 드래그에 영향이 없다
+    t.drag.onDown(pointer(2, SLOT1));
+    t.drag.onUp(pointer(2, SLOT1));
+    expect(t.drag.dragging).toBe(true);
+    t.lock.paused = true;
+    t.calls.length = 0;
+    t.drag.cancel();
+    expect(t.calls).toEqual(['hidePreview', 'returnHome 0']);
+    expect(t.drag.dragging).toBe(false);
+    // 멈춰 있는 동안 새로 집을 수 없고, 놓이지도 않는다
+    t.drag.onDown(pointer(3, SLOT0));
+    expect(t.drag.dragging).toBe(false);
+    expect(t.drops).toEqual([]);
+  });
 });

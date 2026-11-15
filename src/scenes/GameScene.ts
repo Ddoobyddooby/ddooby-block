@@ -8,8 +8,11 @@ import { createBlockTextures } from '../view/blockTexture';
 import { diffBoard } from '../view/boardCheck';
 import { BoardView } from '../view/BoardView';
 import { DragController, type PointerLike } from '../view/DragController';
+import { Hud } from '../view/Hud';
 import { boardLayout, screenLayout, type Layout, type ScreenLayout } from '../view/layout';
 import { TrayView } from '../view/TrayView';
+import { readBest, recordBest } from './bestScore';
+import { canPause } from './pauseRules';
 import { parseSeedParam, randomSeed } from './seed';
 import { cssColor } from './text';
 
@@ -25,6 +28,9 @@ export class GameScene extends Phaser.Scene {
   private boardView!: BoardView;
   private trayView!: TrayView;
   private dragController!: DragController;
+  private hud!: Hud;
+  /** 일시정지 중 (PauseScene이 떠 있는 동안) */
+  private paused = false;
   private gameOverUi: Phaser.GameObjects.GameObject[] = [];
   /** 판 번호. 씬 객체는 다시 쓰이므로, 끝난 판의 재생이 새 판을 건드리지 않게 구분한다 */
   private run = 0;
@@ -38,6 +44,7 @@ export class GameScene extends Phaser.Scene {
     this.state = createGame(this.seed);
     this.placements = [];
     this.playing = false;
+    this.paused = false;
     this.gameOverUi = [];
     this.run += 1;
 
@@ -45,6 +52,11 @@ export class GameScene extends Phaser.Scene {
     createBlockTextures(this);
     this.screen = screenLayout(this.scale.height, this.scale.width);
     this.layout = boardLayout(this.screen);
+    this.hud = new Hud(this, this.screen, () => this.pause(), {
+      score: this.state.score,
+      best: readBest(this.game.registry),
+      combo: this.state.combo,
+    });
     this.boardView = new BoardView(this, this.layout);
     this.boardView.render(this.state.board);
     this.trayView = new TrayView(this, this.screen);
@@ -52,7 +64,7 @@ export class GameScene extends Phaser.Scene {
 
     const { boardView, trayView } = this;
     this.dragController = new DragController({
-      lock: () => ({ playing: this.playing, paused: false, over: this.state.over }),
+      lock: () => ({ playing: this.playing, paused: this.paused, over: this.state.over }),
       screen: () => this.screen,
       layout: () => this.layout,
       pieceAt: (index) => trayView.pieceAt(index),
@@ -78,7 +90,13 @@ export class GameScene extends Phaser.Scene {
     this.game.events.on(Phaser.Core.Events.BLUR, cancel);
     this.game.events.on(Phaser.Core.Events.HIDDEN, cancel);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this);
+    // [계속]으로 돌아오면 입력 잠금을 푼다
+    const onResume = (): void => {
+      this.paused = false;
+    };
+    this.events.on(Phaser.Scenes.Events.RESUME, onResume);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.events.off(Phaser.Scenes.Events.RESUME, onResume);
       this.game.events.off(Phaser.Core.Events.BLUR, cancel);
       this.game.events.off(Phaser.Core.Events.HIDDEN, cancel);
       this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
@@ -98,7 +116,22 @@ export class GameScene extends Phaser.Scene {
     this.layout = boardLayout(this.screen);
     this.boardView.setLayout(this.layout);
     this.trayView.setLayout(this.screen);
+    this.hud.setLayout(this.screen);
     if (this.gameOverUi.length > 0) this.showGameOver();
+  }
+
+  /**
+   * 일시정지 버튼. 하던 드래그는 취소해 조각을 트레이로 돌려보내고, PauseScene을 띄운 뒤 이 씬을 멈춘다.
+   * 이벤트 재생 중에도 멈출 수 있다: 씬이 멈추면 트윈도 같이 멈췄다가 [계속] 뒤에 이어서 끝까지 재생된다.
+   */
+  private pause(): void {
+    if (!canPause({ over: this.state.over || this.gameOverUi.length > 0, paused: this.paused })) {
+      return;
+    }
+    this.paused = true;
+    this.dragController.cancel();
+    this.scene.launch('Pause');
+    this.scene.pause();
   }
 
   /** core `place`를 부르고, 성공하면 이벤트 재생을 시작한다 */
@@ -129,8 +162,15 @@ export class GameScene extends Phaser.Scene {
         case 'gameOver':
           this.showGameOver();
           break;
+        case 'score':
+          this.hud.setScore(this.hud.shownScore + event.delta);
+          this.hud.setBest(recordBest(this.game.registry, this.hud.shownScore));
+          break;
+        case 'combo':
+          this.hud.setCombo(event.combo);
+          break;
         default:
-          // score·combo·boardClear는 W2에서 그린다
+          // boardClear 연출은 W2-04
           break;
       }
       // 재생 도중에 씬이 끝났거나 새 판이 시작됐으면 그만둔다
@@ -140,6 +180,15 @@ export class GameScene extends Phaser.Scene {
     this.playing = false;
 
     if (import.meta.env.DEV) {
+      if (this.hud.shownScore !== next.score || this.hud.comboVisible !== next.combo >= 1) {
+        console.error('HUD ≠ state', {
+          seed: this.seed,
+          hudScore: this.hud.shownScore,
+          score: next.score,
+          hudCombo: this.hud.comboVisible,
+          combo: next.combo,
+        });
+      }
       const diff = diffBoard(this.boardView.filledCells(), next.board);
       if (diff.length > 0) {
         console.error('view ≠ board', {
