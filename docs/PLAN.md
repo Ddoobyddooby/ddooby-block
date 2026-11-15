@@ -283,6 +283,9 @@ export const SAVE = { key: 'ddooby-block-save', runKey: 'ddooby-block-run' };
 - 이동: 조각을 실제 칸 크기로 키워 `pointer`보다 1.5칸 위에 그린다. `dragAnchor` → `previewPlacement`가 있으면 고스트(반투명 칸)와 채워질 줄 하이라이트, 없으면 고스트를 숨긴다
 - 놓기: **마지막으로 계산한 anchor**로 `place`를 부른다. 실패하면 조각을 슬롯으로 되돌린다 (`ANIM.returnToTray`, 페널티 없음)
 - 입력 잠금: `place` 이벤트 재생 중, 일시정지, 게임 오버에는 집을 수 없다. 드래그 중에 잠기면(일시정지 등) 그 드래그는 취소하고 조각을 슬롯으로 되돌린다
+- 일시정지(`scenes/pauseRules.ts`의 `canPause`): 게임 오버거나 이미 멈췄으면 안 된다. 이벤트 재생 중에는 된다. Game 씬을 멈추고(`scene.pause`) Pause 씬을 위에 띄운다. 트윈도 같이 멈췄다가 [계속] 뒤 이어진다
+- 이벤트 재생(`scenes/playback.ts`의 `playEvents`): 연출을 기다리는 await는 일시정지 중에도 풀릴 수 있다(화면 크기 변경이 트레이 트윈을 멈춤). await 뒤에는 "판이 바뀌었거나 씬이 끝남 → 버린다 / 일시정지 중 → [계속]까지 기다린다 / 그 밖 → 다음 이벤트"로 나눈다. 일시정지를 씬 종료와 같게 보면 상태가 반영되지 않아 입력이 영영 잠긴다
+- HUD 점수는 `score` 이벤트의 `delta`로 오르고 콤보는 `combo` 이벤트로 바뀐다. DEV에서는 재생이 끝날 때 HUD와 state를 대조한다(`HUD ≠ state`)
 - 캔버스를 벗어나면(`gameout`, `pointerupoutside`, 창 blur·hidden, 화면 크기 변경, `touchcancel`) 드래그를 취소하고 조각을 슬롯으로 되돌린다. 보이지 않는 곳에서 놓이지 않게 한다
 - `DragController`는 Phaser에 직접 기대지 않고 필요한 것만 host 인터페이스로 받는다 (가짜 host로 테스트)
 

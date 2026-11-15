@@ -61,7 +61,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `?fill=<패턴>` | (개발 모드) 보드를 미리 채운 상태로 시작. 줄 제거·콤보·전체 비우기 연출 확인용 | W2-04 (예정) |
 | `?over` | (개발 모드) 게임 없이 게임 오버 화면만 띄운다 | W2-06 (예정) |
 
-개발 모드(`npm run dev`)에서는 매 배치 후 화면과 게임 상태가 같은지 검사한다 (W1-07). Console에 `view ≠ board`가 찍히면 버그이니 seed와 함께 기록해두자. seed는 게임을 시작할 때 Console에 `seed 123`처럼 찍힌다.
+개발 모드(`npm run dev`)에서는 매 배치 후 화면과 게임 상태가 같은지 검사한다 (W1-07). Console에 `view ≠ board`나 `HUD ≠ state`(W2-03)가 찍히면 버그이니 seed와 함께 기록해두자. seed는 게임을 시작할 때 Console에 `seed 123`처럼 찍힌다.
 
 ## 4. 작업별 확인 방법
 
@@ -149,6 +149,16 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 테스트가 하는 일: 무작위 봇이 seed 1~200을 게임 오버까지 두고, 그 기록을 처음부터 다시 돌려 200판 모두 같은 상태가 나오는지 본다
 - 직접 확인 (규칙이 바뀌면 알려 주는가): `src/config.ts`의 `SCORE.lines`에서 100을 200으로 바꾸고 `npx vitest run tests/core/replay.test.ts` → "고정 로그 fixture" 테스트 4개가 실패한다. 200판 비교 테스트는 그대로 통과한다(원래 플레이도 같은 규칙으로 틀리기 때문). 되돌린다
 - 직접 확인 (깨진 기록): "깨진 로그 항목" 묶음의 테스트가 `null`·숫자·문자열이 섞인 기록을 넣는다. 예외로 멈추지 않고 몇 번째가 잘못됐는지 돌려준다
+
+### W2-03 HUD + 일시정지
+
+- `npm test` → 파일 20개, 446개 통과
+- `npm run dev` → `?seed=2`로 연다. 화면 위에 점수(0), 최고 점수, 일시정지 버튼이 보인다
+- 점수·콤보: 트레이 조각 3개를 왼쪽부터 보드 맨 윗줄의 0번째, 3번째, 4번째 칸에 맞춰 놓으면 윗줄이 지워지고 점수 113, "콤보 1"이 된다. 이어서 줄을 못 지우는 배치를 3번 하면 세 번째에 콤보 표시가 사라진다
+- 일시정지: 버튼을 누르면 [계속] [다시 하기] [메뉴]가 뜬다. 뒤의 트레이를 눌러도 집히지 않는다
+- 드래그 중 일시정지: 휴대폰에서 한 손가락으로 조각을 끌면서 다른 손가락으로 일시정지 버튼을 누르면 조각이 트레이로 돌아간다
+- 최고 점수: [다시 하기]나 [메뉴] → 새 게임 뒤에도 "최고" 숫자가 남는다. 새로고침하면 0이 된다 (저장은 W2-05)
+- 연출 중 일시정지: 세 번째 조각을 놓자마자 일시정지 → 창 크기를 바꿈 → [계속]. 조각을 다시 집을 수 있고 Console에 `HUD ≠ state`가 없어야 한다
 
 ## 5. 문제 해결
 
@@ -269,3 +279,13 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **무작위 봇**: 테스트 안에서 seed로 만든 난수로 아무 데나 두는 플레이어. 사람이 만들기 힘든 기록 200개를 매번 똑같이 만들어 준다. `Math.random`을 쓰지 않아서 실패해도 다시 재현된다 → `tests/core/replay.test.ts`
 - **시간 검사는 따로**: 언제 놓았는지(`t`)는 판의 결과를 바꾸지 않는다. 그래서 상태 재현(`replay`)과 사람 같은 속도인지(`checkIntervals`)를 함수 둘로 나눴다 → `checkIntervals`
 - 참고: [구별된 유니언 (TypeScript 핸드북)](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions), [Array.isArray (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Array/isArray)
+
+### W2-03 HUD + 일시정지
+
+- **이벤트로 화면 갱신하기**: HUD는 `state.score`를 직접 읽지 않고 `score` 이벤트의 `delta`를 더한다. 줄이 지워지는 연출 다음에 점수가 오르는 순서를 지킬 수 있다. 대신 어긋날 수 있으므로 DEV에서 재생이 끝날 때 state와 대조한다 → `src/scenes/GameScene.ts`의 `playEvent`, `src/view/Hud.ts`
+- **씬을 겹쳐 띄우기**: `scene.launch('Pause')`로 위에 띄우고 `scene.pause()`로 아래 씬을 멈춘다. 멈춘 씬은 update·트윈·입력이 서고, `scene.resume`으로 그대로 이어진다. `start`는 지금 씬을 끝내고 넘어가는 것이라 다르다 → `GameScene.pause`, `src/scenes/PauseScene.ts`
+- **"멈춤"과 "끝남"은 다르다**: 둘 다 "활성 아님"이라 한 검사로 묶었다가, 멈춘 동안 풀린 await가 재생을 버려 입력이 영영 잠겼다. 상태가 셋(진행 / 멈춤 / 끝남)이면 검사도 셋으로 나눈다 → `src/scenes/playback.ts`
+- **await는 기다리던 일이 끝나서만 풀리지 않는다**: 트윈을 누가 멈춰도, 씬이 끝나도 풀린다. await 다음 줄에서는 "지금도 계속해도 되는가"를 다시 확인한다 → `playEvents`의 `settle`, `src/view/tween.ts`
+- **Phaser 없이 테스트할 수 있게 빼기**: 재생 루프가 필요로 하는 것(같은 판인가, 멈췄나, 다시 시작될 때까지 기다리기)만 인터페이스로 받는다. 테스트는 가짜 host로 일시정지·종료 순서를 마음대로 만든다 → `PlaybackHost`, `tests/scenes/playback.test.ts`
+- **나중에 바꿀 곳을 한 군데로**: 최고 점수를 읽고 쓰는 코드를 한 파일에 모았다. 지금은 메모리, W2-05에서 저장소로 바꾼다 → `src/scenes/bestScore.ts`
+- 참고: [Phaser Scene 다루기](https://docs.phaser.io/phaser/concepts/scenes), [async 함수 (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Statements/async_function)
