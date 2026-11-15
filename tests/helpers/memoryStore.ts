@@ -11,6 +11,8 @@ export class MemoryStore implements KeyValueStore {
   readonly failGet = new Set<string>();
   readonly failSet = new Set<string>();
   readonly failRemove = new Set<string>();
+  /** 다음 읽기 한 번만 실패시킬 키 (일시 실패 뒤 복구) */
+  readonly failGetOnce = new Set<string>();
   /** true면 쓰기·삭제·읽기가 `release`할 때까지 끝나지 않는다 */
   holdWrites = false;
   holdReads = false;
@@ -20,6 +22,7 @@ export class MemoryStore implements KeyValueStore {
 
   get(key: string): Promise<string | null> {
     this.started += 1;
+    if (this.failGetOnce.delete(key)) return Promise.reject(new Error(`읽기 일시 실패 ${key}`));
     if (this.failGet.has(key)) return Promise.reject(new Error(`읽기 실패 ${key}`));
     return this.gate(this.holdReads, () => this.data.get(key) ?? null);
   }

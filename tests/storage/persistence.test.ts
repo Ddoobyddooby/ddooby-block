@@ -464,3 +464,132 @@ describe('이어할 판 (resumable)', () => {
     expect(p.resumable()).toBeNull();
   });
 });
+
+describe('부팅 읽기가 늦을 때 (리뷰 지적 1)', () => {
+  /** seed 4의 3수 run이 디스크에 있고, load의 첫 읽기가 멈춰 있다 */
+  async function slowBoot() {
+    const store = new MemoryStore();
+    store.data.set(RUN, serializeRun(input(4, 3, 3000)));
+    store.holdReads = true;
+    const p = new Persistence(store);
+    const loading = p.load();
+    await flush();
+    return { store, p, loading };
+  }
+  async function release(store: MemoryStore) {
+    store.holdReads = false;
+    store.releaseNext();
+    await flush(200);
+  }
+
+  it('load 지연 중 새 판이 저장되면 디스크도 resumable도 새 판이다', async () => {
+    const { store, p, loading } = await slowBoot();
+    const saving = p.saveRun(p.beginRun(), input(5, 4));
+    await release(store);
+    await Promise.all([loading, saving]);
+    expect(parseRun(store.data.get(RUN) ?? null)?.seed).toBe(5);
+    expect(p.resumable()?.saved.seed).toBe(5);
+    expect(p.resumable()?.saved.placements).toHaveLength(4);
+  });
+
+  it('load 지연 중 run을 지우면 디스크도 resumable도 없다', async () => {
+    const { store, p, loading } = await slowBoot();
+    const discarding = p.discardRun(p.beginRun());
+    await release(store);
+    await Promise.all([loading, discarding]);
+    expect(store.data.has(RUN)).toBe(false);
+    expect(p.resumable()).toBeNull();
+  });
+
+  it('load 지연 중 판이 끝나면 디스크도 resumable도 없고 최고 점수가 저장된다', async () => {
+    const { store, p, loading } = await slowBoot();
+    const finishing = p.finishRun(p.beginRun(), input(10, 3000), 302);
+    await release(store);
+    await Promise.all([loading, finishing]);
+    expect(store.data.has(RUN)).toBe(false);
+    expect(p.resumable()).toBeNull();
+    expect(storedBest(store)).toBe(302);
+  });
+
+  it('beginRun만 했고 한 수도 안 뒀다면 기존 run이 resumable로 남는다 (디스크도 그대로)', async () => {
+    const { store, p, loading } = await slowBoot();
+    p.beginRun();
+    await release(store);
+    await loading;
+    expect(p.resumable()?.saved.seed).toBe(4);
+    expect(p.resumable()?.saved.placements).toHaveLength(3);
+    expect(parseRun(store.data.get(RUN) ?? null)?.seed).toBe(4);
+  });
+
+  it('끝난 옛 run 복구(over 분기)가 방금 저장한 새 판을 지우지 않는다', async () => {
+    const store = new MemoryStore();
+    store.data.set(RUN, serializeRun(input(10, 3000))); // 끝난 판, 302점
+    store.holdReads = true;
+    const p = new Persistence(store);
+    const loading = p.load();
+    await flush();
+    const saving = p.saveRun(p.beginRun(), input(5, 4));
+    await release(store);
+    await Promise.all([loading, saving]);
+    expect(parseRun(store.data.get(RUN) ?? null)?.seed).toBe(5);
+    expect(p.resumable()?.saved.seed).toBe(5);
+    expect(storedBest(store)).toBe(302); // 최고 점수 복구는 그대로
+  });
+});
+
+describe('첫 progress 읽기가 일시 실패했다가 복구될 때 (리뷰 지적 2)', () => {
+  const SAVED = JSON.stringify({
+    version: 1,
+    bestScore: 900,
+    settings: { muted: true, music: false },
+  });
+  async function flaky() {
+    const store = new MemoryStore();
+    store.data.set(PROGRESS, SAVED);
+    store.failGetOnce.add(PROGRESS);
+    const p = new Persistence(store);
+    const result = await p.load();
+    expect(result.readable).toBe(false);
+    return { store, p };
+  }
+
+  it('finishRun은 최고 점수만 올리고 건드리지 않은 설정(muted·music)을 보존한다', async () => {
+    const { store, p } = await flaky();
+    expect(await p.finishRun(p.beginRun(), null, 1000)).toBe(true);
+    expect(parseSave(store.data.get(PROGRESS) ?? null)).toEqual({
+      version: 1,
+      bestScore: 1000,
+      settings: { muted: true, music: false },
+    });
+  });
+
+  it('setMuted로 바꾼 값은 저장하고 나머지(최고 점수·music)는 저장값을 유지한다', async () => {
+    const { store, p } = await flaky();
+    expect(await p.setMuted(false)).toBe(true);
+    expect(parseSave(store.data.get(PROGRESS) ?? null)).toEqual({
+      version: 1,
+      bestScore: 900,
+      settings: { muted: false, music: false },
+    });
+  });
+
+  it('다른 탭이 바꾼 설정도 덮지 않고, 최고 점수는 max', async () => {
+    const { store, p } = await flaky();
+    store.data.set(PROGRESS, progressJson(2000, false)); // 다른 탭: best 2000, muted false
+    await p.finishRun(p.beginRun(), null, 1000);
+    const saved = parseSave(store.data.get(PROGRESS) ?? null);
+    expect(saved.bestScore).toBe(2000);
+    expect(saved.settings).toEqual({ muted: false, music: true });
+  });
+
+  it('읽기가 계속 실패하면 지금처럼 쓰지 않는다', async () => {
+    const store = new MemoryStore();
+    store.data.set(PROGRESS, SAVED);
+    store.failGet.add(PROGRESS);
+    const p = new Persistence(store);
+    await p.load();
+    expect(await p.finishRun(p.beginRun(), null, 1000)).toBe(false);
+    expect(await p.setMuted(false)).toBe(false);
+    expect(store.data.get(PROGRESS)).toBe(SAVED);
+  });
+});

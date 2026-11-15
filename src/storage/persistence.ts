@@ -39,6 +39,8 @@ export class Persistence {
   private runReadable = false;
   private epoch = 0;
   private resume: ResumableRun | null = null;
+  /** run을 바꾸는 요청(save·finish·discard)이 들어올 때마다 오른다. 늦은 load가 그 뒤의 `resume`을 옛 디스크 값으로 덮지 않게 한다 */
+  private runRevision = 0;
   private loading: Promise<LoadResult> | null = null;
   private warned = false;
 
@@ -52,7 +54,10 @@ export class Persistence {
 
   /** 저장소를 읽는다 (한 번만 실제로 읽고, 이후는 같은 결과). 끝난 run이 있으면 최고 점수를 되살리고 run을 지운다 */
   load(): Promise<LoadResult> {
-    this.loading ??= this.enqueue(() => this.doLoad(), this.snapshot(false));
+    if (this.loading === null) {
+      const revision = this.runRevision;
+      this.loading = this.enqueue(() => this.doLoad(revision), this.snapshot(false));
+    }
     return this.loading;
   }
 
@@ -87,6 +92,7 @@ export class Persistence {
     if (epoch !== this.epoch) return Promise.resolve(false);
     const saved = buildSavedRun(input);
     const json = JSON.stringify(saved);
+    this.runRevision += 1;
     this.resume = input.state.over ? null : { saved, state: input.state };
     return this.enqueue(() => this.putRun(json), false);
   }
@@ -100,6 +106,7 @@ export class Persistence {
     if (epoch !== this.epoch) return Promise.resolve(false);
     this.progress.bestScore = Math.max(this.progress.bestScore, score);
     const json = input === null ? null : JSON.stringify(buildSavedRun(input));
+    this.runRevision += 1;
     this.resume = null;
     return this.enqueue(async () => {
       if (json !== null) await this.putRun(json);
@@ -111,6 +118,7 @@ export class Persistence {
   /** run을 지운다 ([다시 하기], 기록이 한도를 넘음). 이전 판의 늦은 저장이 되살리지 않는다 */
   discardRun(epoch: number): Promise<boolean> {
     if (epoch !== this.epoch) return Promise.resolve(false);
+    this.runRevision += 1;
     this.resume = null;
     return this.enqueue(() => this.removeRun(), false);
   }
@@ -129,7 +137,7 @@ export class Persistence {
     return next;
   }
 
-  private async doLoad(): Promise<LoadResult> {
+  private async doLoad(revision: number): Promise<LoadResult> {
     const progressRead = await this.tryGet(this.keys.progress);
     const runRead = await this.tryGet(this.keys.run);
 
@@ -146,7 +154,8 @@ export class Persistence {
         // 게임 오버 도중 앱이 꺼진 판: 최고 점수를 되살린 뒤 지운다 (저장에 실패하면 지우지 않고 다음 부팅에 다시 시도)
         this.progress.bestScore = Math.max(this.progress.bestScore, inspected.state.score);
         if (await this.writeProgress()) await this.removeRun();
-      } else if (inspected.kind === 'resume') {
+      } else if (inspected.kind === 'resume' && this.runRevision === revision) {
+        // load를 요청한 뒤 run을 바꾼 요청이 있었다면 그쪽이 더 새롭다 (디스크는 큐 순서로 이미 맞다)
         this.resume = { saved: inspected.saved, state: inspected.state };
       }
     }
@@ -162,13 +171,27 @@ export class Persistence {
     };
   }
 
-  /** (큐 안에서) progress를 쓴다. 먼저 읽어 보고 읽을 수 없으면 쓰지 않는다. 최고 점수는 저장돼 있던 값보다 줄지 않는다 */
+  /**
+   * (큐 안에서) progress를 쓴다. 먼저 읽어 보고 읽을 수 없으면 쓰지 않는다.
+   * 쓸 값은 방금 읽은 저장값을 바탕으로 하고, 이번 실행에서 바꾼 것만 덮는다:
+   * 최고 점수는 max, `muted`는 `setMuted`를 불렀을 때만 메모리 값, `music`은 항상 저장값.
+   * (부팅 읽기가 일시 실패해 메모리가 기본값이어도, 다른 탭이 바꾼 설정도 덮지 않는다.)
+   * 읽은 저장값을 메모리에도 맞춘다 (화면·소리 출력은 바꾸지 않는다: 실행 도중 소리가 바뀌지 않게).
+   */
   private async writeProgress(): Promise<boolean> {
     const read = await this.tryGet(this.keys.progress);
     if (!read.ok) return false;
     const stored = parseSave(read.value);
-    this.progress.bestScore = Math.max(this.progress.bestScore, stored.bestScore);
-    return this.trySet(this.keys.progress, JSON.stringify(this.progress));
+    const merged: SaveData = {
+      version: 1,
+      bestScore: Math.max(this.progress.bestScore, stored.bestScore),
+      settings: {
+        muted: this.mutedTouched ? this.progress.settings.muted : stored.settings.muted,
+        music: stored.settings.music,
+      },
+    };
+    this.progress = merged;
+    return this.trySet(this.keys.progress, JSON.stringify(merged));
   }
 
   private async putRun(json: string): Promise<boolean> {
