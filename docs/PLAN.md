@@ -216,6 +216,8 @@ comboMultiplier(combo) = 1 + COMBO.step × (combo - 1)    // combo ≥ 1, step 0
 - 줄 수 = 가로 줄 수 + 세로 줄 수 (교차해도 줄은 따로 센다. 칸만 한 번 지운다)
 - 콤보: 줄을 지우면 `combo += 1`, `missStreak = 0`. 못 지우면 `missStreak += 1`, `missStreak > COMBO.graceMisses`(2)가 되면 `combo = 0`, `missStreak = 0`
   - 예: 지움(1) → 못 지움 → 못 지움 → 지움(2, ×1.5). 지움(1) → 못 지움 ×3 → 끊김 → 지움(1)
+- 이벤트: `score`는 성공한 배치마다 하나 (`delta`는 보드 비움 보너스 포함, `lines`는 0일 수 있다, `combo`는 갱신 뒤 값). `combo`는 값이 바뀔 때만 나온다. 순서는 `place → clear → score → combo → boardClear → tray → gameOver`
+- `scoring.ts`의 함수: `lineScore`, `comboMultiplier`, `nextCombo({ combo, missStreak }, cleared)`, `placementScore({ cells, lines, combo, boardCleared })`
 
 ### 4.7 이벤트
 

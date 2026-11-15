@@ -65,9 +65,10 @@
 
 ## 2주차 — 점수 + 콤보 + 연출 + 이어하기
 
-- [ ] **W2-01** 🧪 점수·콤보: `scoring.ts`, 엔진에 반영 (PLAN 4.6) ⛓ W1-05
+- [x] **W2-01** 🧪 점수·콤보: `scoring.ts`, 엔진에 반영 (PLAN 4.6) ⛓ W1-05
   - 테스트 (`tests/core/scoring.test.ts`, `engine.test.ts`): `lineScore` 0~6줄 = 0, 100, 300, 600, 1000, 1500, 2000 · 3칸 조각으로 1줄 지움(콤보 1) = 103 · 콤보 2에서 2줄 = 칸 수 + 450 · 보드 전체 비움 +3000(배율 없음) · 지움 → 못 지움 ×2 → 지움 = 콤보 2 · 지움 → 못 지움 ×3 → 콤보 0, 다음 지움은 콤보 1 (SPEC 11절 5번)
   - 완료 기준: 위 테스트 통과. 수치는 모두 `SCORE`·`COMBO`에서 읽음
+  - 확인 메모 (2026-11-15, `8df90a7`): lint·typecheck·build 통과, 테스트 396개 통과 (`scoring.test.ts` 17개, `engine.test.ts`에 9개 추가). Codex 독립 리뷰 1차 통과, 지적 없음. `score` 이벤트는 모든 성공 배치에 나오고(`lines: 0` 포함, `delta`에 보드 비움 보너스 포함) `combo` 이벤트는 값이 바뀔 때만 나온다. 콤보가 끊기면 `missStreak`도 0이 된다. W1-05의 "점수 0" 단언 9곳을 새 규칙에 맞게 고쳤다. 화면 표시는 W2-03. 규칙 봇 seed 1~20의 최종 점수 255~9497, 평균 3626.5 (구현 탭 측정)
 - [ ] **W2-02** 🧪 리플레이: `replay.ts` (PLAN 4.8) ⛓ W2-01
   - 테스트 (`tests/core/replay.test.ts`): 무작위 봇이 seed 1~200을 게임 오버까지 플레이한 로그 → `replay` 상태가 원래 상태와 `toEqual` (SPEC 11절 6번) · 로그 중간에 막힌 배치 → `{ ok: false, index }` · `checkIntervals`: 간격 199ms → false, 200ms → true, `t`가 줄어들면 false
   - 완료 기준: 위 테스트 통과

@@ -134,6 +134,14 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
   8. 주소를 `/`로 열면 메뉴가 나오고 "새 게임"으로 들어간다. 창을 가로로 넓히면 보드가 가운데에 온다
 - 실제 휴대폰: 3절 4번대로 `Network` 주소를 연다. 세로로 긴 조각(5칸 막대)을 끌 때 손가락에 가려지는지 본다 (FEEDBACK R2)
 
+### W2-01 점수·콤보
+
+- `npm test` → 파일 15개, 396개 통과. 점수만 보려면 `npx vitest run tests/core/scoring.test.ts` → 17개
+- 화면에는 아직 점수가 보이지 않는다 (표시는 W2-03). 계산은 테스트로 확인한다
+- 테스트에서 볼 숫자: 3칸 조각으로 1줄 = 103 / 콤보 2에서 2줄 = 칸 수 + 450 / 보드 전체 비움 +3000 / 지움 → 못 지움 3번 → 콤보 0
+- 직접 확인 (유예 경계): `src/core/scoring.ts`의 `nextCombo`에서 `missStreak > COMBO.graceMisses`를 `>=`로 바꾸고 `npm test` → 콤보 테스트가 실패한다. 2번까지는 봐주고 3번째에 끊기는 것이 `>`다. 되돌린다
+- 직접 확인 (수치는 config에): `src/config.ts`의 `SCORE.lines`에서 100을 200으로 바꾸고 `npm test` → 점수 테스트가 실패한다. 테스트는 기대값을 따로 적어 두었기 때문에 설정을 잘못 바꾸면 알려 준다. 되돌린다
+
 ## 5. 문제 해결
 
 | 증상 | 해결 |
@@ -233,3 +241,13 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **개발 중에만 도는 검사**: `import.meta.env.DEV`가 참일 때만 화면의 보드와 core의 보드를 대조한다. 배포용 빌드에서는 이 코드가 통째로 빠진다 → `GameScene.play`, `src/view/boardCheck.ts`
 - **`Scale.EXPAND`와 가운데 정렬**: 논리 폭 720을 기준으로 화면 비율에 따라 높이(또는 폭)가 늘어난다. 구역을 화면 크기의 함수로 계산하고, 크기가 바뀌면 다시 그린다 → `src/view/layout.ts`의 `screenLayout`, `GameScene.onResize`
 - 참고: [Phaser Input](https://docs.phaser.io/phaser/concepts/input), [Vite 환경 변수 (`import.meta.env`)](https://vite.dev/guide/env-and-mode)
+
+### W2-01 점수·콤보
+
+- **수치와 계산을 나누기**: 점수표와 배율은 `config.ts`에, 계산식은 `scoring.ts`에 둔다. 밸런스를 바꿀 때 숫자만 고치면 되고, 계산식은 테스트가 지킨다 → `src/core/scoring.ts`, `src/config.ts`의 `SCORE`·`COMBO`
+- **콤보는 두 숫자로 만든 상태 기계**: `combo`(이어진 횟수)와 `missStreak`(연속으로 못 지운 횟수). 지우면 combo + 1, 못 지우면 missStreak + 1, 2번을 넘으면 둘 다 0. "3번 연속 실패에 끊긴다"를 숫자 두 개로 표현한 것이다 → `nextCombo`
+- **부동소수점과 `Math.floor`**: `100 × 1.15`는 115가 아니라 114.99999999999999다. 컴퓨터마다 결과가 같으려면 점수를 정수로 만들어야 한다. 지금 배율(0.5 단위)에서는 문제가 안 드러나서, 테스트에서 배율을 0.15로 바꿔 확인했다 → `placementScore`, `tests/core/scoring.test.ts`
+- **경계값 `>`와 `>=`**: "유예 2회"는 2번까지 괜찮고 3번째에 끊긴다는 뜻이다. 한 글자 차이로 규칙이 바뀌므로 2번·3번을 각각 테스트한다 → `nextCombo`
+- **계산 순서도 규칙이다**: 콤보를 먼저 올리고 그 값으로 배율을 구한다. 순서를 바꾸면 첫 연속 제거에 배율이 안 붙는다 → `src/core/engine.ts`의 `place` 4단계
+- **테스트에서 설정 바꿔 끼우기**: `vi.doMock`으로 `config` 모듈을 다른 값으로 바꾼 뒤 `scoring`을 다시 불러온다. 실제 설정으로는 안 드러나는 경우를 확인할 때 쓴다 → `tests/core/scoring.test.ts`
+- 참고: [부동소수점 (MDN Number)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/Number#number_인코딩), [vi.doMock](https://vitest.dev/api/vi.html#vi-domock)
