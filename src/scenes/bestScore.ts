@@ -30,3 +30,11 @@ export function recordBest(store: BestStore, score: number): number {
   store.set(KEY, best);
   return best;
 }
+
+/**
+ * 판을 시작할 때 HUD에 보여 줄 최고 점수. 리플레이 가능한 판은 현재 점수를 반영한다 (이어한 판이 최고 점수보다 높은 점수로 시작할 수 있다).
+ * `?fill=` 판(replayable false)은 저장된 최고 점수 그대로다. 영구 저장은 하지 않는다 (게임 오버 때).
+ */
+export function startBest(store: BestStore, score: number, replayable: boolean): number {
+  return replayable ? recordBest(store, score) : readBest(store);
+}

@@ -14,7 +14,7 @@ import { Hud } from '../view/Hud';
 import { boardLayout, screenLayout, type Layout, type ScreenLayout } from '../view/layout';
 import { Sfx } from '../view/Sfx';
 import { TrayView } from '../view/TrayView';
-import { readBest, recordBest } from './bestScore';
+import { recordBest, startBest } from './bestScore';
 import { fillState, parseFillParam } from './devFill';
 import type { GameStartData } from './gameStart';
 import { canPause, RETRY_EVENT } from './pauseRules';
@@ -103,7 +103,7 @@ export class GameScene extends Phaser.Scene {
     this.layout = boardLayout(this.screen);
     this.hud = new Hud(this, this.screen, () => this.pause(), {
       score: this.state.score,
-      best: readBest(this.game.registry),
+      best: startBest(this.game.registry, this.state.score, this.replayable),
       combo: this.state.combo,
     });
     this.boardView = new BoardView(this, this.layout);

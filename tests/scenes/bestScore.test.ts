@@ -3,6 +3,7 @@ import {
   nextBest,
   readBest,
   recordBest,
+  startBest,
   writeBest,
   type BestStore,
 } from '../../src/scenes/bestScore';
@@ -46,5 +47,24 @@ describe('writeBest (저장소에서 읽은 값을 채움)', () => {
     expect(readBest(store)).toBe(500);
     writeBest(store, 100);
     expect(readBest(store)).toBe(500);
+  });
+});
+
+describe('startBest (판 시작 때 HUD 최고 점수)', () => {
+  it('이어한 점수가 저장 최고보다 높으면 그 점수 (저장 302, 점수 500 → 500)', () => {
+    const store = fakeStore(302);
+    expect(startBest(store, 500, true)).toBe(500);
+    expect(readBest(store)).toBe(500);
+  });
+  it('저장 최고가 더 높으면 그대로 (900, 500 → 900)', () => {
+    expect(startBest(fakeStore(900), 500, true)).toBe(900);
+  });
+  it('새 판(점수 0)은 저장 최고 그대로', () => {
+    expect(startBest(fakeStore(302), 0, true)).toBe(302);
+  });
+  it('fill 판은 점수가 높아도 저장 최고 그대로이고 registry도 안 바뀐다', () => {
+    const store = fakeStore(302);
+    expect(startBest(store, 3103, false)).toBe(302);
+    expect(readBest(store)).toBe(302);
   });
 });
