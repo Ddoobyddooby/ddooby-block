@@ -143,3 +143,18 @@ describe('늦게 확인된 저장 최고 점수 (부팅 읽기가 3초를 넘긴
     ).toEqual({ score: 5000, best: 900, newBest: false });
   });
 });
+
+describe('게임 오버 수락 뒤에 끝난 부팅 읽기 (storedBest 기준)', () => {
+  // 읽기가 끝나는 때가 마지막 배치 수락 뒤·화면 뜨기 전이어도 storedBest에는 이번 판 점수가 섞이지 않는다
+  const judge = (stored: number, score: number) =>
+    buildGameOverData({
+      score,
+      startBest: raiseStartBest(0, stored),
+      currentBest: Math.max(stored, score),
+      replayable: true,
+    }).newBest;
+
+  it('기존 900·최종 300 → false', () => expect(judge(900, 300)).toBe(false));
+  it('기존 100·최종 300 → true', () => expect(judge(100, 300)).toBe(true));
+  it('기존 300·최종 300 → false', () => expect(judge(300, 300)).toBe(false));
+});

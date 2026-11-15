@@ -290,16 +290,18 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * 부팅 읽기가 3초를 넘겨 이 판이 최고 점수를 모르는 채 시작했다면, 읽기가 끝났을 때 저장돼 있던 최고 점수로 비교 기준을 올린다.
-   * 이 판의 score 이벤트가 올린 registry 값은 쓰지 않고 읽기 결과(`LoadResult.bestScore`)만 쓴다. 이미 끝난 판은 건드리지 않는다
-   * (게임 오버 저장이 읽기 결과에 이번 점수를 섞었을 수 있다). `?fill=` 판은 갱신이 없으므로 상관없다.
+   * 기준은 `LoadResult.storedBest`(부팅 시점에 저장소에 확정된 값, 끝난 run 복구 포함)만 쓴다. 이번 실행의 판 점수가 섞이는
+   * `bestScore`나 score 이벤트가 올린 registry 값은 쓰지 않으므로 정상 갱신은 유지되고, 이 판이 이미 끝났어도(게임 오버 수락 뒤)
+   * 안전하게 반영된다. 한계: 게임 오버 화면이 이미 뜬 뒤에 읽기가 끝나면 화면은 고치지 않는다 (화면이 뜨기까지 연출 + 700ms,
+   * 부팅 제한 3초 뒤의 일이라 드물다). `?fill=` 판은 갱신이 없으므로 상관없다.
    */
   private watchLateBest(): void {
     const { run } = this;
     void getPersistence(this.registry)
       ?.load()
       .then((loaded) => {
-        if (run !== this.run || this.ended || this.session.state.over) return;
-        this.bestAtStart = raiseStartBest(this.bestAtStart, loaded.bestScore);
+        if (run !== this.run || this.ended) return;
+        this.bestAtStart = raiseStartBest(this.bestAtStart, loaded.storedBest);
       });
   }
 

@@ -49,6 +49,7 @@ describe('부팅 읽기 (load)', () => {
     const result = await new Persistence(store).load();
     expect(result).toEqual({
       bestScore: 0,
+      storedBest: 0,
       settings: { muted: false, music: true },
       resume: null,
       readable: true,
@@ -591,5 +592,67 @@ describe('첫 progress 읽기가 일시 실패했다가 복구될 때 (리뷰 �
     expect(await p.finishRun(p.beginRun(), null, 1000)).toBe(false);
     expect(await p.setMuted(false)).toBe(false);
     expect(store.data.get(PROGRESS)).toBe(SAVED);
+  });
+});
+
+describe('LoadResult.storedBest: 부팅 시점에 저장소에 확정돼 있던 최고 점수', () => {
+  /** 첫 읽기가 멈춘 채 load를 시작하고, 이번 실행의 판이 `score`점으로 끝난 뒤 읽기를 푼다 */
+  async function finishedDuringRead(stored: number, score: number) {
+    const store = new MemoryStore();
+    store.data.set(PROGRESS, progressJson(stored));
+    store.holdReads = true;
+    const p = new Persistence(store);
+    const loading = p.load();
+    await flush();
+    void p.finishRun(p.beginRun(), null, score); // 읽기가 끝나기 전에 게임 오버
+    store.holdReads = false;
+    store.releaseNext();
+    await flush(200);
+    return loading;
+  }
+
+  it('읽기 지연 중 300점으로 끝나도 storedBest는 저장돼 있던 900, bestScore도 900', async () => {
+    const result = await finishedDuringRead(900, 300);
+    expect(result.storedBest).toBe(900);
+    expect(result.bestScore).toBe(900);
+  });
+
+  it('읽기 지연 중 저장 100·종료 300: storedBest 100, bestScore 300 (이번 판 점수는 bestScore에만)', async () => {
+    const result = await finishedDuringRead(100, 300);
+    expect(result.storedBest).toBe(100);
+    expect(result.bestScore).toBe(300);
+  });
+
+  it('보통 부팅: 저장된 값 그대로', async () => {
+    const store = new MemoryStore();
+    store.data.set(PROGRESS, progressJson(700));
+    expect((await new Persistence(store).load()).storedBest).toBe(700);
+  });
+
+  it('저장된 것이 없으면 0', async () => {
+    expect((await new Persistence(new MemoryStore()).load()).storedBest).toBe(0);
+  });
+
+  it('progress 읽기 실패면 0 (run 복구도 없다)', async () => {
+    const store = new MemoryStore();
+    store.failGet.add(PROGRESS);
+    store.data.set(PROGRESS, progressJson(900));
+    expect((await new Persistence(store).load()).storedBest).toBe(0);
+  });
+
+  it('끝난 run 복구로 되살린 점수는 포함한다 (이 판 이전의 기록이다): 저장 100 + 끝난 run 302 → 302', async () => {
+    const store = new MemoryStore();
+    store.data.set(PROGRESS, progressJson(100));
+    store.data.set(RUN, serializeRun(input(10, 3000))); // seed 10: 302점에서 게임 오버
+    const result = await new Persistence(store).load();
+    expect(result.storedBest).toBe(302);
+    expect(result.bestScore).toBe(302);
+  });
+
+  it('끝난 run의 점수가 더 낮으면 저장된 값: 저장 900 + 끝난 run 302 → 900', async () => {
+    const store = new MemoryStore();
+    store.data.set(PROGRESS, progressJson(900));
+    store.data.set(RUN, serializeRun(input(10, 3000)));
+    expect((await new Persistence(store).load()).storedBest).toBe(900);
   });
 });

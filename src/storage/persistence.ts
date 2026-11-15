@@ -22,6 +22,12 @@ export interface ResumableRun {
 
 export interface LoadResult {
   bestScore: number;
+  /**
+   * 부팅 시점에 저장소에 확정돼 있던 최고 점수: 읽은 progress의 값과, 끝난 run 복구로 되살린 점수 중 큰 값. 읽기 실패면 0.
+   * 이번 실행의 판들(`finishRun`이 올린 값)과 메모리 값은 섞이지 않는다. 읽기가 늦게 끝난 판이 "이 판 이전의 기록"을
+   * 알아내는 데 쓴다 (`bestScore`는 이번 판 점수가 섞일 수 있다).
+   */
+  storedBest: number;
   settings: Settings;
   /** 이어할 수 있는 판. 없거나 끝난 판·깨진 판이면 null */
   resume: ResumableRun | null;
@@ -142,6 +148,7 @@ export class Persistence {
     const runRead = await this.tryGet(this.keys.run);
 
     const loaded = progressRead.ok ? parseSave(progressRead.value) : defaultSave();
+    let storedBest = loaded.bestScore;
     // 읽는 동안 바뀐 값은 읽은 값보다 우선한다
     if (this.mutedTouched) loaded.settings.muted = this.progress.settings.muted;
     loaded.bestScore = Math.max(loaded.bestScore, this.progress.bestScore);
@@ -152,6 +159,7 @@ export class Persistence {
       const inspected = inspectRun(runRead.value);
       if (inspected.kind === 'over') {
         // 게임 오버 도중 앱이 꺼진 판: 최고 점수를 되살린 뒤 지운다 (저장에 실패하면 지우지 않고 다음 부팅에 다시 시도)
+        storedBest = Math.max(storedBest, inspected.state.score);
         this.progress.bestScore = Math.max(this.progress.bestScore, inspected.state.score);
         if (await this.writeProgress()) await this.removeRun();
       } else if (inspected.kind === 'resume' && this.runRevision === revision) {
@@ -159,12 +167,13 @@ export class Persistence {
         this.resume = { saved: inspected.saved, state: inspected.state };
       }
     }
-    return this.snapshot(progressRead.ok && runRead.ok);
+    return this.snapshot(progressRead.ok && runRead.ok, storedBest);
   }
 
-  private snapshot(readable: boolean): LoadResult {
+  private snapshot(readable: boolean, storedBest = 0): LoadResult {
     return {
       bestScore: this.progress.bestScore,
+      storedBest,
       settings: { ...this.progress.settings },
       resume: this.resume,
       readable,
