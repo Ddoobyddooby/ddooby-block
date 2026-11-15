@@ -263,7 +263,7 @@ export const REPLAY = { minIntervalMs: 200 };
 export const VIEW = { dragLiftCells: 1.5, trayScale: 0.55, /* 화면 구역 */ };
 export const ANIM = { place: 90, clearPerCell: 25, clearFade: 180, trayIn: 200, returnToTray: 160 };
 export const FX = { /* 팝업 문구, 흔들림 단계 — 2주차 */ };
-export const SAVE = { key: 'ddooby-block-save', runKey: 'ddooby-block-run' };
+export const SAVE = { key: 'ddooby-block-save', runKey: 'ddooby-block-run', maxRunPlacements: 20000, maxRunJsonChars: 2_000_000, bootTimeoutMs: 3000 };
 ```
 
 ## 6. view / scenes / storage 설계
@@ -296,7 +296,7 @@ export const SAVE = { key: 'ddooby-block-save', runKey: 'ddooby-block-run' };
   ```ts
   interface SavedRun {
     version: 1; rulesVersion: number; seed: number; runId: string | null;
-    placements: Placement[]; elapsedMs: number; snapshot: GameState;
+    placements: Placement[]; elapsedMs: number; snapshot: GameState | null;   // 깨진 snapshot은 null (run은 버리지 않는다)
   }
   parseRun(json: string | null): SavedRun | null   // 깨짐·버전 다름 → null
   restoreRun(saved: SavedRun): GameState | null    // replay(seed, placements). 실패 → null
@@ -305,6 +305,16 @@ export const SAVE = { key: 'ddooby-block-save', runKey: 'ddooby-block-run' };
   - 배치에 성공할 때마다 저장한다. 앱이 백그라운드로 갈 때(`@capacitor/app` `pause`, 웹 `visibilitychange`)도 `elapsedMs`를 저장한다
   - 게임 오버가 되면 최고 점수를 갱신하고 run을 지운다
 - 저장소 선택은 pang BootScene과 같다: 앱 = `CapacitorPreferencesStorage`, 웹 = `LocalStorageAdapter`, 시작할 때 `navigator.storage.persist()`
+- `parseRun`이 `null`을 돌려주는 경우: 깨진 JSON, `version`·`rulesVersion`이 정확히 같지 않음, seed가 0~4294967295 정수가 아님, `t`가 0 이상 정수가 아님, `elapsedMs`가 마지막 `t`보다 작음, 배치 `SAVE.maxRunPlacements`개 초과, 문자열 `SAVE.maxRunJsonChars`자 초과(JSON.parse 전에 거른다)
+- `inspectRun`이 저장된 run을 셋으로 나눈다: 이어하기(`resume`), 끝난 판(`over`), 거부(`rejected`). `checkIntervals`에 실패한 run은 이어하지 않는다 (이어 붙인 로그가 서버 간격 검사에서 거부되므로). 끝난 판은 부팅 때 그 점수로 최고 점수를 되살린 뒤 지운다
+- 저장 조정자 `storage/persistence.ts`: 읽기·쓰기·삭제를 한 줄로 세워 요청한 순서대로 끝낸다. 저장할 문자열은 요청 시점에 만든다. 판마다 번호(epoch)를 주어 이전 판이 요청한 저장은 버린다. 읽기에 실패한 키에는 쓰지 않는다. progress를 쓸 때는 직전에 다시 읽어 최고 점수는 큰 값을, 설정은 이번 실행에서 바꾼 항목만 덮는다. 부팅 읽기가 늦게 끝나도 그 사이에 저장·삭제한 판을 덮지 않는다
+- 게임 오버 순서: 끝난 기록 저장 → 최고 점수 저장 → run 삭제. 최고 점수 저장에 실패하면 run을 남겨 다음 부팅이 되살린다. 최고 점수의 화면 표시는 `score` 이벤트마다 올리고 영구 저장은 게임 오버 때 한다
+- 한 판의 논리 상태 `scenes/runSession.ts`: 배치가 수락된 순간(연출을 기다리지 않고) 로그·상태·시각을 한 묶음으로 저장한다. 화면용 상태(`GameScene.state`)는 연출 뒤에 바뀐다. 한 수도 안 둔 판은 저장하지 않는다 (저장돼 있던 판을 빈 판으로 덮지 않게). [다시 하기]는 run을 지우고 [메뉴]는 남긴다
+- 플레이 시계 `scenes/playClock.ts`: `performance.now`를 주입받아 누적한다. 일시정지·화면 숨김·게임 오버 동안은 흐르지 않고 연출 중에는 흐른다. `t`는 정수 ms이고 이어한 판은 저장된 `elapsedMs`에서 시작한다. 숨겨진 동안에는 배치를 받지 않는다
+- 배치 간격: 배치가 수락된 뒤 `REPLAY.minIntervalMs` 동안은 다음 조각을 집을 수 없다. `t`를 늘려 간격을 맞추지 않는다
+- 기록이 한도를 넘으면 그 판은 계속하되 저장을 멈추고 저장돼 있던 run을 지운다. 끝나면 최고 점수만 저장한다
+- 두 탭 동시 플레이는 지원하지 않는다 (나중에 저장한 쪽이 남는다)
+- `?fill=` 판은 run 저장·삭제·최고 점수 반영을 하지 않는다. DEV `?resume`은 저장된 run으로 바로 시작한다 (W2-06 이어하기 버튼 전의 확인용)
 
 ### 6.3 씬 흐름
 

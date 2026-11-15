@@ -59,6 +59,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 |---|---|---|
 | `?seed=1001` | 항상 같은 조각 순서. 메뉴를 건너뛰고 바로 게임으로 간다. 버그를 봤으면 seed를 적어두고 이 주소로 재현. 0~4294967295의 정수만 받는다 | W1-07 |
 | `?fill=<이름>` | (개발 모드) 보드를 미리 채운 상태로 시작. 이름은 `line1`, `line2`, `line3`, `combo3`, `clear`. 맨 왼쪽 조각을 놓을 자리는 4절 W2-04 표 참고. 이 판은 저장·랭킹 대상이 아니다 | W2-04 |
+| `?resume` | (개발 모드) 저장된 판이 있으면 그 판을 이어서 시작한다. 메뉴의 이어하기 버튼(W2-06)이 생기기 전의 확인용 | W2-05 |
 | `?over` | (개발 모드) 게임 없이 게임 오버 화면만 띄운다 | W2-06 (예정) |
 
 개발 모드(`npm run dev`)에서는 매 배치 후 화면과 게임 상태가 같은지 검사한다 (W1-07). Console에 `view ≠ board`나 `HUD ≠ state`(W2-03)가 찍히면 버그이니 seed와 함께 기록해두자. seed는 게임을 시작할 때 Console에 `seed 123`처럼 찍힌다.
@@ -157,7 +158,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 점수·콤보: 트레이 조각 3개를 왼쪽부터 보드 맨 윗줄의 0번째, 3번째, 4번째 칸에 맞춰 놓으면 윗줄이 지워지고 점수 113, "콤보 1"이 된다. 이어서 줄을 못 지우는 배치를 3번 하면 세 번째에 콤보 표시가 사라진다
 - 일시정지: 버튼을 누르면 [계속] [다시 하기] [메뉴]가 뜬다. 뒤의 트레이를 눌러도 집히지 않는다
 - 드래그 중 일시정지: 휴대폰에서 한 손가락으로 조각을 끌면서 다른 손가락으로 일시정지 버튼을 누르면 조각이 트레이로 돌아간다
-- 최고 점수: [다시 하기]나 [메뉴] → 새 게임 뒤에도 "최고" 숫자가 남는다. 새로고침하면 0이 된다 (저장은 W2-05)
+- 최고 점수: [다시 하기]나 [메뉴] → 새 게임 뒤에도 "최고" 숫자가 남는다. 게임 오버가 되면 저장돼 새로고침 뒤에도 남는다 (W2-05)
 - 연출 중 일시정지: 세 번째 조각을 놓자마자 일시정지 → 창 크기를 바꿈 → [계속]. 조각을 다시 집을 수 있고 Console에 `HUD ≠ state`가 없어야 한다
 
 ### W2-04 연출·효과음
@@ -175,9 +176,20 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 
 - 흐린 조각: `?fill=line1`에서 오른쪽 3×3 조각이 처음부터 흐리다(놓을 곳이 없다). 가로 3칸, 점 조각 순으로 놓으면 게임 오버가 된다
 - 소리: 조각을 놓을 때, 줄이 지워질 때, 버튼을 누를 때 소리가 난다. 개발 모드 Console에 `[sfx] clear rate=1.1`처럼 찍힌다. **실제로 들리는지는 스피커로 직접 확인한다** (자동 확인은 재생 호출까지만 했다)
-- 음소거: 일시정지 → 오른쪽 위 스피커 버튼. 켜면 소리와 `[sfx]` 로그가 멈추고 새 판에서도 유지된다. 새로고침하면 다시 켜진다 (저장은 W2-05)
+- 음소거: 일시정지 → 오른쪽 위 스피커 버튼. 켜면 소리와 `[sfx]` 로그가 멈추고 새 판에서도 유지된다. 새로고침 뒤에도 유지된다 (W2-05)
 - 프로덕션에서는 `?fill=`이 무시된다: `npm run build && npm run preview` → `?seed=1&fill=line1`이 빈 보드로 시작
 - 직접 확인 (연출 값은 config에): `src/config.ts`의 `FX.shake.levels` 값을 크게 바꾸고 `?fill=line3`을 다시 해 본다. 되돌린다
+
+### W2-05 저장·이어하기
+
+- `npm test` → 파일 33개, 658개 통과
+- `npm run dev` → `?seed=4`로 열어 조각을 몇 개 놓는다 → 개발자도구 → Application → Local Storage → `ddooby-block-run`에 `placements`(놓은 수만큼)와 `elapsedMs`가 있다
+- 주소를 `?resume`으로 바꿔 연다 → 보드·트레이·점수가 그대로이고 이어서 놓을 수 있다. 새로 놓은 수의 `t`는 앞의 `t`보다 크다
+- 일시정지 → 음소거 → 새로고침 → 일시정지 화면의 스피커가 꺼진 모양 그대로다 (`ddooby-block-save`의 `muted: true`)
+- 게임 오버까지 간다 → `ddooby-block-run`이 사라지고 `ddooby-block-save`의 `bestScore`가 그 점수다
+- `?fill=line1`로 줄을 지워도 `bestScore`와 저장된 판은 바뀌지 않는다
+- 조각을 놓은 직후 0.2초 안에는 다음 조각이 집히지 않는다. 연달아 빠르게 놓아 보고 답답한지 본다 (손가락 체감은 아직 아무도 확인하지 않았다)
+- 직접 확인 (깨진 저장): Local Storage의 `ddooby-block-run` 값을 `{`로 바꾸고 `?resume`으로 연다 → Console에 "이어할 수 있는 판이 없음" 경고만 나오고 메뉴가 정상으로 뜬다
 
 ## 5. 문제 해결
 
@@ -187,7 +199,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `vite: command not found` 등 | `npm install`을 안 했거나 실패했다. 다시 실행 |
 | 휴대폰에서 `Network` 주소가 안 열림 | 같은 Wi-Fi인지 확인. macOS 방화벽이 Node 연결을 막고 있는지 확인 |
 | 화면이 갱신 안 됨 | 브라우저 강력 새로고침 `Cmd+Shift+R` |
-| 이어하기가 이상하다 / 처음부터 다시 보고 싶다 | 개발자도구 → Application → Local Storage에서 `ddooby-block-run`(진행 중인 판), `ddooby-block-save`(최고 점수·설정) 키를 지운다 (W2-05 이후) |
+| 이어하기가 이상하다 / 처음부터 다시 보고 싶다 | 개발자도구 → Application → Local Storage에서 `ddooby-block-run`(진행 중인 판), `ddooby-block-save`(최고 점수·설정) 키를 지운다 |
 | `git push`가 403 (`Permission ... denied`) | 등록된 토큰에 쓰기 권한이 없다. `gh auth status`에서 확인. Classic 토큰은 `repo` scope, Fine-grained 토큰은 이 저장소 + Contents: Read and write로 다시 만들고 `gh auth login` → `gh auth setup-git` |
 | `git push`가 `refusing to allow an OAuth App to create or update workflow` | `.github/workflows/` 파일을 올리려면 토큰에 `workflow` 권한이 필요하다. `gh auth refresh -h github.com -s workflow` → 다시 push |
 | 아이폰에서만 소리가 안 난다 | ① 옆면 무음 스위치를 끈다 ② 화면을 한 번 탭했는지 (첫 터치 전엔 소리가 막힘) ③ 그 소리의 `.m4a`가 `public/audio/`에 있는지 확인. iOS Safari는 `.ogg`를 못 읽을 수 있다. 없으면 `afconvert -f m4af -d aac 이름.ogg 이름.m4a` |
@@ -306,7 +318,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **"멈춤"과 "끝남"은 다르다**: 둘 다 "활성 아님"이라 한 검사로 묶었다가, 멈춘 동안 풀린 await가 재생을 버려 입력이 영영 잠겼다. 상태가 셋(진행 / 멈춤 / 끝남)이면 검사도 셋으로 나눈다 → `src/scenes/playback.ts`
 - **await는 기다리던 일이 끝나서만 풀리지 않는다**: 트윈을 누가 멈춰도, 씬이 끝나도 풀린다. await 다음 줄에서는 "지금도 계속해도 되는가"를 다시 확인한다 → `playEvents`의 `settle`, `src/view/tween.ts`
 - **Phaser 없이 테스트할 수 있게 빼기**: 재생 루프가 필요로 하는 것(같은 판인가, 멈췄나, 다시 시작될 때까지 기다리기)만 인터페이스로 받는다. 테스트는 가짜 host로 일시정지·종료 순서를 마음대로 만든다 → `PlaybackHost`, `tests/scenes/playback.test.ts`
-- **나중에 바꿀 곳을 한 군데로**: 최고 점수를 읽고 쓰는 코드를 한 파일에 모았다. 지금은 메모리, W2-05에서 저장소로 바꾼다 → `src/scenes/bestScore.ts`
+- **나중에 바꿀 곳을 한 군데로**: 최고 점수를 읽고 쓰는 코드를 한 파일에 모았다. 처음에는 메모리였고 W2-05에서 저장소에 이었다 → `src/scenes/bestScore.ts`
 - 참고: [Phaser Scene 다루기](https://docs.phaser.io/phaser/concepts/scenes), [async 함수 (MDN)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Statements/async_function)
 
 ### W2-04 연출·효과음
@@ -320,3 +332,16 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **개발 전용 코드 막기**: `import.meta.env.DEV`는 개발 서버에서만 true다. 프로덕션에서 `?fill=`이 동작하지 않게 이 값을 함수 인자로 넘겨 테스트한다 → `src/scenes/devFill.ts`의 `parseFillParam`
 - **`.ogg`와 `.m4a`를 같이 두는 이유**: iPhone Safari는 `.ogg`를 못 읽을 수 있다. 둘 다 넘기면 브라우저가 읽을 수 있는 것을 고른다 → `SOUND.formats`, `public/audio/CREDITS.md`
 - 참고: [자동 재생 정책 (MDN)](https://developer.mozilla.org/ko/docs/Web/Media/Guides/Autoplay), [Phaser Audio](https://docs.phaser.io/phaser/concepts/audio), [Vite 환경 변수](https://ko.vite.dev/guide/env-and-mode)
+
+### W2-05 저장·이어하기
+
+- **기록이 기준, 사진은 보조**: 판을 되살릴 때 저장해 둔 보드 모양(snapshot)을 믿지 않고, 놓은 순서(배치 로그)를 처음부터 다시 재생한다. 서버도 같은 방법으로 점수를 검증하므로 이어한 판도 그대로 통과한다 → `src/storage/run.ts`의 `restoreRun`
+- **바깥에서 온 데이터는 전부 의심한다**: 저장 파일은 잘리거나 손으로 고쳐질 수 있다. 버전·범위·길이를 하나씩 검사하고, 이상하면 예외 대신 `null`을 돌려 "저장된 판 없음"으로 처리한다 → `parseRun`
+- **한 줄 세우기 (직렬 큐)**: 저장은 시간이 걸리는 비동기 작업이라, 먼저 시작한 느린 쓰기가 나중에 끝나면 새 값을 덮는다. Promise를 꼬리에 이어 붙여 요청한 순서대로만 끝나게 한다 → `src/storage/persistence.ts`의 `enqueue`
+- **요청한 순간의 값을 잡아 둔다**: 저장할 문자열을 큐에 넣을 때 바로 만든다. 나중에 만들면 그 사이 배열이 늘어나 다른 내용이 저장된다 → `saveRun`
+- **읽지 못했으면 쓰지 않는다**: 읽기에 실패했는데 기본값을 저장하면 멀쩡한 기록이 0으로 덮인다. 쓰기 직전에 다시 읽고, 내가 바꾼 항목만 덮는다 → `writeProgress`
+- **여러 단계를 한 번에 끝낼 수 없을 때**: 최고 점수 저장과 판 삭제 사이에 앱이 꺼질 수 있다. 순서를 "잃어도 되살릴 수 있는 쪽"으로 정하고, 다음에 켤 때 마무리한다 → `finishRun`, `doLoad`
+- **시간도 주입한다**: 시계가 `performance.now`를 직접 부르지 않고 함수로 받는다. 테스트는 가짜 시간을 넣어 199ms와 200ms의 차이를 정확히 본다. 벽시계(`Date.now`)는 사용자가 바꿀 수 있어 쓰지 않는다 → `src/scenes/playClock.ts`
+- **화면용 상태와 저장용 상태**: 화면은 연출이 끝나야 바뀌지만 저장은 놓은 순간 해야 한다. 둘을 한 변수로 쓰면 연출 중 앱이 꺼질 때 마지막 수를 잃는다 → `src/scenes/runSession.ts` ↔ `GameScene.state`
+- **웹과 앱의 저장소를 같은 모양으로**: `get/set/remove` 세 함수만 있는 인터페이스를 두고, 웹은 localStorage, 앱은 Capacitor Preferences로 구현한다. 나머지 코드는 어느 쪽인지 모른다 → `src/storage/adapters.ts`
+- 참고: [Web Storage API (MDN)](https://developer.mozilla.org/ko/docs/Web/API/Web_Storage_API), [Page Visibility API (MDN)](https://developer.mozilla.org/ko/docs/Web/API/Page_Visibility_API), [performance.now (MDN)](https://developer.mozilla.org/ko/docs/Web/API/Performance/now), [Capacitor Preferences](https://capacitorjs.com/docs/apis/preferences)
