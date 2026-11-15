@@ -314,7 +314,7 @@ export const SAVE = { key: 'ddooby-block-save', runKey: 'ddooby-block-run', maxR
 - 배치 간격: 배치가 수락된 뒤 `REPLAY.minIntervalMs` 동안은 다음 조각을 집을 수 없다. `t`를 늘려 간격을 맞추지 않는다
 - 기록이 한도를 넘으면 그 판은 계속하되 저장을 멈추고 저장돼 있던 run을 지운다. 끝나면 최고 점수만 저장한다
 - 두 탭 동시 플레이는 지원하지 않는다 (나중에 저장한 쪽이 남는다)
-- `?fill=` 판은 run 저장·삭제·최고 점수 반영을 하지 않는다. DEV `?resume`은 저장된 run으로 바로 시작한다 (W2-06 이어하기 버튼 전의 확인용)
+- `?fill=` 판은 run 저장·삭제·최고 점수 반영을 하지 않는다. DEV `?resume`은 저장된 run으로 바로 시작한다 (메뉴의 [이어하기]와 같은 길. 자동 확인용)
 
 ### 6.3 씬 흐름
 
@@ -323,7 +323,7 @@ Boot → Menu ─┬─ 새 게임 → Game ⇄ Pause → GameOver ─┬─ 다
              ├─ 이어하기 (저장된 run이 있을 때만) → Game   └─ 메뉴
              └─ 주간 랭킹 → Ranking (3주차)
 ```
-GameOver: 점수, 최고 점수, (3주차) 이번 주 순위. 개발 URL 옵션: `?seed=N`(seed 고정. 0~4294967295의 10진 정수만 받고 그 밖의 값은 없는 것으로 본다. 있으면 메뉴를 건너뛰고 바로 Game), `?fill=<패턴>`(DEV 전용, 보드 미리 채우기), `?over`(게임 오버 화면 미리보기).
+GameOver: 점수, 최고 점수, (3주차) 이번 주 순위. 끝난 Game 위에 덮는 씬(launch)이고 Game은 멈추지 않는다. 마지막 연출·게임 오버 소리 + `VIEW.gameOver.showDelayMs` 뒤에 뜨고 `inputDelayMs` 동안 버튼이 눌리지 않는다(처음 뜬 시각 기준, resize해도 유지). "최고 기록 갱신!"은 판 시작 전 최고 점수보다 클 때만(같으면 아님. 이어한 판은 저장돼 있던 최고 점수 기준, `?fill=` 판은 없음). 부팅 읽기가 늦으면 `LoadResult.storedBest`로 기준을 올린다. Menu: [이어하기]는 `persistence.resumable()`이 있을 때만 [새 게임] 위에 보인다. [새 게임]은 확인 창 없이 시작하고 첫 수를 둘 때 저장된 판이 덮인다. 새 판은 항상 `newGameData()`(빈 데이터)로 시작한다 (Phaser는 데이터 없는 `scene.start`에 이전 데이터를 다시 쓴다). 버튼(`view/ui/Button.ts`·`pressLock.ts`): 한 화면에서 전환 요청은 한 번, 다시 그려져 버려진 버튼의 누름은 실행하지 않는다. 개발 URL 옵션: `?seed=N`(seed 고정. 0~4294967295의 10진 정수만 받고 그 밖의 값은 없는 것으로 본다. 있으면 메뉴를 건너뛰고 바로 Game), `?fill=<패턴>`(DEV 전용, 보드 미리 채우기), `?over`·`?over=low`(DEV 전용, 게임 오버 화면 미리보기), `?resume`(DEV 전용, 저장된 판으로 바로 시작).
 
 ### 6.4 연출 (2주차, SPEC 5절)
 

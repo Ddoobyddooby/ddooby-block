@@ -59,8 +59,8 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 |---|---|---|
 | `?seed=1001` | 항상 같은 조각 순서. 메뉴를 건너뛰고 바로 게임으로 간다. 버그를 봤으면 seed를 적어두고 이 주소로 재현. 0~4294967295의 정수만 받는다 | W1-07 |
 | `?fill=<이름>` | (개발 모드) 보드를 미리 채운 상태로 시작. 이름은 `line1`, `line2`, `line3`, `combo3`, `clear`. 맨 왼쪽 조각을 놓을 자리는 4절 W2-04 표 참고. 이 판은 저장·랭킹 대상이 아니다 | W2-04 |
-| `?resume` | (개발 모드) 저장된 판이 있으면 그 판을 이어서 시작한다. 메뉴의 이어하기 버튼(W2-06)이 생기기 전의 확인용 | W2-05 |
-| `?over` | (개발 모드) 게임 없이 게임 오버 화면만 띄운다 | W2-06 (예정) |
+| `?resume` | (개발 모드) 저장된 판이 있으면 그 판을 이어서 시작한다. 메뉴의 [이어하기]를 누른 것과 같다 | W2-05 |
+| `?over` | (개발 모드) 게임 없이 게임 오버 화면만 띄운다. `?over`는 최고 기록을 넘은 화면, `?over=low`는 못 넘은 화면. 예시 점수이고 저장되지 않는다 | W2-06 |
 
 개발 모드(`npm run dev`)에서는 매 배치 후 화면과 게임 상태가 같은지 검사한다 (W1-07). Console에 `view ≠ board`나 `HUD ≠ state`(W2-03)가 찍히면 버그이니 seed와 함께 기록해두자. seed는 게임을 시작할 때 Console에 `seed 123`처럼 찍힌다.
 
@@ -190,6 +190,17 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - `?fill=line1`로 줄을 지워도 `bestScore`와 저장된 판은 바뀌지 않는다
 - 조각을 놓은 직후 0.2초 안에는 다음 조각이 집히지 않는다. 연달아 빠르게 놓아 보고 답답한지 본다 (손가락 체감은 아직 아무도 확인하지 않았다)
 - 직접 확인 (깨진 저장): Local Storage의 `ddooby-block-run` 값을 `{`로 바꾸고 `?resume`으로 연다 → Console에 "이어할 수 있는 판이 없음" 경고만 나오고 메뉴가 정상으로 뜬다
+
+### W2-06 메뉴 이어하기·게임 오버 화면
+
+- `npm test` → 파일 37개, 696개 통과
+- `npm run dev` → 메뉴에서 [새 게임] → 조각을 몇 개 놓고 새로고침 → 메뉴에 [이어하기]가 [새 게임] 위에 보인다 → 누르면 같은 보드·트레이·점수로 이어진다
+- 이어하기가 있는 상태에서 [새 게임] → 한 수도 안 두고 일시정지 → [메뉴] → [이어하기]가 그대로 있다. [새 게임] → 한 수 둠 → [메뉴] → [이어하기]가 방금 판을 연다
+- 게임 오버까지 간다 → 약 0.7초 뒤 화면이 뜬다: 이번 점수, 최고 점수, 넘었으면 "최고 기록 갱신!". 뜬 직후 0.6초 동안은 버튼이 눌리지 않는다
+- [다시 하기] → 빈 보드의 새 판 (이어하기로 시작했던 판이 다시 열리면 안 된다). [메뉴] → [이어하기]가 없다
+- `?over`, `?over=low`로 화면만 따로 본다. 창 크기를 바꿔도 패널과 버튼이 가운데에 맞는다
+- 프로덕션에서는 `?over`·`?resume`이 무시된다: `npm run build && npm run preview` → `?over`가 메뉴로 간다
+- 직접 확인 (이어한 기록): 이어한 뒤 몇 수 두고 Local Storage의 `ddooby-block-run`에서 `placements`의 `t`가 계속 늘어나는지 본다
 
 ## 5. 문제 해결
 
@@ -345,3 +356,14 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **화면용 상태와 저장용 상태**: 화면은 연출이 끝나야 바뀌지만 저장은 놓은 순간 해야 한다. 둘을 한 변수로 쓰면 연출 중 앱이 꺼질 때 마지막 수를 잃는다 → `src/scenes/runSession.ts` ↔ `GameScene.state`
 - **웹과 앱의 저장소를 같은 모양으로**: `get/set/remove` 세 함수만 있는 인터페이스를 두고, 웹은 localStorage, 앱은 Capacitor Preferences로 구현한다. 나머지 코드는 어느 쪽인지 모른다 → `src/storage/adapters.ts`
 - 참고: [Web Storage API (MDN)](https://developer.mozilla.org/ko/docs/Web/API/Web_Storage_API), [Page Visibility API (MDN)](https://developer.mozilla.org/ko/docs/Web/API/Page_Visibility_API), [performance.now (MDN)](https://developer.mozilla.org/ko/docs/Web/API/Performance/now), [Capacitor Preferences](https://capacitorjs.com/docs/apis/preferences)
+
+### W2-06 메뉴 이어하기·게임 오버 화면
+
+- **프레임워크가 기억하는 값 조심**: Phaser는 `scene.start('Game')`을 데이터 없이 부르면 그 씬이 전에 받은 데이터를 다시 쓴다. 그래서 이어하기 뒤의 "새 판"이 저장된 판을 또 열었다. 새 판은 빈 데이터를 명시한다 → `src/scenes/gameStart.ts`의 `newGameData`
+- **씬을 바꾸기(start)와 덮기(launch)**: 게임 오버 화면은 끝난 보드가 뒤에 보이도록 Game 씬 위에 덮는다. 덮인 씬은 계속 살아 있으므로 아래로 입력이 새지 않게 화면 전체 덮개와 상태 잠금을 같이 둔다 → `src/scenes/GameOverScene.ts`
+- **없앤 물건의 예약된 일**: 버튼을 destroy해도 이미 시작한 트윈의 끝 콜백은 실행된다. 콜백에서 "버튼이 아직 살아 있나"를 확인한다 → `src/view/ui/pressLock.ts`의 `finishPress`
+- **한 화면, 한 번의 전환**: 버튼마다 잠금을 따로 두면 화면을 다시 그릴 때 잠금이 새로 생겨 두 번 눌린다. 잠금은 화면이 갖고 버튼들이 같이 쓴다 → `MenuScene.lock`
+- **"언제까지"로 기억하기**: 입력 지연을 "0.6초 타이머"로 두면 화면을 다시 그릴 때 사라지거나 처음부터 다시 센다. 풀리는 시각을 기억하면 남은 시간만 계산하면 된다 → `gameOverRules.ts`의 `inputDelayLeft`
+- **값의 출처를 섞지 않기**: "저장돼 있던 최고 점수"와 "이번 판이 올린 최고 점수"를 한 변수에 합치면 갱신 여부를 가릴 수 없다. 출처별로 따로 둔다 → `LoadResult.storedBest` ↔ `bestScore`
+- **실수로 눌리는 버튼 막기**: 마지막 조각을 놓던 손가락 자리에 버튼이 뜨면 읽기도 전에 눌린다. 화면을 늦게 띄우고, 뜬 직후에는 잠깐 입력을 받지 않는다 → `VIEW.gameOver.showDelayMs`·`inputDelayMs`
+- 참고: [Phaser Scenes](https://docs.phaser.io/phaser/concepts/scenes), [Phaser Tweens](https://docs.phaser.io/phaser/concepts/tweens)
