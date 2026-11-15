@@ -35,8 +35,11 @@ interface LiveSound {
  * 그래서 게임 씬의 Sfx를 `pause`/`resume`/`stopAll`해도 다른 Sfx(버튼 소리)는 건드리지 않는다.
  * 음소거는 여기서 다루지 않는다: 사운드 매니저의 mute가 실제 출력을 끄고, `play`의 registry 검사는 새 소리를 아예 만들지 않게 한다.
  *
- * 소리 하나의 수명은 `release` 한 곳에서 끝낸다. 자연스럽게 끝남(complete), 밖에서 멈춤(stop)·파괴(destroy),
- * 재생 실패(play가 false이거나 예외)가 모두 여기로 온다. 여러 번 불려도 안전하다.
+ * 소리 하나의 수명: 우리가 끝내는 경우(자연 종료 complete, 재생 실패, stopAll, pause/resume 중 던진 소리)는 `release`로
+ * 목록에서 먼저 빼고 stop·destroy한다. 여러 번 불려도 안전하다. 밖에서 멈추거나 파괴한 경우(stop·destroy 이벤트)는
+ * 목록에서 빼기만 하고 그 객체는 건드리지 않는다 (그쪽이 책임진다).
+ * complete는 Phaser가 `sound.update`(매니저의 forEach) 안에서 내며, 그 뒤 이 소리를 더 쓰지 않고 destroy는 pendingRemove만 세워
+ * 배열을 바꾸지 않으므로(다음 update에서 정리) 그 자리에서 destroy해도 안전하다 (BaseSoundManager.js 665-690, WebAudioSound.js 612-636).
  * 정책: play가 false면(HTML5 Audio 잠김·태그 부족, 소리 없음 환경) 그 소리는 포기한다 — 나중에 뒤늦게 나지 않게.
  * 버튼용 Sfx는 씬 종료에 묶지 않는다: 확인음은 짧아서 끝나면(complete) 스스로 정리되고, 종료 때 끊으면 방금 누른 소리가 잘린다.
  * pause/resume/stopAll은 소리 하나가 실패해도 나머지를 처리하고 던지지 않는다 (RESUME 리스너 안에서 불리므로).
@@ -64,10 +67,12 @@ export class Sfx {
       const created: LiveSound = sound.add(key, { volume: SOUND.effects[name].volume, rate });
       instance = created;
       this.live.add(created);
-      const end = (): void => this.release(created);
-      created.once('complete', end);
-      created.once('stop', end);
-      created.once('destroy', end);
+      // 이벤트로 알게 된 종료: stop·destroy는 밖에서 한 일이므로 목록에서 빼기만 한다. 여기서 다시 destroy하면
+      // Phaser의 destroy가 pendingRemove 전에 이 이벤트를 내고 그 뒤 노드를 해제하므로 TypeError가 난다.
+      // complete(자연스럽게 끝남)만 우리가 destroy해 매니저에 남지 않게 한다
+      created.once('stop', () => this.live.delete(created));
+      created.once('destroy', () => this.live.delete(created));
+      created.once('complete', () => this.release(created));
       if (created.play() === false) {
         this.release(created);
         return;
