@@ -4,10 +4,12 @@
 //
 //   npm run supabase:check [-- <env 파일 경로>]     (기본값 .env.local)
 //
-// 종료 코드: 0 모두 PASS / 1 FAIL 있음 / 2 설정·로그인 오류 (시험을 시작하지 못함)
+// 종료 코드: 0 모두 PASS / 1 FAIL·시험 불가 있음 / 2 설정·로그인 오류 (시험을 시작하지 못함)
 //
-// 시험이 원격에 남기는 것: 실행마다 익명 계정 2개(A·B)가 새로 생긴다. 시험은 어떤 행도 만들지 못하게
-// 막혀 있는지만 보므로 표에는 아무 행도 남지 않는다 (supabase/README.md "권한 시험").
+// 판정: 쓰기·접근 차단은 권한 거부(42501)만 PASS. 그 밖의 오류와 성공 응답은 FAIL, 네트워크·인증 오류는 시험 불가.
+//
+// 시험이 원격에 남기는 것: 실행마다 익명 계정 2개(A·B)가 새로 생긴다. 권한이 올바르면 어떤 행도 남지 않지만
+// 권한이 잘못 열려 있으면 쓰기 시험이 실제 행을 만들거나 바꿀 수 있다 (supabase/README.md "권한 시험").
 import { readFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -17,7 +19,7 @@ import {
   type Res,
   type Row,
   denied,
-  emptyRead,
+  expectNoRowsNow,
   exitCodeOf,
   failed,
   formatTable,
@@ -40,7 +42,9 @@ function loadEnv(path: string): CheckEnv {
     throw new SetupError(setupGuide(path, 'no-file', []));
   }
   const parsed = parseCheckEnv(parseEnv(text));
-  if (!parsed.ok) throw new SetupError(setupGuide(path, 'missing', parsed.missing));
+  if (!parsed.ok) {
+    throw new SetupError(setupGuide(path, parsed.badKey ? 'bad-key' : 'missing', parsed.missing));
+  }
   return parsed.env;
 }
 
@@ -113,13 +117,14 @@ async function main(): Promise<number> {
     readable(await a.from('profiles').select('*').limit(5)),
   );
 
-  // ③ runs: 본인 것만 읽기, 쓰기 불가. 시험용 run을 만들 수단이 없어(start-run은 W3-03)
-  // 지금은 "오류 없이 0행"만 보고, 실제 교차 시험(B가 A의 run을 못 읽음)은 W3-03에서 추가한다
-  await check('③', 'A 본인 runs SELECT', '오류 없음·0행', async () =>
-    emptyRead(await a.from('runs').select('*')),
+  // ③ runs: 본인 것만 읽기, 쓰기 불가. 시험용 run을 만들 수단이 없어(start-run은 W3-03) SELECT 두 항목은
+  // 지금의 예상 결과(0행)일 뿐 RLS 증명이 아니다. W3-03에서 start-run fixture로 양성(A가 자기 run을 읽음)·
+  // 음성(B가 못 읽음) 대조를 더한다
+  await check('③', 'A 본인 runs SELECT', '오류 없음·0행 (권한 증명 아님)', async () =>
+    expectNoRowsNow(await a.from('runs').select('*')),
   );
-  await check('③', 'B가 A의 runs SELECT', '오류 없음·0행', async () =>
-    emptyRead(await b.from('runs').select('*').eq('user_id', idA)),
+  await check('③', 'B가 A의 runs SELECT', '오류 없음·0행 (권한 증명 아님)', async () =>
+    expectNoRowsNow(await b.from('runs').select('*').eq('user_id', idA)),
   );
   await check('③', 'A runs INSERT', '실패', async () =>
     denied(await a.from('runs').insert(runRow).select()),
