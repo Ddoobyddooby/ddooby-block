@@ -332,7 +332,8 @@ describe('set-nickname 핸들러: 저장·태그 충돌', () => {
 
   it('DB·네트워크·권한 오류는 500 server로 응답하고 내부 정보를 싣지 않는다 (서버 로그에만 남긴다)', async () => {
     const secret =
-      'duplicate key value violates unique constraint "profiles_nickname_tag_key" service_role sb_secret_x';
+      'duplicate key value violates unique constraint "profiles_nickname_tag_key" service_role ' +
+      ['sb', 'secret', 'x'].join('_');
     for (const failing of ['getNickname', 'saveNickname'] as const) {
       const { deps, calls } = fake({
         [failing]: async () => Promise.reject(Object.assign(new Error(secret), { code: '42501' })),

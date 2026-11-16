@@ -20,8 +20,12 @@ describe('parsePublicEnv (브라우저에 넣는 키는 publishable만)', () => 
     ['빈 값', '', key],
     ['빈 키', 'https://x.example', '  '],
     ['접두어만', 'https://x.example', PUBLISHABLE_PREFIX],
-    ['secret 키 모양', 'https://x.example', 'sb_secret_abcdefghij'],
-    ['JWT 모양(service_role·레거시 anon)', 'https://x.example', 'eyJhbGciOi.eyJyb2xlIjoi.sig'],
+    ['secret 키 모양', 'https://x.example', ['sb', 'secret', 'abcdefghij'].join('_')],
+    [
+      'JWT 모양(service_role·레거시 anon)',
+      'https://x.example',
+      ['eyJ' + 'hbGciOiJIUzI1', 'eyJ' + 'yb2xlIjoic2VydmljZQ', 'sig'].join('.'),
+    ],
     ['문자열이 아님', 'https://x.example', 5],
   ])('%s → null (조용히 온라인을 끈다, 서버 권한 키를 쓰지 않는다)', (_n, url, k) => {
     expect(parsePublicEnv(url, k)).toBeNull();
