@@ -352,6 +352,122 @@ describe('익명 계정 상태 전이', () => {
     });
   });
 
+  describe('늦은 세션 조회가 더 최신 세션 이벤트를 덮지 않는다 (W3-02 재리뷰 지적 1)', () => {
+    /** 첫 getSession만 보류하고 이후는 SDK 세션을 그대로 돌려준다 */
+    function heldFirstRead(opts: { session?: string | null; signInId?: string } = {}) {
+      const gate = deferred<string | null>();
+      let n = 0;
+      const b: FakeBackend = fakeBackend({
+        session: opts.session ?? null,
+        ...(opts.signInId ? { signInId: opts.signInId } : {}),
+        getSession: () => (++n === 1 ? gate.promise : Promise.resolve(b.sessionUser())),
+      });
+      return { b, gate };
+    }
+    const consistent = (account: ReturnType<typeof createAccount>, b: FakeBackend) => {
+      expect(account.userId()).toBe(b.sessionUser());
+      expect(account.status()).toBe(b.sessionUser() === null ? 'offline' : 'ready');
+    };
+
+    it('A 조회 보류 → SIGNED_OUT → 옛 A 완료: 앱은 offline, SDK 세션 없음', async () => {
+      const { b, gate } = heldFirstRead({ session: 'user-a' });
+      const { account } = setup(b);
+      const p = account.ensure();
+      await vi.advanceTimersByTimeAsync(0);
+      b.signOut();
+      gate.resolve('user-a'); // 옛 조회
+      await p;
+      consistent(account, b);
+      expect(account.backend()).toBeNull();
+    });
+
+    it('A 조회 보류 → B 이벤트 → 옛 A 완료: 앱도 B', async () => {
+      const { b, gate } = heldFirstRead({ session: 'user-a', signInId: 'user-b' });
+      const { account } = setup(b);
+      const p = account.ensure();
+      await vi.advanceTimersByTimeAsync(0);
+      await b.signInAnonymously(); // SDK 세션이 B로 바뀌고 이벤트
+      gate.resolve('user-a');
+      await p;
+      expect(account.userId()).toBe('user-b');
+      consistent(account, b);
+    });
+
+    it.each([
+      ['온라인', true],
+      ['오프라인', false],
+    ])(
+      'B 이벤트 뒤 옛 null 완료(%s): 앱은 B를 지킨다 (null로 덮거나 새로 가입하지 않는다)',
+      async (_n, isOnline) => {
+        const { b, gate } = heldFirstRead({ session: null, signInId: 'user-b' });
+        const { account, online } = setup(b);
+        online.set(isOnline);
+        const p = account.ensure();
+        await vi.advanceTimersByTimeAsync(0);
+        await b.signInAnonymously(); // 다른 경로의 로그인 이벤트 (signIn 1회)
+        gate.resolve(null);
+        await p;
+        expect(b.calls.signIn).toBe(1);
+        expect(account.userId()).toBe('user-b');
+        consistent(account, b);
+      },
+    );
+
+    it('앱 ID가 아직 null일 때의 SIGNED_OUT(null → null)도 옛 조회를 막는다', async () => {
+      const { b, gate } = heldFirstRead({ session: 'user-a' });
+      const { account } = setup(b);
+      const p = account.ensure();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(account.userId()).toBeNull(); // 아직 아무 사용자도 반영되지 않았다
+      b.signOut();
+      gate.resolve('user-a');
+      await p;
+      consistent(account, b);
+      expect(account.status()).toBe('offline');
+    });
+
+    it('가입 뒤 최종 재조회가 끝나기 전에 로그아웃이 오면 그 재조회 결과를 버린다', async () => {
+      const gate = deferred<string | null>();
+      let n = 0;
+      const b: FakeBackend = fakeBackend({
+        session: null,
+        signInId: 'user-a',
+        getSession: () => (++n === 2 ? gate.promise : Promise.resolve(b.sessionUser())),
+      });
+      const { account } = setup(b);
+      const p = account.ensure();
+      await vi.advanceTimersByTimeAsync(0); // 1번째 조회(null) → 가입 → 2번째 조회 보류
+      expect(b.sessionUser()).toBe('user-a');
+      b.signOut();
+      gate.resolve('user-a'); // 옛 재조회
+      await p;
+      consistent(account, b);
+    });
+
+    it('정상 가입 경로: 가입 이벤트와 최종 재조회가 겹쳐도 ready·같은 ID, 가입 1회', async () => {
+      const b = fakeBackend({ session: null, signInId: 'user-a' });
+      const { account } = setup(b);
+      await account.ensure();
+      expect(b.calls.signIn).toBe(1);
+      expect(account.userId()).toBe('user-a');
+      consistent(account, b);
+    });
+
+    it('옛 조회를 버린 뒤에는 다시 조회하지 않고, 다음 ensure가 새로 시작한다 (무한 재조회 없음)', async () => {
+      const { b, gate } = heldFirstRead({ session: 'user-a' });
+      const { account } = setup(b);
+      const p = account.ensure();
+      await vi.advanceTimersByTimeAsync(0);
+      b.signOut();
+      gate.resolve('user-a');
+      await p;
+      expect(b.calls.getSession).toBe(1);
+      await account.ensure(); // 새 작업: SDK 세션이 없으니 가입
+      expect(b.calls.signIn).toBe(1);
+      consistent(account, b);
+    });
+  });
+
   it('ready가 아니면 backend()는 null이다', async () => {
     const b: OnlineBackend = fakeBackend({ session: null });
     const { account } = setup(b as FakeBackend);

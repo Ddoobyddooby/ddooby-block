@@ -4,7 +4,7 @@
 // - SDK 인증 작업(세션 확인 → 익명 로그인)은 **한 번에 하나**다. 시간 제한은 "기다림"만 끝내고 작업은 계속되며, 재시도는 그 작업에 다시 붙는다
 //   (시간 초과 뒤 새 로그인을 또 시작하면 SDK 세션이 늦게 끝난 첫 로그인으로 바뀌어 앱 계정과 어긋난다)
 // - 앱의 계정 ID는 **SDK 세션을 따라간다**: 세션 변경 이벤트(로그인·갱신·로그아웃)와 작업이 끝난 뒤의 getSession() 재조정으로 맞춘다
-// - 세대 번호: 폐기된 시도(기다리는 사이 계정이 바뀜)가 새 가입을 시작하지 못하게 한다
+// - 세션 이벤트 번호: 세션 조회를 기다리는 사이 더 최신 세션 이벤트(로그아웃·계정 전환)가 오면 옛 조회 결과는 적용하지 않는다
 import type { OnlineBackend } from './client';
 
 /**
@@ -43,8 +43,11 @@ export function createAccount(deps: AccountDeps): Account {
   /** 진행 중인 SDK 인증 작업. 최대 하나 */
   let auth: Promise<void> | null = null;
   let retryArmed = false;
-  /** 계정(사용자 ID)이 바뀔 때마다 올린다. 시작할 때의 값과 다르면 그 시도는 새 가입을 시작하지 않는다 */
-  let generation = 0;
+  /**
+   * 세션 이벤트(onSessionChange)가 올 때마다 올린다. 사용자 ID가 그대로여도(null → null의 SIGNED_OUT 포함) 오른다.
+   * 세션 조회는 시작할 때 이 값을 기억하고, 끝났을 때 달라졌으면 결과를 버린다: 이벤트가 이미 더 최신 상태를 앱에 반영했다
+   */
+  let revision = 0;
 
   const armRetry = () => {
     if (retryArmed) return;
@@ -55,7 +58,6 @@ export function createAccount(deps: AccountDeps): Account {
   /** SDK 세션의 사용자(없으면 null)를 앱 계정에 반영한다 */
   const follow = (id: string | null) => {
     if (status === 'disabled') return;
-    if (userId !== id) generation += 1;
     userId = id;
     if (id !== null) status = 'ready';
     else if (status === 'ready') status = 'offline';
@@ -65,46 +67,49 @@ export function createAccount(deps: AccountDeps): Account {
     if (backend) return backend;
     const loaded = await deps.loadBackend();
     if (loaded && !backend) {
-      loaded.onSessionChange(follow);
+      loaded.onSessionChange((id) => {
+        revision += 1;
+        follow(id);
+      });
       backend = loaded;
     }
     return backend ?? loaded;
   };
 
-  /** 세션 확인 → 없으면 익명 로그인 → 마지막에 SDK 세션으로 재조정. 앱 상태를 직접 정한다 */
+  /** SDK 세션 조회. 기다리는 사이 세션 이벤트가 왔으면 이 결과는 옛 것이라 'superseded' (이벤트가 이미 앱 상태를 맞췄다) */
+  const readSession = async (b: OnlineBackend): Promise<{ id: string | null } | 'superseded'> => {
+    const started = revision;
+    const id = await b.getSessionUserId();
+    return revision === started ? { id } : 'superseded';
+  };
+
+  /**
+   * 세션 확인 → 없으면 익명 로그인 → 마지막에 SDK 세션으로 재조정.
+   * 조회마다 더 최신 이벤트가 있었는지 보고, 있었으면 그 결과를 적용하지 않고 끝낸다 (다시 조회하지 않는다. 필요하면 다음 ensure가 시작한다).
+   * 가입이 일으키는 SIGNED_IN 이벤트는 앱 ID를 이미 그 사용자로 맞추므로, 가입 뒤의 재조회가 버려져도 상태는 맞다
+   */
   const authenticate = async (): Promise<void> => {
-    const started = generation;
     try {
       const b = await loadBackend();
       if (!b) {
         status = 'disabled';
         return;
       }
-      let id = await b.getSessionUserId();
-      if (id === null) {
+      let read = await readSession(b);
+      if (read !== 'superseded' && read.id === null) {
         if (!deps.isOnline()) {
           follow(null);
-          if (status !== 'ready') status = 'offline';
-          armRetry();
-          return;
-        }
-        if (generation !== started) {
-          // 기다리는 사이 계정이 바뀌었다: 폐기된 시도가 새 가입을 시작하지 않는다 (다음 ensure가 다시 시작한다)
-          if (status !== 'ready') status = 'offline';
-          armRetry();
           return;
         }
         await b.signInAnonymously();
-        id = await b.getSessionUserId();
+        read = await readSession(b);
       }
-      follow(id);
-      if (id === null) {
-        status = 'offline';
-        armRetry();
-      }
+      if (read !== 'superseded') follow(read.id);
     } catch {
-      if (status !== 'ready') status = 'offline';
-      armRetry();
+      // 아래에서 offline 처리
+    } finally {
+      if (status === 'signing-in') status = 'offline';
+      if (status !== 'ready' && status !== 'disabled') armRetry();
     }
   };
 
