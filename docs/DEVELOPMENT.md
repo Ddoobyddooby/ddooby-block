@@ -34,6 +34,8 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `npm run lint` | ESLint 규칙 검사 (`src/core`의 Phaser·DOM·`Math.random` 사용 금지 포함) | W1-01 |
 | `npm run format` | Prettier로 코드 정리 (md 문서는 제외) | W1-01 |
 | `npm run build` | 타입체크 + 배포용 빌드 (`dist/`) | W1-01 |
+| `npm run server:shared` / `server:shared:check` | 닉네임 규칙(`src/online/nicknameRules.ts`·`bannedWords.ts`)을 서버 함수용 파일로 묶는다 / 묶어 둔 파일이 원본과 같은지만 본다(다르면 1). 규칙을 고치면 `server:shared`를 돌리고 같이 커밋한다 | W3-02 |
+| `npm run functions:check` | Edge Function 타입 검사 (`deno check`) | W3-02 |
 | `npm run supabase:check` | Supabase 권한 시험. `.env.local`(또는 `-- <env 경로>`)의 URL·publishable key로 익명 사용자 둘과 비로그인을 만들어 쓰기가 막히는지 본다. 모두 PASS면 0, FAIL·시험 불가가 있으면 1, 설정이 없거나 키가 publishable이 아니면 2. 실행마다 익명 계정 2개가 남는다 | W3-01 |
 | `npm run sim` | 자동 플레이 봇으로 seed 1~1000을 돌려 평균 점수·배치 수·보정 발생률을 찍는다. 가중치·점수를 고친 뒤 밸런스를 잴 때 | W4-02 (예정) |
 | `npm run android:sync` | 웹 빌드 후 `android/` 앱에 복사 (`cap sync`). Android Studio에서 ▶ 하기 전에 실행 | W4-03 (예정) |
@@ -61,6 +63,8 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `?seed=1001` | 항상 같은 조각 순서. 메뉴를 건너뛰고 바로 게임으로 간다. 버그를 봤으면 seed를 적어두고 이 주소로 재현. 0~4294967295의 정수만 받는다 | W1-07 |
 | `?fill=<이름>` | (개발 모드) 보드를 미리 채운 상태로 시작. 이름은 `line1`, `line2`, `line3`, `combo3`, `clear`. 맨 왼쪽 조각을 놓을 자리는 4절 W2-04 표 참고. 이 판은 저장·랭킹 대상이 아니다 | W2-04 |
 | `?resume` | (개발 모드) 저장된 판이 있으면 그 판을 이어서 시작한다. 메뉴의 [이어하기]를 누른 것과 같다 | W2-05 |
+| `?ranking` | (개발 모드) 게임 오버에서 닉네임 입력 창을 연다. `.env.local`에 키가 있고 로그인돼 있고 아직 이름이 없을 때만. 실제 서버에 저장된다 | W3-02 |
+| `?ranking=fake` | (개발 모드) 서버 없이 입력 창만 본다. 이름으로 결과를 정한다: `서버오류`·`연결끊김`·`권한없음`·`이미있음`·`무응답`(10초 뒤 닫힘), 그 밖은 성공 `#0427` | W3-02 |
 | `?over` | (개발 모드) 게임 없이 게임 오버 화면만 띄운다. `?over`는 최고 기록을 넘은 화면, `?over=low`는 못 넘은 화면. 예시 점수이고 저장되지 않는다 | W2-06 |
 
 개발 모드(`npm run dev`)에서는 매 배치 후 화면과 게임 상태가 같은지 검사한다 (W1-07). Console에 `view ≠ board`나 `HUD ≠ state`(W2-03)가 찍히면 버그이니 seed와 함께 기록해두자. seed는 게임을 시작할 때 Console에 `seed 123`처럼 찍힌다.
@@ -203,13 +207,23 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 프로덕션에서는 `?over`·`?resume`이 무시된다: `npm run build && npm run preview` → `?over`가 메뉴로 간다
 - 직접 확인 (이어한 기록): 이어한 뒤 몇 수 두고 Local Storage의 `ddooby-block-run`에서 `placements`의 `t`가 계속 늘어나는지 본다
 
-### W3-01 Supabase 스키마·권한 (원격 적용 대기)
+### W3-01 Supabase 스키마·권한
 
 - `npm test` → 파일 39개, 738개 통과 (`tests/supabase/` 포함)
 - `npm run supabase:check` (`.env.local` 없이) → 안내 문구와 함께 끝나고 `echo $?`가 2
 - 원격 적용 (block 전용 프로젝트가 생긴 뒤): `.env.example`을 `.env.local`로 복사해 URL·publishable key를 넣는다 → `supabase login` → `supabase link --project-ref <ref>` → `supabase db push --dry-run`(올라갈 파일 목록만 보여 준다. SQL이 맞는지 검증하는 것은 아니다) → `supabase db push` → `npm run supabase:check`가 모두 PASS. 자세한 순서는 `supabase/README.md`
 - 대시보드 Table Editor에서 `profiles`·`runs`·`weekly_scores`에 RLS가 켜져 있다
 - `git ls-files | grep -E '\.env\.local|supabase/\.temp'` → 아무것도 안 나온다
+
+### W3-02 익명 로그인·닉네임
+
+- `npm test` → 파일 51개, 1053개 통과. `npm run server:shared:check`·`npm run functions:check` → 0
+- 서버 없이: `npm run dev` → `?over&ranking=fake` → 입력 창에 `뚜`(짧음), `시발`(금칙어)을 넣어 거부 문구를 보고, `무응답`으로 10초 뒤 "지금은 연결이 안 돼요", Esc는 [나중에]와 같다
+- 실제 서버 (`.env.local`에 키): `?ranking`으로 게임 오버까지 → 이름 저장 → "이름을 정했어요: 이름#1234" → 새로고침 뒤 게임 오버에서 다시 묻지 않는다. 대시보드 Table Editor → `profiles`에 그 이름이 있다
+- 원격 시험: `npm run supabase:check -- --nickname` → 27개 PASS, exit 0. 실행마다 시험용 익명 계정과 `시험` 이름 행이 남는다
+- 키 없이 `?ranking` → 창이 뜨지 않고 게임은 정상
+- 프로덕션: `npm run build` 뒤 `grep -r ranking dist/assets` → 아무것도 안 나온다
+- 함수 배포(바꿨을 때만): `supabase functions deploy set-nickname --project-ref <ref>` (`--no-verify-jwt`를 붙이지 않는다)
 
 ## 5. 문제 해결
 
@@ -386,3 +400,15 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **비밀을 레포에 두지 않는 검사**: 찾아야 할 값(pang 프로젝트 ref)을 평문으로 적으면 검사 파일 자체가 걸린다. 해시만 두고 후보를 해시해서 비교한다 → `scripts/supabase-check/separation.ts`
 - **공개 키와 비밀 키**: 앱에 들어가는 publishable key는 공개돼도 RLS가 지켜 준다. secret·service_role 키는 RLS를 건너뛰므로 앱·레포·채팅 어디에도 두지 않는다. 권한 시험도 publishable key만 받는다
 - 참고: [Supabase API 보안](https://supabase.com/docs/guides/api/securing-your-api), [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security), [Supabase API 키](https://supabase.com/docs/guides/getting-started/api-keys), [PostgREST 오류 코드](https://docs.postgrest.org/en/stable/references/errors.html)
+
+### W3-02 익명 로그인·닉네임
+
+- **익명 로그인**: 가입 화면 없이 Supabase가 계정을 만들고 세션(토큰)을 브라우저에 저장한다. 다음에 열면 그 세션을 다시 쓴다 → `src/online/account.ts`
+- **"지금 누구인가"는 한 곳만 믿는다**: 앱이 따로 기억한 계정과 라이브러리가 들고 있는 로그인 세션이 갈리면, 다른 사람 이름으로 조회하고 다른 사람 토큰으로 저장하게 된다. 앱은 라이브러리의 세션 변경 이벤트를 따르고, 늦게 도착한 옛 조회 결과는 버린다 → `account.ts`의 `revision`
+- **await 한 번이 틈이다**: `await` 사이에는 다른 이벤트가 끼어들 수 있다. "바뀌었나" 검사는 결과를 적용하는 바로 그 자리에서, 사이에 await 없이 해야 한다. 함수로 나눠 검사하면 그 함수가 돌려준 뒤에 또 틈이 생긴다
+- **서버는 클라이언트를 믿지 않는다**: 이름 규칙은 앱도 검사하지만(즉시 안내) 서버가 다시 검사한다(최종 판정). 누가 보냈는지도 요청 본문이 아니라 토큰으로 확인한다 → `supabase/functions/set-nickname/handler.ts`·`adapter.ts`
+- **CORS는 인증이 아니다**: 허용 출처 검사는 브라우저가 다른 사이트의 응답을 읽지 못하게 하는 장치다. 앱 밖의 프로그램은 Origin을 마음대로 쓸 수 있으므로 토큰 검사는 항상 따로 한다
+- **"아직 없을 때만" 쓰기**: `UPDATE ... WHERE id = 나 AND nickname IS NULL`로 쓰면 두 요청이 동시에 와도 한 번만 성공한다. 먼저 읽고 나중에 쓰면 둘 다 "없음"을 보고 둘 다 쓴다 → `adapter.ts`
+- **한 벌의 코드를 두 곳에서**: 이름 규칙은 앱(브라우저)과 서버 함수(Deno)가 같이 쓴다. 원본은 하나만 두고 서버용 파일은 도구로 만들며, 만든 파일이 원본과 같은지 검사한다 → `scripts/server-shared/`
+- **캔버스 위의 글자 입력**: Phaser에는 글자 입력칸이 없어 HTML `<input>`을 화면 위에 띄운다. 한글은 조합 중에도 Enter가 오므로(`isComposing`) 그때는 제출하지 않는다 → `src/view/NicknamePrompt.ts`
+- 참고: [Supabase 익명 로그인](https://supabase.com/docs/guides/auth/auth-anonymous), [onAuthStateChange](https://supabase.com/docs/reference/javascript/auth-onauthstatechange), [Edge Functions CORS](https://supabase.com/docs/guides/functions/cors), [CORS (MDN)](https://developer.mozilla.org/ko/docs/Web/HTTP/CORS), [compositionstart (MDN)](https://developer.mozilla.org/ko/docs/Web/API/Element/compositionstart_event)
