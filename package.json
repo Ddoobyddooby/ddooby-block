@@ -12,11 +12,13 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "supabase:check": "node --disable-warning=ExperimentalWarning scripts/supabase-check/rls-check.ts"
   },
   "dependencies": {
     "@capacitor/core": "~8.5.3",
     "@capacitor/preferences": "~8.0.1",
+    "@supabase/supabase-js": "2.119.0",
     "phaser": "^3.90.0"
   },
   "devDependencies": {

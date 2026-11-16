@@ -13,7 +13,7 @@ export default tseslint.config(
     languageOptions: { globals: globals.browser },
   },
   {
-    files: ['*.config.{js,ts}'],
+    files: ['*.config.{js,ts}', 'scripts/**/*.ts'],
     languageOptions: { globals: globals.node },
   },
   // core는 순수 TS: 렌더러, DOM, 비결정적 랜덤·시간, 상위 계층에 의존하지 않는다 (PLAN 1절).
