@@ -4,7 +4,7 @@ import type { OnlineBackend } from '../../src/online/client';
 import { deferred, fakeBackend, type FakeBackend } from './fakeBackend';
 
 function setup(
-  backend: FakeBackend | null,
+  backend: OnlineBackend | null,
   over: Partial<AccountDeps> = {},
 ): {
   account: ReturnType<typeof createAccount>;
@@ -466,6 +466,88 @@ describe('익명 계정 상태 전이', () => {
       expect(b.calls.signIn).toBe(1);
       consistent(account, b);
     });
+  });
+
+  describe('조회를 기다린 뒤 마이크로태스크 틈에 온 이벤트 (W3-02 재리뷰 2)', () => {
+    /** 조회가 A를 돌려주기 직전에 이벤트를 `depth`단계 마이크로태스크 뒤로 예약한다 */
+    function lateEvent(opts: {
+      depth: number;
+      next: string | null;
+      first?: string | null;
+      signInId?: string;
+      firstEventRead: number;
+    }) {
+      let sdk: string | null = null;
+      const listeners: ((id: string | null) => void)[] = [];
+      let reads = 0;
+      let signIns = 0;
+      const emit = () => {
+        sdk = opts.next;
+        for (const l of listeners) l(opts.next);
+      };
+      const defer = (n: number) => {
+        if (n <= 0) emit();
+        else queueMicrotask(() => defer(n - 1));
+      };
+      const b: OnlineBackend = {
+        async getSessionUserId() {
+          reads += 1;
+          if (reads === opts.firstEventRead) defer(opts.depth);
+          return reads === 1 ? (opts.first ?? null) : sdk;
+        },
+        async signInAnonymously() {
+          signIns += 1;
+          sdk = opts.signInId ?? 'user-a';
+          for (const l of listeners) l(sdk);
+          return sdk;
+        },
+        onSessionChange: (l) => listeners.push(l),
+        fetchProfile: async () => null,
+        callFunction: async () => ({ status: 200, body: {} }),
+      } as OnlineBackend;
+      return { b, sdk: () => sdk, signIns: () => signIns };
+    }
+
+    for (const depth of [1, 2, 3]) {
+      for (const next of [null, 'user-b'] as const) {
+        it(`옛 A를 읽은 직후(${depth}단계 틈) ${next === null ? 'SIGNED_OUT' : 'B 이벤트'} → 최종 앱 상태 = SDK 세션`, async () => {
+          const t = lateEvent({ depth, next, first: 'user-a', firstEventRead: 1 });
+          const { account } = setup(t.b);
+          await account.ensure();
+          expect(account.userId()).toBe(t.sdk());
+          expect(account.status()).toBe(next === null ? 'offline' : 'ready');
+        });
+
+        it(`가입 뒤 최종 재조회 직후(${depth}단계 틈) ${next === null ? 'SIGNED_OUT' : 'B 이벤트'} → 최종 앱 상태 = SDK 세션`, async () => {
+          const t = lateEvent({ depth, next, first: null, signInId: 'user-a', firstEventRead: 2 });
+          const { account } = setup(t.b);
+          await account.ensure();
+          expect(t.signIns()).toBe(1);
+          expect(account.userId()).toBe(t.sdk());
+          expect(account.status()).toBe(next === null ? 'offline' : 'ready');
+        });
+      }
+
+      it(`옛 null을 읽은 직후(${depth}단계 틈) B 이벤트 (온라인) → 최종 앱 사용자 = SDK 세션${depth === 1 ? ', 새 가입 없음' : ''}`, async () => {
+        const t = lateEvent({ depth, next: 'user-b', first: null, firstEventRead: 1 });
+        const { account } = setup(t.b);
+        await account.ensure();
+        // 틈이 1단계면 이벤트가 결과를 적용하기 전에 도착하므로 옛 null로 가입을 시작하지 않는다.
+        // 더 늦게 도착한 이벤트는 가입이 이미 시작된 뒤의 일이라 가입은 허용되지만, 최종 상태는 항상 SDK 세션이다
+        if (depth === 1) expect(t.signIns()).toBe(0);
+        expect(account.userId()).toBe(t.sdk());
+        expect(account.status()).toBe('ready');
+      });
+
+      it(`옛 null을 읽은 직후(${depth}단계 틈) B 이벤트 → 앱은 B를 지킨다 (오프라인)`, async () => {
+        const t = lateEvent({ depth, next: 'user-b', first: null, firstEventRead: 1 });
+        const { account, online } = setup(t.b);
+        online.set(false);
+        await account.ensure();
+        expect(account.userId()).toBe(t.sdk());
+        expect(account.status()).toBe('ready');
+      });
+    }
   });
 
   it('ready가 아니면 backend()는 null이다', async () => {

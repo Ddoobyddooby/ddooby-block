@@ -76,17 +76,12 @@ export function createAccount(deps: AccountDeps): Account {
     return backend ?? loaded;
   };
 
-  /** SDK 세션 조회. 기다리는 사이 세션 이벤트가 왔으면 이 결과는 옛 것이라 'superseded' (이벤트가 이미 앱 상태를 맞췄다) */
-  const readSession = async (b: OnlineBackend): Promise<{ id: string | null } | 'superseded'> => {
-    const started = revision;
-    const id = await b.getSessionUserId();
-    return revision === started ? { id } : 'superseded';
-  };
-
   /**
    * 세션 확인 → 없으면 익명 로그인 → 마지막에 SDK 세션으로 재조정.
-   * 조회마다 더 최신 이벤트가 있었는지 보고, 있었으면 그 결과를 적용하지 않고 끝낸다 (다시 조회하지 않는다. 필요하면 다음 ensure가 시작한다).
-   * 가입이 일으키는 SIGNED_IN 이벤트는 앱 ID를 이미 그 사용자로 맞추므로, 가입 뒤의 재조회가 버려져도 상태는 맞다
+   * 세션 조회마다 시작 때의 `revision`을 기억하고, **조회를 기다린 바로 다음 줄에서 비교한다** (async 헬퍼로 나누면 헬퍼의 반환과
+   * 이쪽의 재개 사이 마이크로태스크 틈에 온 이벤트를 놓친다). 번호가 달라졌으면 그 결과를 적용하지 않고(이벤트가 이미 더 최신 상태를
+   * 앱에 반영했다) 끝낸다. 다시 조회하지 않는다: 필요하면 다음 ensure가 새 작업을 시작한다.
+   * 가입이 일으키는 SIGNED_IN 이벤트는 앱 ID를 이미 그 사용자로 맞추므로, 가입 뒤 재조회를 시작하는 시점의 번호로 비교하면 정상 가입은 버려지지 않는다
    */
   const authenticate = async (): Promise<void> => {
     try {
@@ -95,16 +90,22 @@ export function createAccount(deps: AccountDeps): Account {
         status = 'disabled';
         return;
       }
-      let read = await readSession(b);
-      if (read !== 'superseded' && read.id === null) {
-        if (!deps.isOnline()) {
-          follow(null);
-          return;
-        }
-        await b.signInAnonymously();
-        read = await readSession(b);
+      const started = revision;
+      const id = await b.getSessionUserId();
+      if (revision !== started) return;
+      if (id !== null) {
+        follow(id);
+        return;
       }
-      if (read !== 'superseded') follow(read.id);
+      if (!deps.isOnline()) {
+        follow(null);
+        return;
+      }
+      await b.signInAnonymously();
+      const afterSignIn = revision;
+      const signedIn = await b.getSessionUserId();
+      if (revision !== afterSignIn) return;
+      follow(signedIn);
     } catch {
       // 아래에서 offline 처리
     } finally {
