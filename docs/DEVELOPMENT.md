@@ -34,6 +34,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `npm run lint` | ESLint 규칙 검사 (`src/core`의 Phaser·DOM·`Math.random` 사용 금지 포함) | W1-01 |
 | `npm run format` | Prettier로 코드 정리 (md 문서는 제외) | W1-01 |
 | `npm run build` | 타입체크 + 배포용 빌드 (`dist/`) | W1-01 |
+| `npm run supabase:check` | Supabase 권한 시험. `.env.local`(또는 `-- <env 경로>`)의 URL·publishable key로 익명 사용자 둘과 비로그인을 만들어 쓰기가 막히는지 본다. 모두 PASS면 0, FAIL·시험 불가가 있으면 1, 설정이 없거나 키가 publishable이 아니면 2. 실행마다 익명 계정 2개가 남는다 | W3-01 |
 | `npm run sim` | 자동 플레이 봇으로 seed 1~1000을 돌려 평균 점수·배치 수·보정 발생률을 찍는다. 가중치·점수를 고친 뒤 밸런스를 잴 때 | W4-02 (예정) |
 | `npm run android:sync` | 웹 빌드 후 `android/` 앱에 복사 (`cap sync`). Android Studio에서 ▶ 하기 전에 실행 | W4-03 (예정) |
 
@@ -202,6 +203,14 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 프로덕션에서는 `?over`·`?resume`이 무시된다: `npm run build && npm run preview` → `?over`가 메뉴로 간다
 - 직접 확인 (이어한 기록): 이어한 뒤 몇 수 두고 Local Storage의 `ddooby-block-run`에서 `placements`의 `t`가 계속 늘어나는지 본다
 
+### W3-01 Supabase 스키마·권한 (원격 적용 대기)
+
+- `npm test` → 파일 39개, 738개 통과 (`tests/supabase/` 포함)
+- `npm run supabase:check` (`.env.local` 없이) → 안내 문구와 함께 끝나고 `echo $?`가 2
+- 원격 적용 (block 전용 프로젝트가 생긴 뒤): `.env.example`을 `.env.local`로 복사해 URL·publishable key를 넣는다 → `supabase login` → `supabase link --project-ref <ref>` → `supabase db push --dry-run`(올라갈 파일 목록만 보여 준다. SQL이 맞는지 검증하는 것은 아니다) → `supabase db push` → `npm run supabase:check`가 모두 PASS. 자세한 순서는 `supabase/README.md`
+- 대시보드 Table Editor에서 `profiles`·`runs`·`weekly_scores`에 RLS가 켜져 있다
+- `git ls-files | grep -E '\.env\.local|supabase/\.temp'` → 아무것도 안 나온다
+
 ## 5. 문제 해결
 
 | 증상 | 해결 |
@@ -367,3 +376,13 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **값의 출처를 섞지 않기**: "저장돼 있던 최고 점수"와 "이번 판이 올린 최고 점수"를 한 변수에 합치면 갱신 여부를 가릴 수 없다. 출처별로 따로 둔다 → `LoadResult.storedBest` ↔ `bestScore`
 - **실수로 눌리는 버튼 막기**: 마지막 조각을 놓던 손가락 자리에 버튼이 뜨면 읽기도 전에 눌린다. 화면을 늦게 띄우고, 뜬 직후에는 잠깐 입력을 받지 않는다 → `VIEW.gameOver.showDelayMs`·`inputDelayMs`
 - 참고: [Phaser Scenes](https://docs.phaser.io/phaser/concepts/scenes), [Phaser Tweens](https://docs.phaser.io/phaser/concepts/tweens)
+
+### W3-01 Supabase 스키마·권한
+
+- **권한은 두 겹**: GRANT는 "이 역할이 표에 손댈 수 있나", RLS는 "그중 어느 행인가"를 정한다. 먼저 `revoke all`로 다 걷고 필요한 것만 준다 → `supabase/migrations/20261116100000_w3_01_schema_rls.sql`
+- **서버만 쓰게 하기**: 클라이언트 역할에는 쓰기 GRANT도, 쓰기 정책도 주지 않는다. 서버(Edge Function)는 RLS를 건너뛰는 service_role로 쓴다. 그래서 점수를 앱이 직접 바꿀 수 없다
+- **숫자 범위는 저장소마다 다르다**: seed는 0~4294967295인데 Postgres `int`는 2147483647까지라 절반이 안 들어간다. `bigint`로 넓히고 check로 범위를 막는다
+- **시험은 "왜 실패했는지"까지 본다**: 쓰기가 실패했다고 다 막힌 것이 아니다. 네트워크가 끊겨도, 없는 행을 지워도 실패나 0행이 나온다. 권한 거부 코드(`42501`)일 때만 "막혔다"고 인정한다 → `scripts/supabase-check/report.ts`의 `denied`
+- **비밀을 레포에 두지 않는 검사**: 찾아야 할 값(pang 프로젝트 ref)을 평문으로 적으면 검사 파일 자체가 걸린다. 해시만 두고 후보를 해시해서 비교한다 → `scripts/supabase-check/separation.ts`
+- **공개 키와 비밀 키**: 앱에 들어가는 publishable key는 공개돼도 RLS가 지켜 준다. secret·service_role 키는 RLS를 건너뛰므로 앱·레포·채팅 어디에도 두지 않는다. 권한 시험도 publishable key만 받는다
+- 참고: [Supabase API 보안](https://supabase.com/docs/guides/api/securing-your-api), [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security), [Supabase API 키](https://supabase.com/docs/guides/getting-started/api-keys), [PostgREST 오류 코드](https://docs.postgrest.org/en/stable/references/errors.html)

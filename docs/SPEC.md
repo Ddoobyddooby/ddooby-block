@@ -167,7 +167,8 @@ ddooby-pang 조합 연출과 같은 원칙이다. **보는 맛이 핵심**이다
 
 ```sql
 profiles       (id uuid PK -> auth.users, nickname text, tag int, created_at)
-runs           (id uuid PK, user_id, seed int, created_at, submitted bool)
+runs           (id uuid PK, user_id, seed bigint /* 0~4294967295 */, rules_version int,
+                week_key text, created_at, submitted_at timestamptz, submission_hash, result jsonb)
 weekly_scores  (user_id, week_key text, best_score int, run_id, updated_at,
                 PRIMARY KEY (user_id, week_key))
 ```

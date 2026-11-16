@@ -340,6 +340,9 @@ GameOver: 점수, 최고 점수, (3주차) 이번 주 순위. 끝난 Game 위에
 ## 7. 온라인 (3주차, pang V2-W3 완료 후 자세히)
 
 - pang `supabase/migrations/`를 복사해서 SPEC 8절의 `profiles`·`runs`·`weekly_scores`로 고친다. `runs`에 `rules_version int`를 추가한다
+  - W3-01 결과 (`supabase/migrations/20261116100000_w3_01_schema_rls.sql`): seed는 uint32라 Postgres `int`(부호 있는 32비트)에 안 들어가 `bigint` + check(0~4294967295). pang의 `version text`는 `rules_version int`로 합쳤고 `mode`는 없앴다. 제출 여부는 `submitted_at is not null`. 권한: anon·authenticated는 SELECT만(profiles·weekly_scores 전체, runs는 본인 행), 쓰기는 service_role(Edge Function)만. `week_key` 형식 check와 주간 최고 점수 upsert 함수는 W3-03, 랭킹 조회 함수는 W3-04에서 마이그레이션을 더한다
+  - 권한 시험 `npm run supabase:check`(`scripts/supabase-check/`): 금지된 쓰기는 PostgreSQL 권한 거부 `42501`(PostgREST가 anon 401, 로그인 403으로 준다)일 때만 PASS. 다른 오류·성공 응답은 FAIL, 네트워크·인증 오류는 시험 불가. publishable key(`sb_publishable_…`)만 받는다
+  - pang 분리(SPEC 11절 9번): `tests/supabase/separation.test.ts`가 추적 파일 전체에서 pang ref(해시 비교)·Supabase URL·키 모양을 찾는다
 - `start-run`: `run_id` + seed 발급, `runs.created_at`이 기록 주(week_key, 월요일 00:00 KST)를 정한다 → 며칠에 걸친 판도 **시작한 주**로 등록 (SPEC 8.1)
 - `submit-score`: `{ run_id, seed, placements, clientScore, version }` → 재사용 run 거부, `version ≠ RULES_VERSION` 거부, `checkIntervals` 실패 거부, `replay` 점수 ≠ `clientScore` 거부 → `weekly_scores` upsert (최고 점수만)
 - 서버가 `src/core`를 import하는 방식(Deno 번들 등)은 pang V2-W2-08 PoC 결론을 그대로 따른다
