@@ -3,6 +3,7 @@
 // 타입은 tsc 선언 파일로 옆에 두고, JS 맨 위의 @ts-self-types로 Deno에 알려 준다.
 // W3-03에서 리플레이(core) target을 여기에 더한다.
 import { basename, resolve } from 'node:path';
+// rolldown은 devDependency로 버전을 고정한다 (package.json). vite도 같은 버전을 쓴다
 import { build } from 'rolldown';
 import ts from 'typescript';
 
