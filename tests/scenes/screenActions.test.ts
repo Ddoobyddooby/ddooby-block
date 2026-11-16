@@ -5,6 +5,7 @@ import type { StartedRun } from '../../src/online';
 import type { GameStartData } from '../../src/scenes/gameStart';
 import { cancelNewGame, isPreparing, resetNewGameFlow } from '../../src/scenes/newRun';
 import { PlayClock } from '../../src/scenes/playClock';
+import { RestartGate } from '../../src/scenes/restartGate';
 import { RunSession, type RunStore } from '../../src/scenes/runSession';
 import {
   handleGameOverButton,
@@ -415,4 +416,128 @@ describe('지적 2: 요청 수명과 버튼 잠금', () => {
     });
     expect(lock2.pressed).toBe(false);
   });
+});
+
+// ── resize가 다음 갱신 전에 여러 번 오는 경계 (재리뷰 1) ──────────────────────────────────────
+// 실제 Phaser처럼 restart를 즉시 실행하지 않고 큐에 모은다. update(drain)에서 큐를 비우며 SHUTDOWN → create를 차례로 실행한다.
+// 예약을 합치지 않으면 첫 create가 플래그를 되돌린 뒤 두 번째 SHUTDOWN이 "화면을 떠남"으로 오판돼 준비 요청이 취소된다.
+class QueuedScreen {
+  readonly gate = new RestartGate();
+  lock: PressLock = { pressed: false };
+  queue: (() => void)[] = [];
+  creates = 0;
+  constructor(
+    private readonly w: World,
+    private readonly owner: 'Pause' | 'GameOver',
+  ) {
+    this.create();
+  }
+  create(): void {
+    this.gate.started();
+    this.lock = { pressed: false };
+    this.creates += 1;
+  }
+  /** resize: 씬이 실제로 하는 것과 같다 (gate로 합치고, restart는 큐에만 넣는다) */
+  resize(): void {
+    this.gate.request(() => this.queue.push(() => this.restartNow()));
+  }
+  private restartNow(): void {
+    // SHUTDOWN 이벤트 → create
+    if (!this.gate.restarting) cancelNewGame(this.owner);
+    this.create();
+  }
+  /** Phaser의 다음 update: 쌓인 restart를 모두 실행한다 */
+  drain(): void {
+    while (this.queue.length > 0) this.queue.shift()?.();
+  }
+  /** 진짜 SHUTDOWN (다시 그리기가 아닌 종료) */
+  leave(): void {
+    if (!this.gate.restarting) cancelNewGame(this.owner);
+  }
+  pressRetry(): void {
+    if (!beginPress(this.lock)) return;
+    const w = this.w;
+    const h = host(w, () => this.lock);
+    if (this.owner === 'Pause') {
+      handlePauseButton('retry', {
+        ...h,
+        resumeGame: () => undefined,
+        abandonGame: () => w.transitions.push('abandon'),
+        stopGame: () => w.transitions.push('stop Game'),
+        goMenu: () => undefined,
+      });
+    } else {
+      handleGameOverButton('retry', {
+        ...h,
+        stopGame: () => w.transitions.push('stop Game'),
+        goMenu: () => undefined,
+      });
+    }
+  }
+}
+
+describe('재리뷰 1: resize가 갱신 전에 겹쳐도 준비 요청이 유지된다 (큐에 모으는 호스트)', () => {
+  for (const owner of ['Pause', 'GameOver'] as const) {
+    for (const [label, answer] of [
+      ['성공', RUN],
+      ['null', null],
+    ] as const) {
+      for (const resizes of [2, 3, 5]) {
+        it(`${owner}: [다시 하기] 대기 → update 전에 resize ${resizes}회 → drain → ${label}: 새 판 시작 정확히 1회`, async () => {
+          const w = world();
+          w.startRunGate = deferred<StartedRun | null>();
+          const screen = new QueuedScreen(w, owner);
+          screen.pressRetry();
+          for (let i = 0; i < resizes; i += 1) screen.resize();
+          expect(screen.queue).toHaveLength(1); // 예약은 하나로 합쳐진다
+          screen.drain();
+          expect(screen.creates).toBe(2); // 한 번만 다시 그렸다
+          expect(isPreparing()).toBe(true);
+          w.startRunGate.resolve(answer);
+          await tick();
+          expect(w.transitions.filter((t) => t === 'start Game')).toHaveLength(1);
+          expect(w.startData).toEqual([answer === null ? {} : { online: RUN }]);
+          expect(w.startRunCalls).toBe(1);
+        });
+      }
+    }
+
+    it(`${owner}: 합친 뒤 마지막 resize 이후 다시 resize해도(새 예약) 요청이 유지되고, 진짜 SHUTDOWN에서는 취소된다`, async () => {
+      const w = world();
+      w.startRunGate = deferred<StartedRun | null>();
+      const screen = new QueuedScreen(w, owner);
+      screen.pressRetry();
+      screen.resize();
+      screen.resize();
+      screen.drain();
+      screen.resize(); // drain 뒤의 새 resize는 새 예약
+      expect(screen.queue).toHaveLength(1);
+      screen.drain();
+      expect(isPreparing()).toBe(true);
+      screen.leave(); // 진짜 종료
+      expect(isPreparing()).toBe(false);
+      w.startRunGate.resolve(RUN);
+      await tick();
+      expect(w.transitions).toEqual([]);
+    });
+
+    it(`${owner}: 같은 owner 재진입 뒤 옛 응답은 무시된다`, async () => {
+      const w = world();
+      const oldGate = deferred<StartedRun | null>();
+      w.startRunGate = oldGate;
+      const first = new QueuedScreen(w, owner);
+      first.pressRetry();
+      first.leave();
+      const newGate = deferred<StartedRun | null>();
+      w.startRunGate = newGate;
+      const second = new QueuedScreen(w, owner); // 같은 owner의 새 실행
+      second.pressRetry();
+      oldGate.resolve(RUN);
+      await tick();
+      expect(w.transitions).toEqual([]);
+      newGate.resolve(null);
+      await tick();
+      expect(w.startData).toEqual([{}]);
+    });
+  }
 });

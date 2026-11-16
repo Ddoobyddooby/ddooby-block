@@ -13,6 +13,7 @@ import { getPersistence } from './persistenceRegistry';
 import { startRun } from '../online';
 import { skipsRanking } from './gameStart';
 import { cancelNewGame, isPreparing } from './newRun';
+import { RestartGate } from './restartGate';
 import { handlePauseButton } from './screenActions';
 import { showPreparing } from './preparingLabel';
 import { pauseButtons, RETRY_EVENT, type PauseButton } from './pauseRules';
@@ -25,8 +26,8 @@ const LABELS: Record<PauseButton, string> = {
 };
 
 export class PauseScene extends Phaser.Scene {
-  /** resize로 다시 그리는 중: 화면을 떠난 것이 아니므로 진행 중인 새 판 준비를 취소하지 않는다 */
-  private restarting = false;
+  /** resize로 다시 그리는 중: 화면을 떠난 것이 아니므로 진행 중인 새 판 준비를 취소하지 않는다 (예약은 합친다, restartGate.ts) */
+  private readonly gate = new RestartGate();
   private lock: PressLock = { pressed: false };
 
   constructor() {
@@ -34,7 +35,7 @@ export class PauseScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.restarting = false;
+    this.gate.started();
     const { colors, fontFamily, pause } = VIEW;
     const { width, height } = this.scale;
     const cx = width / 2;
@@ -109,15 +110,14 @@ export class PauseScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.relayout, this);
       // 다시 그리기가 아니라 화면을 떠나는 것이면 준비 중이던 요청은 무효 (늦은 응답이 새 판을 시작하지 않는다)
-      if (!this.restarting) cancelNewGame('Pause');
+      if (!this.gate.restarting) cancelNewGame('Pause');
     });
     // 다시 그려도 준비 중이면 "준비 중…"을 계속 보인다 (준비가 끝나면 화면이 새 판으로 넘어간다)
     if (isPreparing()) showPreparing(this);
   }
 
   private relayout(): void {
-    this.restarting = true;
-    this.scene.restart();
+    this.gate.request(() => this.scene.restart());
   }
 
   private go(button: PauseButton): void {

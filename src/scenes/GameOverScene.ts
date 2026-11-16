@@ -18,6 +18,7 @@ import { NicknameFlow } from './nicknameFlow';
 import { fakeSubmit } from './nicknameDev';
 import { parseFakeRanking } from './nicknameGate';
 import { cancelNewGame, isPreparing } from './newRun';
+import { RestartGate } from './restartGate';
 import { handleGameOverButton } from './screenActions';
 import { showPreparing } from './preparingLabel';
 import { currentWeek, rankingLine, type RankingTracker } from './rankingResult';
@@ -44,6 +45,8 @@ export class GameOverScene extends Phaser.Scene {
   private fresh = true;
   /** resize로 다시 그리는 중: 닉네임 창을 지우지 않고 넘긴다 (키보드가 올라오며 resize가 나도 입력 중인 창이 사라지지 않게) */
   private redrawing = false;
+  /** 다시 그리기 예약을 합친다 (restartGate.ts) */
+  private readonly gate = new RestartGate();
   /** 점수 제출이 성공한 뒤 닉네임을 묻는 진행 (W3-03). 화면을 떠날 때 끝낸다 */
   private nickname: NicknameFlow | null = null;
   /** 제출 결과를 기다리는 닉네임 묻기의 구독. resize로 다시 그려도 이어지고, 화면을 떠날 때 끊는다 */
@@ -178,7 +181,7 @@ export class GameOverScene extends Phaser.Scene {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.redraw, this);
       unsubscribeLine?.();
       rankingText = null;
-      if (!this.redrawing) {
+      if (!this.gate.restarting) {
         this.endNickname();
         // 화면을 떠나는 것이면 준비 중이던 [다시 하기] 요청은 무효 (resize로 다시 그리는 것은 취소가 아니다)
         cancelNewGame('GameOver');
@@ -207,15 +210,18 @@ export class GameOverScene extends Phaser.Scene {
       }
     }
     this.redrawing = false;
+    this.gate.started();
     this.fresh = false;
   }
 
   private redraw(): void {
-    this.redrawing = true;
-    this.scene.restart({
-      ...this.data0,
-      unlockAt: this.unlockAt,
-      ranking: this.ranking,
+    this.gate.request(() => {
+      this.redrawing = true;
+      this.scene.restart({
+        ...this.data0,
+        unlockAt: this.unlockAt,
+        ranking: this.ranking,
+      });
     });
   }
 
