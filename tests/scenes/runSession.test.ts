@@ -492,3 +492,110 @@ describe('저장소 없음', () => {
     expect(inspectRun(null).kind).toBe('rejected');
   });
 });
+
+describe('rankedSubmission: 게임 오버 때의 점수 제출 내용 (W3-03)', () => {
+  const RUN = '123e4567-e89b-42d3-a456-426614174000';
+
+  /** 끝날 때까지 그리디 봇으로 둔다 */
+  function playToOver(options: {
+    runId?: string | null;
+    replayable?: boolean;
+    maxPlacements?: number;
+    seed?: number;
+  }) {
+    const seed = options.seed ?? 4;
+    const time = fakeTime();
+    const clock = new PlayClock(time.now, 0);
+    const rec = recorder();
+    const session = new RunSession({
+      seed,
+      state: createGame(seed),
+      runId: options.runId === undefined ? RUN : options.runId,
+      clock,
+      store: rec.store,
+      replayable: options.replayable ?? true,
+      minIntervalMs: REPLAY.minIntervalMs,
+      maxPlacements: options.maxPlacements ?? SAVE.maxRunPlacements,
+    });
+    let guard = 0;
+    while (!session.state.over) {
+      if (guard++ > 500) throw new Error('끝나지 않음');
+      time.advance(250);
+      const move = anyMove(session.state);
+      if (!session.tryPlace(move).ok) throw new Error('거부됨');
+    }
+    return { session, rec };
+  }
+
+  it('끝나기 전에는 null, 끝난 판은 수락된 로그·점수·seed·버전·run ID로 만든다', () => {
+    const { session } = playToOver({});
+    const sub = session.rankedSubmission();
+    expect(sub?.runId).toBe(RUN);
+    expect(sub?.payload.seed).toBe(4);
+    expect(sub?.payload.clientScore).toBe(session.state.score);
+    expect(sub?.payload.placements).toEqual(session.placements);
+    // 서버와 같은 판정(리플레이)이 이 제출을 통과한다
+    const r = replay(4, sub?.payload.placements ?? []);
+    expect(r.ok && r.state.score).toBe(session.state.score);
+    expect(checkIntervals(sub?.payload.placements ?? [], REPLAY.minIntervalMs)).toBe(true);
+
+    const fresh = setup().session;
+    expect(fresh.rankedSubmission()).toBeNull();
+  });
+
+  it('run이 없는 판·?fill= 판은 제출하지 않는다', () => {
+    expect(playToOver({ runId: null }).session.rankedSubmission()).toBeNull();
+    expect(playToOver({ replayable: false }).session.rankedSubmission()).toBeNull();
+  });
+
+  it('저장이 한도로 잘려도(maxPlacements 초과) 제출하지 않는다', () => {
+    const { session } = playToOver({ maxPlacements: 3 });
+    expect(session.placements.length).toBeGreaterThan(3);
+    expect(session.rankedSubmission()).toBeNull();
+  });
+
+  it('저장소가 없거나 저장이 실패해도 제출 내용은 만들어진다 (제출은 저장의 성공을 전제로 하지 않는다)', () => {
+    const time = fakeTime();
+    const session = new RunSession({
+      seed: 4,
+      state: createGame(4),
+      runId: RUN,
+      clock: new PlayClock(time.now, 0),
+      store: null,
+      replayable: true,
+      minIntervalMs: REPLAY.minIntervalMs,
+      maxPlacements: SAVE.maxRunPlacements,
+    });
+    while (!session.state.over) {
+      time.advance(250);
+      session.tryPlace(anyMove(session.state));
+    }
+    expect(session.rankedSubmission()).not.toBeNull();
+  });
+
+  it('이어한 판은 저장된 runId·seed·로그 전체로 제출한다', () => {
+    const first = playGreedy(4, 3);
+    const time = fakeTime();
+    const clock = new PlayClock(time.now, 5000);
+    const session = new RunSession({
+      seed: 4,
+      state: first.state,
+      placements: first.placements,
+      runId: RUN,
+      clock,
+      store: null,
+      replayable: true,
+      minIntervalMs: REPLAY.minIntervalMs,
+      maxPlacements: SAVE.maxRunPlacements,
+    });
+    while (!session.state.over) {
+      time.advance(250);
+      session.tryPlace(anyMove(session.state));
+    }
+    const sub = session.rankedSubmission();
+    expect(sub?.runId).toBe(RUN);
+    expect(sub?.payload.placements.slice(0, 3)).toEqual(first.placements);
+    expect(sub?.payload.placements.length).toBeGreaterThan(3);
+    expect(checkIntervals(sub?.payload.placements ?? [], REPLAY.minIntervalMs)).toBe(true);
+  });
+});

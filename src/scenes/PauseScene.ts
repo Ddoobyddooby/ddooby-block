@@ -10,7 +10,10 @@ import { drawPanel } from '../view/ui/Panel';
 import { Sfx } from '../view/Sfx';
 import { readMuted, setMuted } from './muteSetting';
 import { getPersistence } from './persistenceRegistry';
-import { newGameData } from './gameStart';
+import { startRun } from '../online';
+import { skipsRanking } from './gameStart';
+import { requestNewGame } from './newRun';
+import { showPreparing } from './preparingLabel';
 import { pauseButtons, RETRY_EVENT, type PauseButton } from './pauseRules';
 import { cssColor } from './text';
 
@@ -114,9 +117,18 @@ export class PauseScene extends Phaser.Scene {
       case 'retry':
         // 저장된 run을 지우게 알린다 (?fill= 판은 지우지 않는다. 판단은 Game 씬이 한다)
         this.scene.get('Game').events.emit(RETRY_EVENT);
-        // 멈춘 Game을 끝내고 처음부터 다시. seed는 GameScene이 정한다 (?seed=N이면 같은 seed, 아니면 새로)
-        this.scene.stop('Game');
-        this.scene.start('Game', newGameData());
+        // 서버에서 새 run을 받는 동안(최대 2.5초) 기다린 뒤, 멈춘 Game을 끝내고 새 판을 시작한다. 실패하면 오프라인 판으로 바로 시작한다.
+        // 버린 미완료 판은 제출하지 않는다 (RETRY_EVENT가 저장된 run을 지운다). `?seed=N`이면 같은 seed (newRun.ts)
+        requestNewGame({
+          startRun,
+          skipOnline: () => skipsRanking(window.location.search, import.meta.env.DEV),
+          isAlive: () => this.scene.isActive(),
+          showWait: () => showPreparing(this),
+          begin: (data) => {
+            this.scene.stop('Game');
+            this.scene.start('Game', data);
+          },
+        });
         break;
       case 'menu':
         this.scene.stop('Game');

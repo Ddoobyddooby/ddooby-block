@@ -5,6 +5,8 @@
 // 저장은 항상 이쪽 (수락된 수를 포함한 로그 + 그 수 뒤의 상태 + 수락 시각)을 묶어 쓴다.
 import { place } from '../core/engine';
 import type { GameState, PlaceAction, PlaceResult, Placement } from '../core/types';
+import { RULES_VERSION } from '../config';
+import { buildSubmission, type RankedSubmission } from './rankingResult';
 import type { PlayClock } from './playClock';
 
 /** Persistence가 구현한다 (테스트는 가짜). 저장 실패는 여기까지 올라오지 않는다 */
@@ -51,6 +53,7 @@ export class RunSession {
   private readonly store: RunStore | null;
   private readonly minIntervalMs: number;
   private readonly maxPlacements: number;
+  private readonly replayable: boolean;
   private readonly epoch: number;
   /** 저장을 끝냈다 (끝남·다시 하기). 그 뒤의 입력은 저장하지 않는다 */
   private retired = false;
@@ -66,6 +69,7 @@ export class RunSession {
     this.store = options.replayable ? options.store : null;
     this.minIntervalMs = options.minIntervalMs;
     this.maxPlacements = options.maxPlacements;
+    this.replayable = options.replayable;
     this.epoch = this.store?.beginRun() ?? 0;
   }
 
@@ -107,6 +111,22 @@ export class RunSession {
     if (result.state.over) this.clock.block('over');
     this.persistAccepted(result.state);
     return { ok: true, result, t };
+  }
+
+  /**
+   * 끝난 판의 점수 제출 내용 (W3-03). 수락된 수를 모두 반영한 논리 상태·로그로 만든다 (화면에 보이는 상태가 아니다).
+   * 랭킹 대상이 아니면 null: run이 없는 판, `?fill=` 판, 아직 안 끝난 판, 기록이 한도를 넘어 잘린 판. 저장 성공 여부와 무관하다
+   */
+  rankedSubmission(): RankedSubmission | null {
+    return buildSubmission({
+      runId: this.runId,
+      replayable: this.replayable,
+      seed: this.seed,
+      version: RULES_VERSION,
+      state: this.current,
+      placements: this.log,
+      maxPlacements: this.maxPlacements,
+    });
   }
 
   /** 일시정지·숨김 때: 지금까지의 플레이 시간(`elapsedMs`)을 저장한다. 끝난 판·저장을 멈춘 판·아직 안 둔 판은 하지 않는다 */

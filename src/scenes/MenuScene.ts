@@ -4,9 +4,12 @@
 import Phaser from 'phaser';
 import { GAME, VIEW } from '../config';
 import { addButton, type PressLock } from '../view/ui/Button';
-import { newGameData, type GameStartData } from './gameStart';
+import { startRun } from '../online';
+import { skipsRanking, type GameStartData } from './gameStart';
 import { menuButtons, type MenuButton } from './menuRules';
+import { requestNewGame } from './newRun';
 import { getPersistence } from './persistenceRegistry';
+import { showPreparing } from './preparingLabel';
 import { cssColor } from './text';
 
 const LABELS: Record<MenuButton, string> = {
@@ -99,7 +102,14 @@ export class MenuScene extends Phaser.Scene {
 
   private go(button: MenuButton): void {
     if (button === 'new') {
-      this.scene.start('Game', newGameData());
+      // 서버에서 새 run을 받는 동안(최대 2.5초) 기다렸다가 시작한다. 실패하면 오프라인 판으로 바로 시작한다 (newRun.ts)
+      requestNewGame({
+        startRun,
+        skipOnline: () => skipsRanking(window.location.search, import.meta.env.DEV),
+        isAlive: () => !this.closed,
+        showWait: () => showPreparing(this),
+        begin: (data) => this.scene.start('Game', data),
+      });
       return;
     }
     // 누르는 순간의 저장 상태를 다시 본다. 그 사이 없어졌다면 시작하지 않고 메뉴를 다시 그린다

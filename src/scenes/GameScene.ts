@@ -10,6 +10,7 @@ import { BoardView } from '../view/BoardView';
 import { DragController, type PointerLike } from '../view/DragController';
 import { FxDirector } from '../view/fx/FxDirector';
 import { unplaceableSlots } from '../view/fx/trayDim';
+import { submitScore } from '../online';
 import { Hud } from '../view/Hud';
 import { boardLayout, screenLayout, type Layout, type ScreenLayout } from '../view/layout';
 import { Sfx } from '../view/Sfx';
@@ -17,11 +18,12 @@ import { TrayView } from '../view/TrayView';
 import { readBest, recordBest, startBest } from './bestScore';
 import { fillState, parseFillParam } from './devFill';
 import { buildGameOverData, raiseStartBest } from './gameOverRules';
-import type { GameStartData } from './gameStart';
+import { chooseSeedAndRun, type GameStartData } from './gameStart';
 import { canPause, RETRY_EVENT } from './pauseRules';
 import { getPersistence } from './persistenceRegistry';
 import { PlayClock } from './playClock';
 import { playEvents } from './playback';
+import { RankingTracker } from './rankingResult';
 import { RunSession } from './runSession';
 import { parseSeedParam, randomSeed } from './seed';
 
@@ -45,7 +47,7 @@ export class GameScene extends Phaser.Scene {
   private sfx!: Sfx;
   /**
    * (seed, 배치 로그)만으로 리플레이할 수 있는 판인가. DEV `?fill=`로 시작한 판은 빈 보드에서 시작하지 않아 false다.
-   * false인 판은 저장하지 않고(저장된 run을 지우지도 않는다) 최고 점수에도 반영하지 않는다. W3(점수 제출)도 뺀다 (devFill.ts 설명).
+   * false인 판은 저장하지 않고(저장된 run을 지우지도 않는다) 최고 점수에도 반영하지 않는다. 점수 제출도 하지 않는다 (RunSession.rankedSubmission).
    */
   private replayable = true;
   /** 일시정지 중 (PauseScene이 떠 있는 동안) */
@@ -58,6 +60,8 @@ export class GameScene extends Phaser.Scene {
   private bestAtStart = 0;
   /** 판 번호. 씬 객체는 다시 쓰이므로, 끝난 판의 재생이 새 판을 건드리지 않게 구분한다 */
   private run = 0;
+  /** 이 판의 점수 제출 진행 (W3-03). 랭킹 대상이 아니거나 아직 안 끝났으면 null */
+  private ranking: RankingTracker | null = null;
 
   constructor() {
     super('Game');
@@ -72,7 +76,15 @@ export class GameScene extends Phaser.Scene {
     const resume = this.startData.resume ?? null;
     const fill =
       resume === null ? parseFillParam(window.location.search, import.meta.env.DEV) : null;
-    this.seed = resume?.saved.seed ?? parseSeedParam(window.location.search) ?? randomSeed();
+    // 서버가 발급한 새 판(online)의 seed·runId는 상태·시계·저장에 함께 들어간다. 이어하기가 `?seed`·새 판보다 우선한다
+    const online = resume === null ? (this.startData.online ?? null) : null;
+    const chosen = chooseSeedAndRun({
+      resume,
+      online,
+      urlSeed: parseSeedParam(window.location.search),
+      random: randomSeed,
+    });
+    this.seed = chosen.seed;
     this.state =
       resume !== null
         ? resume.state
@@ -87,7 +99,7 @@ export class GameScene extends Phaser.Scene {
       seed: this.seed,
       state: this.state,
       placements: resume?.saved.placements,
-      runId: resume?.saved.runId ?? null,
+      runId: chosen.runId,
       clock: this.clock,
       store: getPersistence(this.registry),
       replayable: this.replayable,
@@ -98,6 +110,7 @@ export class GameScene extends Phaser.Scene {
     this.paused = false;
     this.ended = false;
     this.overStarted = false;
+    this.ranking = null;
     this.run += 1;
 
     // startBest가 이어한 판의 점수로 화면용 최고 점수를 올리기 전에 기억한다
@@ -187,7 +200,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (import.meta.env.DEV) {
-      console.info('seed', this.seed);
+      console.info('seed', this.seed, online !== null ? `(서버 run ${online.runId})` : '');
       if (fill !== null) console.info('fill', fill, '(이 판은 리플레이 불가)');
     }
   }
@@ -242,8 +255,22 @@ export class GameScene extends Phaser.Scene {
       this.sfx.play('return');
       return false;
     }
+    // 게임 오버가 수락된 순간 제출한다 (연출이 끝나기를 기다리지 않는다). 화면의 state가 아니라 수락된 논리 상태·로그를 쓴다
+    if (outcome.result.state.over) this.beginRanking();
     void this.play(outcome.result.events, outcome.result.state, action);
     return true;
+  }
+
+  /**
+   * 끝난 판의 점수를 서버에 제출한다 (W3-03). 랭킹 대상이 아니면(run 없는 판, `?fill=`, 기록 한도 초과) 아무것도 하지 않는다.
+   * 결과는 RankingTracker가 받아 두었다가 게임 오버 화면에 알린다. 화면이 응답을 기다리지 않고, 화면을 떠나도 제출은 계속된다
+   */
+  private beginRanking(): void {
+    const submission = this.session.rankedSubmission();
+    this.ranking =
+      submission === null
+        ? null
+        : new RankingTracker(submitScore(submission.runId, submission.payload));
   }
 
   /** 이벤트를 순서대로 재생한다. 재생 중에는 조각을 집을 수 없고(`playing`), 끝나면 상태를 바꾼다 */
@@ -313,8 +340,8 @@ export class GameScene extends Phaser.Scene {
       currentBest: readBest(this.game.registry),
       replayable: this.replayable,
     });
-    // nicknameEligible: `?fill=` 판은 정상 종료 화면이 아니라 닉네임을 묻지 않는다 (DEV `?ranking`)
-    this.scene.launch('GameOver', { ...data, nicknameEligible: this.replayable });
+    // ranking: 점수 제출 결과 (랭킹 대상이 아니면 null → 결과 줄도, 닉네임 창도 없다)
+    this.scene.launch('GameOver', { ...data, ranking: this.ranking });
   }
 
   /** 씬 시계로 기다린다 (씬이 끝나면 시계가 멈춰 풀리지 않지만, 그때는 재생 루프가 버려진다) */

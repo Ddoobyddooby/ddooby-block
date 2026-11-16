@@ -1,50 +1,66 @@
 import { describe, expect, it } from 'vitest';
+import type { SubmitOutcome } from '../../src/online';
 import {
-  parseRankingParam,
+  parseFakeRanking,
   shouldCheckProfile,
   shouldOpenPrompt,
   type GateInput,
 } from '../../src/scenes/nicknameGate';
 
-describe('parseRankingParam (DEV 전용 ?ranking)', () => {
-  it('?ranking·?ranking=1은 online, ?ranking=fake는 fake', () => {
-    expect(parseRankingParam('?ranking', true)).toBe('online');
-    expect(parseRankingParam('?ranking=', true)).toBe('online');
-    expect(parseRankingParam('?ranking=1', true)).toBe('online');
-    expect(parseRankingParam('?seed=3&ranking', true)).toBe('online');
-    expect(parseRankingParam('?ranking=fake', true)).toBe('fake');
+describe('parseFakeRanking (DEV 전용 ?ranking=fake)', () => {
+  it('?ranking=fake만 true', () => {
+    expect(parseFakeRanking('?ranking=fake', true)).toBe(true);
+    expect(parseFakeRanking('?seed=3&ranking=fake', true)).toBe(true);
   });
 
-  it('프로덕션(dev=false)·없음·다른 값은 무시', () => {
-    expect(parseRankingParam('?ranking', false)).toBeNull();
-    expect(parseRankingParam('?ranking=fake', false)).toBeNull();
-    expect(parseRankingParam('', true)).toBeNull();
-    expect(parseRankingParam('?seed=1', true)).toBeNull();
-    expect(parseRankingParam('?ranking=0', true)).toBeNull();
-    expect(parseRankingParam('?rankings', true)).toBeNull();
+  it('프로덕션(dev=false)·없음·다른 값(이전의 ?ranking·?ranking=1 포함)은 무시', () => {
+    expect(parseFakeRanking('?ranking=fake', false)).toBe(false);
+    for (const q of [
+      '',
+      '?seed=1',
+      '?ranking',
+      '?ranking=',
+      '?ranking=1',
+      '?ranking=0',
+      '?rankings=fake',
+    ]) {
+      expect(parseFakeRanking(q, true), q).toBe(false);
+    }
   });
 });
 
-describe('닉네임 게이트 진리표', () => {
-  const base: GateInput = {
-    ranking: 'online',
-    eligible: true,
-    status: 'ready',
-    networkOnline: true,
+describe('닉네임 게이트 진리표 (점수 제출 성공 뒤에만, 배포본에서도)', () => {
+  const ok: SubmitOutcome = {
+    kind: 'ok',
+    score: 10,
+    best: 10,
+    weekKey: '2026-W46',
+    isNewBest: true,
+    userId: 'user-a',
   };
+  const base: GateInput = { outcome: ok, userId: 'user-a', status: 'ready', networkOnline: true };
 
-  it('?ranking이 없으면(프로덕션 포함) 창도 프로필 조회도 없다', () => {
-    for (const status of ['disabled', 'offline', 'signing-in', 'ready'] as const) {
-      expect(shouldCheckProfile({ ...base, ranking: null, status })).toBe(false);
-    }
-  });
-
-  it('?ranking + 온라인 + 계정 ready + 정상 종료 화면이면 프로필을 조회한다', () => {
+  it('제출 성공 + 같은 계정 + 온라인 + ready면 프로필을 조회한다', () => {
     expect(shouldCheckProfile(base)).toBe(true);
   });
 
+  it('제출이 실패·거부·새 버전 안내면 열지 않는다', () => {
+    for (const outcome of [
+      { kind: 'failed' },
+      { kind: 'rejected', code: 'score-mismatch' },
+      { kind: 'outdated' },
+    ] as SubmitOutcome[]) {
+      expect(shouldCheckProfile({ ...base, outcome }), outcome.kind).toBe(false);
+    }
+  });
+
+  it('제출한 계정과 지금 계정이 다르거나 계정이 없으면 열지 않는다 (기다리는 사이 계정이 바뀜)', () => {
+    expect(shouldCheckProfile({ ...base, userId: 'user-b' })).toBe(false);
+    expect(shouldCheckProfile({ ...base, userId: null })).toBe(false);
+  });
+
   it.each(['disabled', 'offline', 'signing-in'] as const)(
-    '계정 %s이면 조회하지 않는다 (이 화면에서는 묻지 않는다)',
+    '계정 %s이면 조회하지 않는다',
     (status) => {
       expect(shouldCheckProfile({ ...base, status })).toBe(false);
     },
@@ -52,21 +68,6 @@ describe('닉네임 게이트 진리표', () => {
 
   it('저장된 세션으로 ready여도 브라우저가 오프라인이면 조회하지 않는다', () => {
     expect(shouldCheckProfile({ ...base, networkOnline: false })).toBe(false);
-  });
-
-  it('?fill=·?over 같은 미리보기 화면(정상 종료가 아님)은 조회하지 않는다', () => {
-    expect(shouldCheckProfile({ ...base, eligible: false })).toBe(false);
-  });
-
-  it('?ranking=fake는 온라인 없이도 창만 본다 (미리보기 화면 포함)', () => {
-    expect(
-      shouldCheckProfile({
-        ranking: 'fake',
-        eligible: false,
-        status: 'disabled',
-        networkOnline: false,
-      }),
-    ).toBe(true);
   });
 
   it('프로필 조회 결과: 이름이 없을 때(null)만 연다. 설정됨·조회 실패(error)는 열지 않는다', () => {

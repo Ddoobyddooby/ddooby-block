@@ -203,6 +203,8 @@ export const VIEW = {
     scoreGap: 20,
     bestSize: 38,
     newBestSize: 44,
+    /** 랭킹 등록 결과 줄 ("랭킹에 올리는 중…", "이번 주 최고 N점" 등) */
+    rankingSize: 30,
     /** 최고 점수 아래(또는 최고 기록 문구 아래) 버튼까지 간격 */
     textGap: 22,
     buttonsGap: 40,
@@ -216,6 +218,8 @@ export const VIEW = {
     /** 화면이 뜬 뒤 이 시간(ms) 동안은 버튼이 눌리지 않는다 (마지막 배치를 놓던 손가락이 바로 누르지 않게) */
     inputDelayMs: 600,
   },
+  /** 새 판을 시작하기 전 서버 run을 기다리는 동안의 "준비 중…" 문구 (W3-03). 기다림이 이 시간(ms)을 넘으면 보인다 */
+  preparing: { size: 40, y: 0.86, showAfterMs: 200 },
 } as const;
 
 export const ANIM = {
