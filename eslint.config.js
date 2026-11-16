@@ -5,7 +5,14 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/', 'coverage/', 'android/', '.omc/', '.playwright-mcp/'],
+    ignores: [
+      'dist/',
+      'coverage/',
+      'android/',
+      '.omc/',
+      '.playwright-mcp/',
+      'supabase/functions/_shared/', // 자동 생성 (npm run server:shared)
+    ],
   },
   js.configs.recommended,
   tseslint.configs.recommended,

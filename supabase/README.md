@@ -5,7 +5,8 @@ ddooby-block **전용** Supabase 프로젝트의 설정과 DB 마이그레이션
 - `config.toml`: `supabase init`으로 만든 CLI 설정. 로컬 Docker 스택은 쓰지 않으므로 원격 적용에는 영향이 없다 (`enable_anonymous_sign_ins = true`는 의도 기록용)
 - `migrations/`: 스키마·RLS·GRANT. 파일명 타임스탬프 순서로 적용된다
 - `.temp/`·`.branches/`: CLI가 만드는 링크 정보. 커밋하지 않는다 (`supabase/.gitignore`)
-- Edge Function(`functions/`)과 `[functions.*]` 설정은 W3-02·03에서 추가한다
+- `functions/`: Edge Function. `set-nickname`(W3-02)은 `handler.ts`(순수 처리, Vitest) · `adapter.ts`(profiles 쓰기·토큰 검증) · `index.ts`(Deno 진입점). `_shared/`는 `npm run server:shared`가 만드는 생성물이라 직접 고치지 않는다. `start-run`·`submit-score`는 W3-03
+- `config.toml`의 `[functions.set-nickname] verify_jwt = true`: 게이트웨이가 JWT를 먼저 확인하고 함수도 `auth.getUser(token)`으로 다시 확인한다
 
 ## 원격 적용 (PL이 사용자 확인을 받은 뒤에만)
 
@@ -63,9 +64,26 @@ SPEC과 다른 점 (사용자 승인 후 SPEC 8절을 맞춘다):
 - `rules_version int` 추가 (PLAN 7절): `submit-score`가 현재 `RULES_VERSION`과 비교한다
 - `week_key`를 `runs`에 둔다: `start-run`이 시작 시각으로 정한 주를 기록해 며칠에 걸친 판도 시작한 주로 등록한다 (SPEC 8.1)
 
+## 함수 배포·시험 (set-nickname, W3-02. PL이 사용자 확인을 받은 뒤에만)
+
+```sh
+npm run server:shared:check                      # 생성본이 원본(src/online/nicknameRules.ts)과 같은지
+npm run functions:check                          # deno check
+supabase functions deploy set-nickname --project-ref <ref>     # --no-verify-jwt를 붙이지 않는다
+npm run supabase:check -- --nickname [<env 파일 경로>]          # 함수 시험 (아래)
+npm run supabase:check -- [<env 파일 경로>]                     # 권한 시험도 다시
+```
+
+- 서버 키는 Supabase가 함수에 주입하는 환경 변수(`SUPABASE_URL`, `SUPABASE_SECRET_KEYS` 또는 `SUPABASE_SERVICE_ROLE_KEY`)만 쓴다. `supabase secrets set`으로 따로 넣지 않는다
+- 허용 출처(정확한 문자열만): `https://ddoobyddooby.github.io`, `https://localhost`, `http://localhost:5180`, `http://127.0.0.1:5180`, `http://localhost:5181`, `http://127.0.0.1:5181`. 허용 밖 Origin의 POST는 403, Origin이 없는 요청은 토큰 검사만 한다
+- `--nickname` 시험은 새 익명 사용자 A·B·C·D와 비로그인으로 정확한 status·code·헤더를 본다: ① A 정상 설정(200·태그 0~9999)과 profiles 재조회, C가 같은 이름을 받아 다른 태그 ② B의 규칙 거부 4종(400 + 정확한 code, 이름이 생기지 않음) ③ A의 두 번째 설정 409 already-set ④ 무토큰·위조 토큰 401 ⑤ 허용 출처 OPTIONS 204 / 허용 밖 OPTIONS 403 / 허용 밖 POST 403, 오류·성공 응답의 Allow-Origin ⑥ D의 동시 두 요청(200 하나·409 하나) ⑦ A·anon의 profiles 직접 쓰기 `42501`. 유효 토큰의 200(양성 대조)이 같이 있어 "모든 요청을 401로 거부하는 잘못된 배포"가 PASS로 보이지 않는다
+- 시험하지 않는 것: 만료 토큰·다른 프로젝트 토큰(고정 fixture가 없다), 같은 이름 두 사용자의 동시 설정(태그 충돌은 `tests/functions/`에서 강제), 401을 함수가 냈는지 게이트웨이가 냈는지는 상세에 구분해 적는다(게이트웨이가 막으면 함수의 토큰 검사는 이 시험으로 증명되지 않는다)
+- 종료 코드는 권한 시험과 같다 (모두 PASS 0 / FAIL·시험 불가 1 / 설정·로그인 오류 2)
+- **시험이 원격에 남기는 것**: A·C·D의 `profiles` 행(닉네임이 정해진 행)과 익명 계정 4개(A·B·C·D). 권한 시험과 달리 행이 남는 것이 정상이다. 격리된 개발 프로젝트에서만 실행하고, 정리는 대시보드 Authentication → Users에서 사용자를 지운다(`profiles`는 `on delete cascade`)
+
 ## 뒤 태스크로 미룬 것
 
 - **주간 최고 점수 upsert 함수**(W3-03): `submit-score`와 함께 만든다. 이 함수의 권한은 service_role 전용이어야 하고 권한 시험도 같이 늘린다
 - **주간 랭킹 조회 함수**(W3-04): 랭킹 화면과 함께 만든다. 닉네임 없는 사용자 제외·내 순위·공동 순위 규칙은 화면 설계가 정한다
-- Edge Function `start-run`·`submit-score`·`set-nickname`, `config.toml`의 `[functions.*]` (W3-02·03)
+- Edge Function `start-run`·`submit-score`와 그 `[functions.*]` 설정 (W3-03). `set-nickname`은 W3-02에서 했다
 - `week_key` 형식 check: 주 계산(월요일 00:00 KST)이 구현되는 W3-03에서 형식을 정하며 맞춘다

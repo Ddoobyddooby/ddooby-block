@@ -4,6 +4,14 @@
 
 declare module 'node:fs' {
   export function readFileSync(path: string, encoding: 'utf8'): string;
+  export function writeFileSync(path: string, data: string): void;
+  export function mkdirSync(path: string, options: { recursive: true }): string | undefined;
+}
+
+declare module 'node:path' {
+  export function basename(path: string): string;
+  export function dirname(path: string): string;
+  export function resolve(...paths: string[]): string;
 }
 
 declare module 'node:util' {
@@ -22,6 +30,11 @@ declare module 'node:crypto' {
   export function createHash(algorithm: 'sha256'): {
     update(data: string): { digest(encoding: 'hex'): string };
   };
+}
+
+// Node 20.11+의 import.meta.dirname (vite/client 타입에는 없다)
+interface ImportMeta {
+  readonly dirname: string;
 }
 
 declare const process: {

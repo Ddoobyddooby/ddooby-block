@@ -313,7 +313,8 @@ export class GameScene extends Phaser.Scene {
       currentBest: readBest(this.game.registry),
       replayable: this.replayable,
     });
-    this.scene.launch('GameOver', data);
+    // nicknameEligible: `?fill=` 판은 정상 종료 화면이 아니라 닉네임을 묻지 않는다 (DEV `?ranking`)
+    this.scene.launch('GameOver', { ...data, nicknameEligible: this.replayable });
   }
 
   /** 씬 시계로 기다린다 (씬이 끝나면 시계가 멈춰 풀리지 않지만, 그때는 재생 루프가 버려진다) */

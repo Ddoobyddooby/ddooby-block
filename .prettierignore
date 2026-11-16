@@ -7,3 +7,6 @@ package-lock.json
 
 # 문서는 손으로 정리한다
 *.md
+
+# 자동 생성 (npm run server:shared). 탭 들여쓰기 그대로 둔다
+supabase/functions/_shared/

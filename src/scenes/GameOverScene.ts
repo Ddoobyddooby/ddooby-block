@@ -13,6 +13,7 @@ import {
   type GameOverData,
 } from './gameOverRules';
 import { newGameData } from './gameStart';
+import { NicknameFlow } from './nicknameFlow';
 import { cssColor } from './text';
 
 const LABELS: Record<GameOverButton, string> = {
@@ -20,13 +21,23 @@ const LABELS: Record<GameOverButton, string> = {
   menu: '메뉴',
 };
 
-/** 화면 크기가 바뀌어 다시 그릴 때는 입력 지연을 또 주지 않는다 */
-type SceneData = GameOverData & { unlockAt?: number };
+/**
+ * 화면 크기가 바뀌어 다시 그릴 때는 입력 지연을 또 주지 않는다 (unlockAt).
+ * nicknameEligible: GameScene이 정상 종료 화면에만 넣는다 (`?over`·`?fill=` 미리보기에는 없다). DEV `?ranking`의 닉네임 묻기 대상 (W3-02)
+ */
+type SceneData = GameOverData & { unlockAt?: number; nicknameEligible?: boolean };
 
 export class GameOverScene extends Phaser.Scene {
   private data0: GameOverData = { score: 0, best: 0, newBest: false };
   /** 버튼 입력이 풀리는 시각 (performance.now 기준). 처음 뜰 때 정하고 resize로 다시 그려도 그대로 쓴다 */
   private unlockAt = 0;
+  private eligible = false;
+  /** 이 게임 오버가 새로 떴다 (resize로 다시 그린 것이 아니다) */
+  private fresh = true;
+  /** resize로 다시 그리는 중: 닉네임 창을 지우지 않고 넘긴다 (키보드가 올라오며 resize가 나도 입력 중인 창이 사라지지 않게) */
+  private redrawing = false;
+  /** DEV `?ranking` 전용. 프로덕션 빌드에서는 만들어지지 않는다 */
+  private nickname: NicknameFlow | null = null;
 
   constructor() {
     super('GameOver');
@@ -35,7 +46,9 @@ export class GameOverScene extends Phaser.Scene {
   init(data?: SceneData): void {
     if (data !== undefined) {
       this.data0 = { score: data.score, best: data.best, newBest: data.newBest };
+      this.fresh = data.unlockAt === undefined;
       this.unlockAt = data.unlockAt ?? performance.now() + VIEW.gameOver.inputDelayMs;
+      this.eligible = data.nicknameEligible ?? false;
     }
   }
 
@@ -129,11 +142,31 @@ export class GameOverScene extends Phaser.Scene {
     this.scale.on(Phaser.Scale.Events.RESIZE, this.redraw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.redraw, this);
+      if (!this.redrawing) this.endNickname();
     });
+
+    // DEV `?ranking`: 닉네임 입력 창 시험 (W3-02). 새로 뜬 화면에서만 묻는다. 프로덕션 빌드에서는 이 분기가 지워진다
+    if (import.meta.env.DEV && this.fresh && !this.redrawing) {
+      this.endNickname();
+      this.nickname = new NicknameFlow(this.game.canvas);
+      this.nickname.begin(this.eligible);
+    }
+    this.redrawing = false;
+    this.fresh = false;
   }
 
   private redraw(): void {
-    this.scene.restart({ ...this.data0, unlockAt: this.unlockAt });
+    this.redrawing = true;
+    this.scene.restart({
+      ...this.data0,
+      unlockAt: this.unlockAt,
+      nicknameEligible: this.eligible,
+    });
+  }
+
+  private endNickname(): void {
+    this.nickname?.end();
+    this.nickname = null;
   }
 
   private go(button: GameOverButton): void {

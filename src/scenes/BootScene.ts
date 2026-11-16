@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import Phaser from 'phaser';
 import { SAVE, SOUND } from '../config';
+import { ensureAccount } from '../online';
 import {
   CapacitorPreferencesStorage,
   LocalStorageAdapter,
@@ -54,6 +55,8 @@ export class BootScene extends Phaser.Scene {
     const persistence = new Persistence(createStore());
     putPersistence(this.registry, persistence);
     requestPersist();
+    // 익명 계정 (W3-02). 기다리지 않는다: 키가 없거나 오프라인·실패면 온라인 기능만 꺼지고 게임은 그대로다
+    void ensureAccount();
 
     const direct =
       parseSeedParam(window.location.search) !== null ||
