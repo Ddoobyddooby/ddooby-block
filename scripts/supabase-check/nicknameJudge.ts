@@ -2,7 +2,20 @@
 // 판정은 정확한 status·code·헤더로만 PASS한다 (W3-01 권한 시험과 같은 원칙: 허위 PASS 금지).
 // - 서버에 닿지 못했다(status 0)·5xx·인증 서버 오류는 "시험 불가"(unverified), 기대와 다른 응답은 FAIL
 // - 오류 message·토큰·키·URL은 상세에 남기지 않는다 (status·code·헤더 이름만)
-import type { Outcome } from './report.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { errText, type Outcome, type Res } from './report.ts';
+
+/**
+ * 브라우저가 set-nickname을 부를 때 보내는 헤더 (supabase-js 2.119.0의 functions.invoke: authorization·apikey·content-type·x-client-info.
+ * SDK의 corsHeaders 목록에는 postgrest용 x-retry-count·trace 헤더가 더 있지만 함수 호출에는 쓰이지 않는다).
+ * 원격 preflight 요청의 Access-Control-Request-Headers와 응답 판정에 같이 쓴다
+ */
+export const REQUIRED_REQUEST_HEADERS: readonly string[] = [
+  'authorization',
+  'apikey',
+  'content-type',
+  'x-client-info',
+];
 
 /** 함수 호출 결과. status 0은 연결 실패(네트워크·시간 초과) */
 export interface FnRes {
@@ -75,24 +88,31 @@ export function judgeUnauthorized(res: FnRes): Outcome {
   };
 }
 
-/** 허용 출처의 preflight: 204 + 그 출처 + POST·필요 헤더 허용 + Vary: Origin. 헤더만 맞고 status가 다르면 FAIL */
+/** 쉼표 목록 헤더 값 → 공백 제거·소문자로 정리한 토큰 (`x-authorization`이 `authorization`으로 보이지 않게 부분 문자열이 아니라 토큰으로 비교한다) */
+function tokens(value: string | null): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((t) => t.trim().toLowerCase())
+    .filter((t) => t !== '');
+}
+
+/** 허용 출처의 preflight: 204 + 그 출처 + POST + 필수 요청 헤더 전부 + Vary: Origin. 헤더만 맞고 status가 다르면 FAIL */
 export function judgePreflightAllowed(res: FnRes, origin: string): Outcome {
   if (cannotJudge(res)) return unverified(res);
   const problems: string[] = [];
   if (res.status !== 204) problems.push(`status ${res.status} (기대 204)`);
   if (res.header('access-control-allow-origin') !== origin)
     problems.push('Allow-Origin이 요청 출처와 다름');
-  if (!(res.header('access-control-allow-methods') ?? '').toUpperCase().includes('POST')) {
+  if (!tokens(res.header('access-control-allow-methods')).includes('post')) {
     problems.push('Allow-Methods에 POST 없음');
   }
-  const headers = (res.header('access-control-allow-headers') ?? '').toLowerCase();
-  for (const need of ['authorization', 'content-type']) {
+  const headers = tokens(res.header('access-control-allow-headers'));
+  for (const need of REQUIRED_REQUEST_HEADERS) {
     if (!headers.includes(need)) problems.push(`Allow-Headers에 ${need} 없음`);
   }
-  if (!(res.header('vary') ?? '').toLowerCase().includes('origin'))
-    problems.push('Vary: Origin 없음');
+  if (!tokens(res.header('vary')).includes('origin')) problems.push('Vary: Origin 없음');
   return problems.length === 0
-    ? { pass: true, detail: 'status 204, 출처·메서드·헤더 허용' }
+    ? { pass: true, detail: 'status 204, 출처·POST·필수 헤더 허용' }
     : { pass: false, detail: problems.join(', ') };
 }
 
@@ -154,13 +174,55 @@ export function judgeDifferentTag(first: number | undefined, second: number | un
     : { pass: false, detail: `같은 이름·같은 태그 ${first}` };
 }
 
-/** 같은 사용자의 동시 두 설정: 정확히 하나는 200, 하나는 409 already-set */
-export function judgeRace(a: FnRes, b: FnRes): Outcome {
+/**
+ * 같은 사용자의 동시 두 요청: 정확히 하나는 200(이름·태그가 유효하고 그 요청이 보낸 이름), 하나는 409 already-set.
+ * 승자의 200 본문이 비정상이면 다른 하나가 409여도 FAIL. 승자 정보는 뒤의 최종 profiles 확인이 쓴다
+ */
+export function judgeRace(
+  a: FnRes,
+  b: FnRes,
+  names: readonly [string, string],
+): Outcome & { winner?: { nickname: string; tag: number } } {
   if (cannotJudge(a) || cannotJudge(b)) return unverified(cannotJudge(a) ? a : b);
-  const sorted = [a.status, b.status].sort();
-  const loser = a.status === 409 ? a : b;
-  if (sorted[0] === 200 && sorted[1] === 409 && codeOf(loser.body) === 'already-set') {
-    return { pass: true, detail: 'status 200 하나, 409 already-set 하나' };
+  const [win, lose, name] =
+    a.status === 200 ? [a, b, names[0]] : b.status === 200 ? [b, a, names[1]] : [null, null, ''];
+  if (win === null || lose === null)
+    return { pass: false, detail: `기대 200 하나·409 하나. 실제 ${a.status}, ${b.status}` };
+  const body = win.body as { nickname?: unknown; tag?: unknown } | null;
+  if (lose.status !== 409 || codeOf(lose.body) !== 'already-set') {
+    return { pass: false, detail: `기대 200 하나·409 하나. 실제 ${a.status}, ${b.status}` };
   }
-  return { pass: false, detail: `기대 200 하나·409 하나. 실제 ${a.status}, ${b.status}` };
+  if (body === null || typeof body !== 'object' || body.nickname !== name || !isTag(body.tag)) {
+    return { pass: false, detail: '승자 200의 이름·태그(0~9999 정수)가 기대와 다름' };
+  }
+  return {
+    pass: true,
+    detail: 'status 200 하나, 409 already-set 하나',
+    winner: { nickname: name, tag: body.tag },
+  };
+}
+
+/** profiles 조회 응답. SDK의 error를 버리지 않고 그대로 넘긴다 */
+export async function readProfile(client: SupabaseClient, id: string): Promise<Res> {
+  const { data, error, status } = await client
+    .from('profiles')
+    .select('nickname, tag')
+    .eq('id', id)
+    .maybeSingle();
+  return { data, error, status };
+}
+
+/**
+ * 조회가 실패했으면(오류 응답) 그 판정, 성공이면 null. 오류 없는 응답의 null만 "행 없음"이다.
+ * 네트워크·인증·서버 오류는 시험 불가, 그 밖의 오류(권한 없음 포함)는 FAIL — 조회하지 못한 것을 "이름이 없다"로 확정하지 않는다
+ */
+export function judgeProfileReadError(res: Res): Outcome | null {
+  if (!res.error) return null;
+  const status = res.status;
+  const unverified = status === 0 || status === 401 || (status !== undefined && status >= 500);
+  return {
+    pass: false,
+    ...(unverified ? { unverified: true } : {}),
+    detail: `profiles 조회 실패: ${errText(res)}`,
+  };
 }

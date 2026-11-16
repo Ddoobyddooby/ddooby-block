@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 import {
   judgeCode,
@@ -7,6 +8,9 @@ import {
   judgePreflightAllowed,
   judgePreflightDenied,
   judgeProfile,
+  judgeProfileReadError,
+  readProfile,
+  REQUIRED_REQUEST_HEADERS,
   judgeRace,
   judgeSet,
   judgeSuccessCors,
@@ -139,6 +143,64 @@ describe('CORS 판정', () => {
       false,
     );
   });
+  it('필수 요청 헤더는 authorization·apikey·content-type·x-client-info', () => {
+    expect([...REQUIRED_REQUEST_HEADERS]).toEqual([
+      'authorization',
+      'apikey',
+      'content-type',
+      'x-client-info',
+    ]);
+  });
+  it('토큰 단위로 정확히 비교한다: 대소문자·공백은 정리하고, 접두·접미가 붙은 이름과 NOTPOST는 FAIL', () => {
+    const ok = {
+      ...PREFLIGHT,
+      'access-control-allow-headers':
+        ' Authorization , APIKEY,Content-Type, X-Client-Info,x-retry-count ',
+    };
+    expect(
+      judgePreflightAllowed(
+        res(204, null, { ...ok, 'access-control-allow-methods': 'get, Post' }),
+        ORIGIN,
+      ).pass,
+    ).toBe(true);
+    expect(
+      judgePreflightAllowed(
+        res(204, null, { ...PREFLIGHT, 'access-control-allow-methods': 'NOTPOST' }),
+        ORIGIN,
+      ).pass,
+    ).toBe(false);
+    expect(
+      judgePreflightAllowed(
+        res(204, null, { ...PREFLIGHT, 'access-control-allow-methods': 'POSTX, XPOST' }),
+        ORIGIN,
+      ).pass,
+    ).toBe(false);
+    expect(
+      judgePreflightAllowed(
+        res(204, null, {
+          ...PREFLIGHT,
+          'access-control-allow-headers':
+            'x-authorization, x-content-type, x-apikey, x-x-client-info',
+        }),
+        ORIGIN,
+      ).pass,
+    ).toBe(false);
+    expect(
+      judgePreflightAllowed(res(204, null, { ...PREFLIGHT, vary: 'Accept-Origin' }), ORIGIN).pass,
+    ).toBe(false);
+  });
+  it.each(REQUIRED_REQUEST_HEADERS)(
+    '필수 헤더 %s 하나만 빠져도 FAIL (상세에 그 이름)',
+    (missing) => {
+      const headers = REQUIRED_REQUEST_HEADERS.filter((h) => h !== missing).join(', ');
+      const r = judgePreflightAllowed(
+        res(204, null, { ...PREFLIGHT, 'access-control-allow-headers': headers }),
+        ORIGIN,
+      );
+      expect(r.pass).toBe(false);
+      expect(r.detail).toContain(missing);
+    },
+  );
   it('허용 밖 출처 preflight: 403 + 허용 헤더 없음만 PASS. 404·500이라 헤더가 없는 응답은 PASS가 아니다', () => {
     expect(judgePreflightDenied(res(403)).pass).toBe(true);
     expect(judgePreflightDenied(res(404)).pass).toBe(false);
@@ -178,14 +240,83 @@ describe('profiles 재조회·태그·동시 요청', () => {
     expect(judgeDifferentTag(undefined, 2).pass).toBe(false);
     expect(judgeDifferentTag(1, undefined).pass).toBe(false);
   });
-  it('동시 두 요청: 200 하나 + 409 already-set 하나만 PASS (둘 다 200이면 FAIL)', () => {
-    const ok = res(200, { nickname: 'a', tag: 1 });
+  it('동시 두 요청: 200 하나(유효 본문) + 409 already-set 하나만 PASS, 승자 정보를 돌려준다', () => {
+    const names = ['가나', '다라'] as const;
+    const ok = res(200, { nickname: '가나', tag: 5 });
     const set = res(409, { code: 'already-set' });
-    expect(judgeRace(ok, set).pass).toBe(true);
-    expect(judgeRace(set, ok).pass).toBe(true);
-    expect(judgeRace(ok, ok).pass).toBe(false);
-    expect(judgeRace(set, set).pass).toBe(false);
-    expect(judgeRace(ok, res(409, { code: 'other' })).pass).toBe(false);
-    expect(judgeRace(ok, res(0))).toMatchObject({ pass: false, unverified: true });
+    expect(judgeRace(ok, set, names)).toMatchObject({
+      pass: true,
+      winner: { nickname: '가나', tag: 5 },
+    });
+    expect(judgeRace(set, res(200, { nickname: '다라', tag: 0 }), names)).toMatchObject({
+      pass: true,
+      winner: { nickname: '다라', tag: 0 },
+    });
+    expect(judgeRace(ok, ok, names).pass).toBe(false);
+    expect(judgeRace(set, set, names).pass).toBe(false);
+    expect(judgeRace(ok, res(409, { code: 'other' }), names).pass).toBe(false);
+    expect(judgeRace(ok, res(0), names)).toMatchObject({ pass: false, unverified: true });
+  });
+
+  it.each([
+    ['본문 null', null],
+    ['태그 없음', { nickname: '가나' }],
+    ['태그 범위 밖', { nickname: '가나', tag: 10000 }],
+    ['다른 요청의 이름', { nickname: '다라', tag: 1 }],
+    ['이름이 숫자', { nickname: 7, tag: 1 }],
+  ])('승자 200의 본문이 비정상(%s)이면 다른 하나가 409여도 FAIL', (_n, body) => {
+    const r = judgeRace(res(200, body), res(409, { code: 'already-set' }), ['가나', '다라']);
+    expect(r.pass).toBe(false);
+    expect(r.winner).toBeUndefined();
+  });
+});
+
+describe('profiles 조회 오류 (W3-02 리뷰 지적 3)', () => {
+  /** 설치된 supabase-js에 가짜 fetch만 끼운다. 실제 요청은 나가지 않는다 */
+  const clientWith = (status: number, body: unknown) =>
+    createClient('https://example.invalid', 'test-key-not-real', {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: async () =>
+          new Response(JSON.stringify(body), {
+            status,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+      },
+    });
+
+  it('403 + 42501 응답은 data null이어도 "행 없음" PASS가 아니라 FAIL이다 (옛 judgeNoNickname(data)는 PASS였다)', async () => {
+    const res = await readProfile(
+      clientWith(403, { code: '42501', message: 'permission denied' }),
+      'u1',
+    );
+    expect(res.data).toBeNull();
+    expect(res.error?.code).toBe('42501');
+    const verdict = judgeProfileReadError(res);
+    expect(verdict).toMatchObject({ pass: false });
+    expect(verdict?.unverified).toBeUndefined();
+    expect(verdict?.detail).not.toContain('permission denied'); // message는 남기지 않는다
+  });
+
+  it('401 응답과 0·5xx 상태는 시험 불가 (SDK는 5xx·연결 실패를 재시도하므로 0·5xx는 응답 모양으로 직접 시험한다)', async () => {
+    const unauthorized = await readProfile(clientWith(401, { code: 'x', message: 'm' }), 'u1');
+    expect(judgeProfileReadError(unauthorized)).toMatchObject({ pass: false, unverified: true });
+    for (const status of [0, 500, 503]) {
+      expect(
+        judgeProfileReadError({ data: null, error: { code: 'x', message: 'm' }, status }),
+      ).toMatchObject({
+        pass: false,
+        unverified: true,
+      });
+    }
+  });
+
+  it('오류 없는 응답은 판정하지 않고(null) 값을 넘긴다: 빈 결과(행 없음)와 정상 행', async () => {
+    const none = await readProfile(clientWith(200, []), 'u1');
+    expect(judgeProfileReadError(none)).toBeNull();
+    expect(judgeNoNickname(none.data).pass).toBe(true);
+    const row = await readProfile(clientWith(200, [{ nickname: '뚜비', tag: 3 }]), 'u1');
+    expect(judgeProfileReadError(row)).toBeNull();
+    expect(judgeProfile(row.data, '뚜비', 3).pass).toBe(true);
   });
 });

@@ -80,17 +80,25 @@ describe('backendFromClient.callFunction', () => {
     });
   });
 
-  it('SIGNED_OUT 이벤트만 listener를 부른다', () => {
-    const handlers: ((e: string) => void)[] = [];
+  it('세션 변경 이벤트: 로그인·갱신·사용자 갱신은 사용자 ID, SIGNED_OUT은 null, 그 밖(INITIAL_SESSION 등)은 무시', () => {
+    type Handler = (e: string, session: { user: { id: string } } | null) => void;
+    const handlers: Handler[] = [];
     const b = backendFromClient(
-      { auth: { onAuthStateChange: (h: (e: string) => void) => handlers.push(h) } } as never,
+      { auth: { onAuthStateChange: (h: Handler) => handlers.push(h) } } as never,
       errors,
     );
     const listener = vi.fn();
-    b.onSignedOut(listener);
-    handlers[0]?.('TOKEN_REFRESHED');
+    b.onSessionChange(listener);
+    const session = { user: { id: 'user-x' } };
+    handlers[0]?.('INITIAL_SESSION', session);
+    handlers[0]?.('PASSWORD_RECOVERY', session);
+    handlers[0]?.('SIGNED_IN', null); // 세션 없는 로그인 이벤트는 쓰지 않는다
     expect(listener).not.toHaveBeenCalled();
-    handlers[0]?.('SIGNED_OUT');
-    expect(listener).toHaveBeenCalledTimes(1);
+    for (const event of ['SIGNED_IN', 'TOKEN_REFRESHED', 'USER_UPDATED']) {
+      handlers[0]?.(event, session);
+    }
+    expect(listener.mock.calls).toEqual([['user-x'], ['user-x'], ['user-x']]);
+    handlers[0]?.('SIGNED_OUT', null);
+    expect(listener).toHaveBeenLastCalledWith(null);
   });
 });

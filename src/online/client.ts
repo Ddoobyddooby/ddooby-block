@@ -11,8 +11,11 @@ export interface OnlineBackend {
   getSessionUserId(): Promise<string | null>;
   /** 익명 로그인 → 사용자 ID. 실패는 throw */
   signInAnonymously(): Promise<string>;
-  /** 세션이 사라졌을 때(갱신 실패·로그아웃) 부른다 */
-  onSignedOut(listener: () => void): void;
+  /**
+   * SDK 세션의 사용자가 바뀔 때마다 부른다: 로그인·토큰 갱신·사용자 갱신은 사용자 ID, 로그아웃(갱신 실패 포함)은 null.
+   * 앱의 계정 ID는 항상 이 SDK 세션을 따라간다 (account.ts)
+   */
+  onSessionChange(listener: (userId: string | null) => void): void;
   /**
    * 본인 profiles 행 (`nickname`·`tag` 열). 행이 없으면 null. 실패는 throw.
    * 모양은 믿지 않고 profile.ts가 검사한다 (그래서 unknown)
@@ -44,9 +47,16 @@ export function backendFromClient(
       if (!data.user) throw new Error('익명 로그인 응답에 user가 없다');
       return data.user.id;
     },
-    onSignedOut(listener) {
-      client.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_OUT') listener();
+    onSessionChange(listener) {
+      client.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT') listener(null);
+        else if (
+          (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') &&
+          session
+        ) {
+          listener(session.user.id);
+        }
+        // INITIAL_SESSION은 getSession()이 같은 값을 주므로 따로 받지 않는다
       });
     },
     async fetchProfile(userId) {

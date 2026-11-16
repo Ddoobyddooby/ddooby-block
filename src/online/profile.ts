@@ -77,6 +77,9 @@ export function createProfile(account: Account): Profile {
         return { ok: false, code: 'network' };
       }
       if (res === 'network') return { ok: false, code: 'network' };
+      // 기다리는 사이 계정이 바뀌었으면(로그아웃·다른 계정) 이 응답은 지금 계정의 결과가 아니다.
+      // 성공·already-set을 지금 계정의 것으로 쓰지 않고 연결 실패로 닫는다 ("다음에 다시 물어볼게요")
+      if (account.userId() !== userId) return { ok: false, code: 'network' };
       const body = asRecord(res.body) ?? {};
       switch (res.status) {
         case 200:

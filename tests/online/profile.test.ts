@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createAccount } from '../../src/online/account';
 import type { FunctionResult } from '../../src/online/client';
 import { createProfile, parseProfileRow } from '../../src/online/profile';
-import { fakeBackend, type FakeBackend, type FakeOptions } from './fakeBackend';
+import { deferred, fakeBackend, type FakeBackend, type FakeOptions } from './fakeBackend';
 
 async function readyProfile(opts: FakeOptions = {}) {
   const backend: FakeBackend = fakeBackend({ session: 'user-a', ...opts });
@@ -241,5 +241,41 @@ describe('setNickname', () => {
       )
     ).profile.setNickname('뚜비');
     expect(JSON.stringify(r)).not.toContain('profiles_nickname');
+  });
+
+  describe('제출을 기다리는 사이 계정이 바뀌면 (W3-02 리뷰 지적 2)', () => {
+    const cases: [string, FunctionResult][] = [
+      ['200', { status: 200, body: { nickname: '뚜비', tag: 427 } }],
+      ['409 already-set', { status: 409, body: { code: 'already-set' } }],
+      ['400 banned', { status: 400, body: { code: 'banned' } }],
+      ['500', { status: 500, body: { code: 'server' } }],
+    ];
+    const change: [string, (b: FakeBackend) => Promise<void>][] = [
+      ['로그아웃', async (b) => b.signOut()],
+      ['다른 계정(B)으로 전환', async (b) => void (await b.signInAnonymously())],
+    ];
+    for (const [changeName, doChange] of change) {
+      for (const [name, late] of cases) {
+        it(`${changeName} 뒤 옛 계정의 ${name} 응답은 지금 계정의 결과로 쓰지 않는다 (network로 닫힘)`, async () => {
+          const gate = deferred<FunctionResult>();
+          const { backend, profile } = await readyProfile({
+            callFunction: () => gate.promise,
+            signInId: 'user-b',
+          });
+          const p = profile.setNickname('뚜비');
+          await doChange(backend);
+          gate.resolve(late);
+          expect(await p).toEqual({ ok: false, code: 'network' });
+        });
+      }
+    }
+
+    it('같은 계정이면 늦게 와도 정상 응답은 그대로 성공', async () => {
+      const gate = deferred<FunctionResult>();
+      const { profile } = await readyProfile({ callFunction: () => gate.promise });
+      const p = profile.setNickname('뚜비');
+      gate.resolve({ status: 200, body: { nickname: '뚜비', tag: 427 } });
+      expect(await p).toEqual({ ok: true, nickname: '뚜비', tag: 427 });
+    });
   });
 });

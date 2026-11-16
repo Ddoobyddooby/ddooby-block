@@ -1,6 +1,10 @@
 // 익명 계정 (PLAN 7절). 게임을 막지 않는다: 실패·오프라인이면 조용히 넘어가고
 // 브라우저 `online` 이벤트나 다음 ensureAccount() 호출 때 다시 시도한다.
-// pang src/online/account.ts에서 복사해 세대 번호(로그아웃·계정 교체 중의 늦은 응답 무시)와 시간 제한을 더했다
+// pang src/online/account.ts에서 복사해 다음을 더했다:
+// - SDK 인증 작업(세션 확인 → 익명 로그인)은 **한 번에 하나**다. 시간 제한은 "기다림"만 끝내고 작업은 계속되며, 재시도는 그 작업에 다시 붙는다
+//   (시간 초과 뒤 새 로그인을 또 시작하면 SDK 세션이 늦게 끝난 첫 로그인으로 바뀌어 앱 계정과 어긋난다)
+// - 앱의 계정 ID는 **SDK 세션을 따라간다**: 세션 변경 이벤트(로그인·갱신·로그아웃)와 작업이 끝난 뒤의 getSession() 재조정으로 맞춘다
+// - 세대 번호: 폐기된 시도(기다리는 사이 계정이 바뀜)가 새 가입을 시작하지 못하게 한다
 import type { OnlineBackend } from './client';
 
 /**
@@ -17,7 +21,7 @@ export interface AccountDeps {
   isOnline(): boolean;
   /** 네트워크가 다시 연결되면 listener를 부른다 (브라우저 `online` 이벤트) */
   onOnline(listener: () => void): void;
-  /** 세션 확인·로그인이 이 시간(ms) 안에 끝나지 않으면 포기한다 (오프라인으로 보고 다음 기회에 다시 시도) */
+  /** ensure()가 인증 작업을 기다리는 최대 시간(ms). 넘으면 offline으로 두고 돌아간다 (작업은 계속된다) */
   timeoutMs: number;
 }
 
@@ -36,9 +40,10 @@ export function createAccount(deps: AccountDeps): Account {
   let status: OnlineStatus = deps.hasKeys ? 'offline' : 'disabled';
   let userId: string | null = null;
   let backend: OnlineBackend | null = null;
-  let inflight: Promise<void> | null = null;
+  /** 진행 중인 SDK 인증 작업. 최대 하나 */
+  let auth: Promise<void> | null = null;
   let retryArmed = false;
-  /** 로그아웃·시간 초과 때마다 올린다. 시작할 때의 값과 다르면 그 시도의 결과는 버린다 */
+  /** 계정(사용자 ID)이 바뀔 때마다 올린다. 시작할 때의 값과 다르면 그 시도는 새 가입을 시작하지 않는다 */
   let generation = 0;
 
   const armRetry = () => {
@@ -47,78 +52,81 @@ export function createAccount(deps: AccountDeps): Account {
     deps.onOnline(() => void ensure());
   };
 
-  const dropSession = () => {
-    generation += 1;
-    userId = null;
-    status = 'offline';
+  /** SDK 세션의 사용자(없으면 null)를 앱 계정에 반영한다 */
+  const follow = (id: string | null) => {
+    if (status === 'disabled') return;
+    if (userId !== id) generation += 1;
+    userId = id;
+    if (id !== null) status = 'ready';
+    else if (status === 'ready') status = 'offline';
   };
 
   const loadBackend = async (): Promise<OnlineBackend | null> => {
     if (backend) return backend;
     const loaded = await deps.loadBackend();
     if (loaded && !backend) {
-      loaded.onSignedOut(dropSession);
+      loaded.onSessionChange(follow);
       backend = loaded;
     }
     return backend ?? loaded;
   };
 
-  /** 세션 확인 → 없으면 익명 로그인. 사용자 ID, 키 없음은 'disabled', 오프라인은 'offline' */
-  const connect = async (): Promise<string | 'disabled' | 'offline'> => {
-    const b = await loadBackend();
-    if (!b) return 'disabled';
-    let id = await b.getSessionUserId();
-    if (!id) {
-      if (!deps.isOnline()) return 'offline';
-      id = await b.signInAnonymously();
-    }
-    return id;
-  };
-
-  const run = async () => {
-    status = 'signing-in';
+  /** 세션 확인 → 없으면 익명 로그인 → 마지막에 SDK 세션으로 재조정. 앱 상태를 직접 정한다 */
+  const authenticate = async (): Promise<void> => {
     const started = generation;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timedOut = new Promise<'timeout'>((resolve) => {
-      timer = setTimeout(() => resolve('timeout'), deps.timeoutMs);
-    });
     try {
-      const result = await Promise.race([connect(), timedOut]);
-      if (generation !== started) {
-        // 기다리는 사이 로그아웃됐다. 늦게 온 결과로 계정을 되살리지 않는다
-        status = 'offline';
-        armRetry();
+      const b = await loadBackend();
+      if (!b) {
+        status = 'disabled';
         return;
       }
-      if (result === 'timeout') {
-        generation += 1; // 뒤늦게 끝나는 시도의 결과를 버린다
-        userId = null;
+      let id = await b.getSessionUserId();
+      if (id === null) {
+        if (!deps.isOnline()) {
+          follow(null);
+          if (status !== 'ready') status = 'offline';
+          armRetry();
+          return;
+        }
+        if (generation !== started) {
+          // 기다리는 사이 계정이 바뀌었다: 폐기된 시도가 새 가입을 시작하지 않는다 (다음 ensure가 다시 시작한다)
+          if (status !== 'ready') status = 'offline';
+          armRetry();
+          return;
+        }
+        await b.signInAnonymously();
+        id = await b.getSessionUserId();
+      }
+      follow(id);
+      if (id === null) {
         status = 'offline';
         armRetry();
-      } else if (result === 'disabled') {
-        status = 'disabled';
-      } else if (result === 'offline') {
-        status = 'offline';
-        armRetry();
-      } else {
-        userId = result;
-        status = 'ready';
       }
     } catch {
-      if (generation === started) {
-        userId = null;
-        status = 'offline';
-      }
+      if (status !== 'ready') status = 'offline';
       armRetry();
-    } finally {
-      clearTimeout(timer);
     }
   };
 
   const ensure = (): Promise<void> => {
     if (status === 'disabled' || status === 'ready') return Promise.resolve();
-    if (!inflight) inflight = run().finally(() => (inflight = null));
-    return inflight;
+    if (!auth) {
+      status = 'signing-in';
+      auth = authenticate().finally(() => (auth = null));
+    } else if (status === 'offline') {
+      status = 'signing-in';
+    }
+    const running = auth;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        // 기다림만 끝낸다. 인증 작업은 계속되고, 끝나면 세션 변경 이벤트·재조정이 앱 계정을 맞춘다
+        if (status === 'signing-in') status = 'offline';
+        armRetry();
+        resolve();
+      }, deps.timeoutMs);
+    });
+    return Promise.race([running, timedOut]).finally(() => clearTimeout(timer));
   };
 
   return {

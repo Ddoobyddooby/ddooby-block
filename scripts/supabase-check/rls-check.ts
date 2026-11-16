@@ -22,6 +22,9 @@ import {
   judgePreflightAllowed,
   judgePreflightDenied,
   judgeProfile,
+  judgeProfileReadError,
+  readProfile,
+  REQUIRED_REQUEST_HEADERS,
   judgeRace,
   judgeSet,
   judgeSuccessCors,
@@ -91,6 +94,11 @@ async function callFunction(
   const headers: Record<string, string> = { apikey: env.key, 'Content-Type': 'application/json' };
   if (init.origin !== null) headers.Origin = init.origin;
   if (init.token !== null) headers.Authorization = `Bearer ${init.token}`;
+  if (init.method === 'OPTIONS') {
+    // 브라우저의 preflight 모양: 이어서 보낼 메서드와 헤더를 알린다
+    headers['Access-Control-Request-Method'] = 'POST';
+    headers['Access-Control-Request-Headers'] = REQUIRED_REQUEST_HEADERS.join(', ');
+  }
   try {
     const res = await fetch(`${env.url}/functions/v1/set-nickname`, {
       method: init.method,
@@ -110,16 +118,21 @@ async function callFunction(
   }
 }
 
+/** profiles 재조회 판정. 조회 오류는 "행 없음"·"값 다름"이 아니라 FAIL·시험 불가로 보낸다 */
+async function profileOutcome(
+  client: SupabaseClient,
+  id: string,
+  judge: (row: unknown) => Outcome,
+): Promise<Outcome> {
+  const res = await readProfile(client, id);
+  return judgeProfileReadError(res) ?? judge(res.data);
+}
+
 async function accessToken(client: SupabaseClient): Promise<string> {
   const { data } = await client.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new SetupError('세션 토큰을 얻지 못했다');
   return token;
-}
-
-async function readProfile(client: SupabaseClient, id: string): Promise<unknown> {
-  const { data } = await client.from('profiles').select('nickname, tag').eq('id', id).maybeSingle();
-  return data;
 }
 
 /**
@@ -142,7 +155,7 @@ async function runNickname(env: CheckEnv, rows: Row[]): Promise<void> {
   const idA = await signIn(a, 'A');
   const idB = await signIn(b, 'B');
   const idC = await signIn(c, 'C');
-  await signIn(d, 'D');
+  const idD = await signIn(d, 'D');
   const tokenA = await accessToken(a);
   const tokenB = await accessToken(b);
   const tokenC = await accessToken(c);
@@ -156,7 +169,7 @@ async function runNickname(env: CheckEnv, rows: Row[]): Promise<void> {
   const resultA = judgeSet(setA, name);
   await check('①', 'A 정상 닉네임 설정', '200, 이름·태그(0~9999)', async () => resultA);
   await check('①', 'A profiles 재조회', '함수 응답과 같음', async () =>
-    judgeProfile(await readProfile(a, idA), name, resultA.tag),
+    profileOutcome(a, idA, (row) => judgeProfile(row, name, resultA.tag)),
   );
   const setC = await post(tokenC, name);
   const resultC = judgeSet(setC, name);
@@ -165,7 +178,7 @@ async function runNickname(env: CheckEnv, rows: Row[]): Promise<void> {
     judgeDifferentTag(resultA.tag, resultC.tag),
   );
   await check('①', 'C profiles 재조회', '함수 응답과 같음', async () =>
-    judgeProfile(await readProfile(c, idC), name, resultC.tag),
+    profileOutcome(c, idC, (row) => judgeProfile(row, name, resultC.tag)),
   );
 
   // ② 규칙 거부 (B는 이름이 없는 새 사용자) + 이름이 생기지 않음
@@ -183,7 +196,7 @@ async function runNickname(env: CheckEnv, rows: Row[]): Promise<void> {
     });
   }
   await check('②', 'B 거부 뒤 profiles', '이름이 생기지 않음', async () =>
-    judgeNoNickname(await readProfile(b, idB)),
+    profileOutcome(b, idB, judgeNoNickname),
   );
 
   // ③ 두 번째 설정은 거부하고 값을 바꾸지 않음
@@ -191,7 +204,7 @@ async function runNickname(env: CheckEnv, rows: Row[]): Promise<void> {
     judgeCors(await post(tokenA, `${name}2`), ALLOWED_ORIGIN, 409, 'already-set'),
   );
   await check('③', 'A 두 번째 뒤 profiles', '이름·태그 불변', async () =>
-    judgeProfile(await readProfile(a, idA), name, resultA.tag),
+    profileOutcome(a, idA, (row) => judgeProfile(row, name, resultA.tag)),
   );
 
   // ④ 인증: 무토큰·위조 토큰은 401 (유효 토큰의 200이 ①에서 확인돼야 의미가 있다)
@@ -226,10 +239,17 @@ async function runNickname(env: CheckEnv, rows: Row[]): Promise<void> {
   );
 
   // ⑥ 같은 사용자의 동시 두 요청 (순차로 대신하지 않는다)
-  await check('⑥', 'D 동시 두 설정', '200 하나, 409 하나', async () => {
-    const [r1, r2] = await Promise.all([post(tokenD, `${name}동시`), post(tokenD, `${name}둘`)]);
-    return judgeRace(r1, r2);
+  const raceNames = [`${name}동시`, `${name}둘`] as const;
+  let raceWinner: { nickname: string; tag: number } | undefined;
+  await check('⑥', 'D 동시 두 설정', '200 하나(유효 본문), 409 하나', async () => {
+    const [r1, r2] = await Promise.all([post(tokenD, raceNames[0]), post(tokenD, raceNames[1])]);
+    const verdict = judgeRace(r1, r2, raceNames);
+    raceWinner = verdict.winner;
+    return verdict;
   });
+  await check('⑥', 'D 동시 뒤 profiles', '승자 응답과 같음 (정확히 한 번 저장)', async () =>
+    profileOutcome(d, idD, (row) => judgeProfile(row, raceWinner?.nickname ?? '', raceWinner?.tag)),
+  );
 
   // ⑦ profiles 직접 쓰기는 여전히 거부 (함수 응답 시험과 별개. 권한 거부 42501만 PASS)
   const writes: [string, SupabaseClient, string][] = [
