@@ -12,8 +12,10 @@ import {
   createRng,
   getPiece,
   nextInt,
+  parseSubmission,
   place,
   replay,
+  submissionHash,
   RULES_VERSION,
 } from '../../supabase/functions/_shared/replay.js';
 import {
@@ -26,6 +28,7 @@ import {
 import { denied, failed, type Outcome, type Res, type Row } from './report.ts';
 import {
   judgeConflictRace,
+  judgeRaceRun,
   judgeOtherRun,
   judgeOwnRun,
   judgeReject,
@@ -499,30 +502,32 @@ export async function runScores(
     record(p, ok1.pass);
     return ok1.pass ? judgeSame(r1, r2) : ok1;
   });
-  await check('⑦', '같은 run·다른 내용 동시 두 요청', '확정 하나, 409 하나', async () => {
-    const p = await prepare();
-    await waitReady(p);
-    const [r1, r2] = await Promise.all([
-      submit(c.tokenA, submitBody(p)),
-      submit(c.tokenA, submitBody(p, { clientScore: p.bot.score + 1 })),
-    ]);
-    const verdict = judgeConflictRace(r1, r2);
-    if (verdict.pass && verdict.winner === 'first') {
-      // 정상 로그가 이겼다면 주간 점수에 반영됐다
-      record(p, r1.status === 200);
-    }
-    // 최종 run은 이긴 쪽의 확정 결과 하나다
-    const after = judgeOwnRun(await own(p.runId), {
-      userId: c.idA,
-      seed: p.seed,
-      rulesVersion: RULES_VERSION,
-      weekKey: p.weekKey,
-      submitted: true,
-    });
-    return verdict.pass && !after.pass
-      ? { pass: false, detail: `경쟁 뒤 run: ${after.detail}` }
-      : verdict;
-  });
+  await check(
+    '⑦',
+    '같은 run·다른 내용 동시 두 요청',
+    '정상 200+조작 409, 또는 정상 409+조작 400 score-mismatch',
+    async () => {
+      const p = await prepare();
+      await waitReady(p);
+      const goodBody = submitBody(p);
+      const badBody = submitBody(p, { clientScore: p.bot.score + 1 });
+      const [r1, r2] = await Promise.all([submit(c.tokenA, goodBody), submit(c.tokenA, badBody)]);
+      const verdict = judgeConflictRace(r1, r2, { score: p.bot.score, weekKey: p.weekKey });
+      if (!verdict.pass || verdict.winner === undefined) return verdict;
+      // 정상이 이겼다면 주간 점수에 반영됐다
+      record(p, verdict.winner === 'good');
+      // 최종 run의 해시·결과가 승자와 같다 (확정 필드가 채워졌다는 것만으로는 부족하다)
+      const winnerBody = verdict.winner === 'good' ? goodBody : badBody;
+      const parsed = parseSubmission(winnerBody);
+      if (!parsed.ok) return { pass: false, detail: `승자 본문 형식 오류: ${parsed.code}` };
+      const after = judgeRaceRun((await own(p.runId)) as Res, {
+        winner: verdict.winner,
+        score: p.bot.score,
+        hash: await submissionHash(parsed.submission),
+      });
+      return after.pass ? verdict : { pass: false, detail: `경쟁 뒤 run: ${after.detail}` };
+    },
+  );
 
   // ⑧ 인증·CORS·메서드·한도
   for (const fn of ['start-run', 'submit-score'] as const) {

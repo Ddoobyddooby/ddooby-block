@@ -12,7 +12,8 @@ import { readMuted, setMuted } from './muteSetting';
 import { getPersistence } from './persistenceRegistry';
 import { startRun } from '../online';
 import { skipsRanking } from './gameStart';
-import { requestNewGame } from './newRun';
+import { cancelNewGame, isPreparing } from './newRun';
+import { handlePauseButton } from './screenActions';
 import { showPreparing } from './preparingLabel';
 import { pauseButtons, RETRY_EVENT, type PauseButton } from './pauseRules';
 import { cssColor } from './text';
@@ -24,11 +25,16 @@ const LABELS: Record<PauseButton, string> = {
 };
 
 export class PauseScene extends Phaser.Scene {
+  /** resize로 다시 그리는 중: 화면을 떠난 것이 아니므로 진행 중인 새 판 준비를 취소하지 않는다 */
+  private restarting = false;
+  private lock: PressLock = { pressed: false };
+
   constructor() {
     super('Pause');
   }
 
   create(): void {
+    this.restarting = false;
     const { colors, fontFamily, pause } = VIEW;
     const { width, height } = this.scale;
     const cx = width / 2;
@@ -77,6 +83,7 @@ export class PauseScene extends Phaser.Scene {
 
     const firstY = top + pause.panelPad + pause.titleSize + pause.titleGap + pause.buttonH / 2;
     const lock: PressLock = { pressed: false };
+    this.lock = lock;
     buttons.forEach((id, i) => {
       const primary = id === 'resume';
       addButton(
@@ -101,39 +108,32 @@ export class PauseScene extends Phaser.Scene {
     this.scale.on(Phaser.Scale.Events.RESIZE, this.relayout, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.relayout, this);
+      // 다시 그리기가 아니라 화면을 떠나는 것이면 준비 중이던 요청은 무효 (늦은 응답이 새 판을 시작하지 않는다)
+      if (!this.restarting) cancelNewGame('Pause');
     });
+    // 다시 그려도 준비 중이면 "준비 중…"을 계속 보인다 (준비가 끝나면 화면이 새 판으로 넘어간다)
+    if (isPreparing()) showPreparing(this);
   }
 
   private relayout(): void {
+    this.restarting = true;
     this.scene.restart();
   }
 
   private go(button: PauseButton): void {
-    switch (button) {
-      case 'resume':
+    handlePauseButton(button, {
+      lock: this.lock,
+      startRun,
+      skipOnline: () => skipsRanking(window.location.search, import.meta.env.DEV),
+      showWait: () => showPreparing(this),
+      startGame: (data) => this.scene.start('Game', data),
+      resumeGame: () => {
         this.scene.resume('Game');
         this.scene.stop();
-        break;
-      case 'retry':
-        // 저장된 run을 지우게 알린다 (?fill= 판은 지우지 않는다. 판단은 Game 씬이 한다)
-        this.scene.get('Game').events.emit(RETRY_EVENT);
-        // 서버에서 새 run을 받는 동안(최대 2.5초) 기다린 뒤, 멈춘 Game을 끝내고 새 판을 시작한다. 실패하면 오프라인 판으로 바로 시작한다.
-        // 버린 미완료 판은 제출하지 않는다 (RETRY_EVENT가 저장된 run을 지운다). `?seed=N`이면 같은 seed (newRun.ts)
-        requestNewGame({
-          startRun,
-          skipOnline: () => skipsRanking(window.location.search, import.meta.env.DEV),
-          isAlive: () => this.scene.isActive(),
-          showWait: () => showPreparing(this),
-          begin: (data) => {
-            this.scene.stop('Game');
-            this.scene.start('Game', data);
-          },
-        });
-        break;
-      case 'menu':
-        this.scene.stop('Game');
-        this.scene.start('Menu');
-        break;
-    }
+      },
+      abandonGame: () => this.scene.get('Game').events.emit(RETRY_EVENT),
+      stopGame: () => this.scene.stop('Game'),
+      goMenu: () => this.scene.start('Menu'),
+    });
   }
 }

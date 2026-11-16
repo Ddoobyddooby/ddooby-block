@@ -129,23 +129,67 @@ export function judgeSame(first: FnRes, again: FnRes): Outcome {
 }
 
 /**
- * 같은 run에 서로 다른 내용을 동시에 낸 두 응답: 정확히 하나는 409 resubmit-conflict이고 다른 하나는 확정을 이긴 쪽
- * (정상 로그면 200, 점수가 틀린 로그면 400 score-mismatch). 둘 다 이기거나 둘 다 지는 것은 FAIL
+ * 같은 run에 서로 다른 내용을 동시에 낸 두 응답: 첫째는 **정상 로그**, 둘째는 **점수를 조작한 로그**(clientScore + 1)다.
+ * 통과하는 조합은 둘뿐이다 (요청 종류를 구분한다):
+ *   - 정상이 확정을 이김: 정상은 200(judgeSubmitOk로 ok·score·best·weekKey를 엄격히 검사), 조작은 409 resubmit-conflict
+ *   - 조작이 확정을 이김: 정상은 409 resubmit-conflict, 조작은 400 score-mismatch (조작이 200이 되면 FAIL)
+ * 정상 응답이 null·손상된 200이거나 조작이 200이면 다른 쪽이 409여도 FAIL. 연결 실패·5xx는 시험 불가
  */
-export function judgeConflictRace(a: FnRes, b: FnRes): Outcome & { winner?: 'first' | 'second' } {
-  if (cannotJudge(a)) return unverified(a);
-  if (cannotJudge(b)) return unverified(b);
-  const isConflict = (r: FnRes): boolean =>
-    r.status === 409 && body(r).code === 'resubmit-conflict';
-  const isWin = (r: FnRes): boolean =>
-    r.status === 200 || (r.status === 400 && body(r).code === 'score-mismatch');
-  if (isConflict(b) && isWin(a)) {
-    return { pass: true, detail: `${a.status}, 409 resubmit-conflict`, winner: 'first' };
+export function judgeConflictRace(
+  good: FnRes,
+  tampered: FnRes,
+  expect: OkExpect,
+): Outcome & { winner?: 'good' | 'tampered' } {
+  if (cannotJudge(good)) return unverified(good);
+  if (cannotJudge(tampered)) return unverified(tampered);
+  const goodWon = good.status === 200;
+  if (goodWon) {
+    const ok = judgeSubmitOk(good, expect);
+    if (!ok.pass) return { pass: false, detail: `정상 요청 200이 기대와 다름: ${ok.detail}` };
+    const lose = judgeCode(tampered, 409, 'resubmit-conflict');
+    return lose.pass
+      ? { pass: true, detail: '정상 200, 조작 409 resubmit-conflict', winner: 'good' }
+      : { pass: false, detail: `정상이 이겼는데 조작 응답이 기대와 다름: ${lose.detail}` };
   }
-  if (isConflict(a) && isWin(b)) {
-    return { pass: true, detail: `409 resubmit-conflict, ${b.status}`, winner: 'second' };
+  const goodLost = judgeCode(good, 409, 'resubmit-conflict');
+  if (!goodLost.pass)
+    return { pass: false, detail: `정상 요청 응답이 기대와 다름: ${goodLost.detail}` };
+  const win = judgeCode(tampered, 400, 'score-mismatch');
+  return win.pass
+    ? {
+        pass: true,
+        detail: '정상 409 resubmit-conflict, 조작 400 score-mismatch',
+        winner: 'tampered',
+      }
+    : { pass: false, detail: `조작 요청 응답이 기대와 다름: ${win.detail}` };
+}
+
+/**
+ * 경쟁 뒤 run: 제출 확정이고, 저장된 해시·결과가 승자와 같다 (확정 필드가 채워져 있다는 것만으로는 부족하다).
+ * 승자가 정상이면 result = {ok:true, score}, 조작이면 {ok:false, code:'score-mismatch'}. hash는 승자 본문의 해시
+ */
+export function judgeRaceRun(
+  res: Res,
+  expect: { winner: 'good' | 'tampered'; score: number; hash: string },
+): Outcome {
+  if (res.error) return { pass: false, detail: `runs 조회 실패: ${errText(res)}` };
+  const rows = rowsOf(res);
+  if (rows.length !== 1) return { pass: false, detail: `기대 1행, 실제 ${rows.length}행` };
+  const r = rows[0] as Record<string, unknown>;
+  const result =
+    typeof r.result === 'object' && r.result !== null ? (r.result as Record<string, unknown>) : {};
+  const problems: string[] = [];
+  if (r.submission_hash !== expect.hash) problems.push('submission_hash가 승자 본문의 해시와 다름');
+  if (r.submitted_at === null || r.submitted_at === undefined) problems.push('submitted_at 없음');
+  if (expect.winner === 'good') {
+    if (result.ok !== true || result.score !== expect.score)
+      problems.push('result가 정상 승자(ok·score)와 다름');
+  } else if (result.ok !== false || result.code !== 'score-mismatch') {
+    problems.push('result가 조작 승자(score-mismatch)와 다름');
   }
-  return { pass: false, detail: `기대 확정 하나·409 하나. 실제 ${describe(a)} / ${describe(b)}` };
+  return problems.length === 0
+    ? { pass: true, detail: `해시·결과가 승자(${expect.winner})와 일치` }
+    : { pass: false, detail: problems.join(', ') };
 }
 
 export interface RunExpect {

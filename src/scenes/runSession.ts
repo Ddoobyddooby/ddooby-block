@@ -27,7 +27,7 @@ export interface RunSnapshot {
 
 export type PlaceOutcome =
   | { ok: true; result: Extract<PlaceResult, { ok: true }>; t: number }
-  | { ok: false; reason: 'inactive' | 'tooSoon' | 'over' | 'emptySlot' | 'blocked' };
+  | { ok: false; reason: 'inactive' | 'abandoned' | 'tooSoon' | 'over' | 'emptySlot' | 'blocked' };
 
 export interface RunSessionOptions {
   seed: number;
@@ -59,6 +59,8 @@ export class RunSession {
   private retired = false;
   /** 기록이 한도를 넘어 저장을 멈췄다. 판은 계속되고, 끝나면 최고 점수만 저장한다 */
   private truncated = false;
+  /** 사용자가 버렸다 ([다시 하기]로 새 판으로 넘어감). 끝난 판(게임 오버)과 다르다: 버린 판은 입력도 제출도 받지 않는다 */
+  private abandoned = false;
 
   constructor(options: RunSessionOptions) {
     this.seed = options.seed;
@@ -97,6 +99,7 @@ export class RunSession {
    * `t`를 늘려서 간격을 맞추지 않는다: 간격이 모자라면 거부한다.
    */
   tryPlace(action: PlaceAction): PlaceOutcome {
+    if (this.abandoned) return { ok: false, reason: 'abandoned' };
     if (!this.current.over && !this.clock.running) return { ok: false, reason: 'inactive' };
     const t = this.clock.elapsed();
     const last = this.log[this.log.length - 1];
@@ -118,6 +121,7 @@ export class RunSession {
    * 랭킹 대상이 아니면 null: run이 없는 판, `?fill=` 판, 아직 안 끝난 판, 기록이 한도를 넘어 잘린 판. 저장 성공 여부와 무관하다
    */
   rankedSubmission(): RankedSubmission | null {
+    if (this.abandoned) return null;
     return buildSubmission({
       runId: this.runId,
       replayable: this.replayable,
@@ -137,8 +141,13 @@ export class RunSession {
     this.store.saveRun(this.epoch, this.snapshot());
   }
 
-  /** [다시 하기]: 저장된 run을 지우고 이 판의 저장을 멈춘다 */
+  /**
+   * [다시 하기]: 저장된 run을 지우고 이 판의 저장을 멈춘다. 새 판으로 **실제로 넘어가는 순간**에만 부른다.
+   * 아직 안 끝난 판은 '버린 판'이 되어 이후 입력·제출을 받지 않는다. 이미 게임 오버로 끝난 판은 버린 것이 아니다
+   * (저장은 게임 오버 때 끝났고, 정상 게임 오버의 제출은 그대로 유효하다)
+   */
   abandon(): void {
+    if (!this.current.over) this.abandoned = true;
     if (this.store === null || this.retired) return;
     this.retired = true;
     this.store.discardRun(this.epoch);

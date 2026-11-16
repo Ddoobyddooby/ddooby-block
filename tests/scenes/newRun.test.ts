@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { StartedRun } from '../../src/online';
 import { chooseSeedAndRun, skipsRanking, type GameStartData } from '../../src/scenes/gameStart';
-import { requestNewGame, resetNewGameFlow, type NewGameDeps } from '../../src/scenes/newRun';
+import {
+  cancelNewGame,
+  isPreparing,
+  requestNewGame,
+  resetNewGameFlow,
+  type NewGameDeps,
+} from '../../src/scenes/newRun';
 import type { ResumableRun } from '../../src/storage/persistence';
 import { deferred } from '../online/fakeBackend';
 
@@ -10,11 +16,10 @@ const RUN: StartedRun = { runId: '123e4567-e89b-42d3-a456-426614174000', seed: 4
 function flow(over: Partial<NewGameDeps> = {}) {
   const begun: GameStartData[] = [];
   const log: string[] = [];
-  let alive = true;
   const deps: NewGameDeps = {
+    owner: 'A',
     startRun: async () => RUN,
     skipOnline: () => false,
-    isAlive: () => alive,
     showWait: () => {
       log.push('wait-show');
       return () => log.push('wait-hide');
@@ -22,7 +27,7 @@ function flow(over: Partial<NewGameDeps> = {}) {
     begin: (data) => begun.push(data),
     ...over,
   };
-  return { deps, begun, log, close: () => (alive = false) };
+  return { deps, begun, log };
 }
 const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
@@ -31,10 +36,12 @@ afterEach(() => resetNewGameFlow());
 describe('새 판 시작 공통 경로', () => {
   it('서버 run을 받으면 그 seed·runId로 시작한다 (준비 표시를 보였다가 지운다)', async () => {
     const f = flow();
-    expect(requestNewGame(f.deps)).toBe(true);
+    expect(requestNewGame(f.deps)).toBe('started');
+    expect(isPreparing()).toBe(true);
     await tick();
     expect(f.begun).toEqual([{ online: RUN }]);
     expect(f.log).toEqual(['wait-show', 'wait-hide']);
+    expect(isPreparing()).toBe(false);
   });
 
   it('run을 못 받으면(null) 오프라인 판으로 바로 시작한다 (빈 데이터)', async () => {
@@ -74,9 +81,10 @@ describe('새 판 시작 공통 경로', () => {
     await tick();
     expect(called).toBe(0);
     expect(f.log).toEqual([]);
+    expect(isPreparing()).toBe(false);
   });
 
-  it('준비 중에 다시 눌러도(연타·다시 그려진 버튼) 두 번째 요청은 무시한다: 시작은 한 번, startRun도 한 번', async () => {
+  it('준비 중에 다시 요청하면 busy: 시작은 한 번, startRun도 한 번', async () => {
     const hold = deferred<StartedRun | null>();
     let called = 0;
     const f = flow({
@@ -85,28 +93,72 @@ describe('새 판 시작 공통 경로', () => {
         return hold.promise;
       },
     });
-    expect(requestNewGame(f.deps)).toBe(true);
-    expect(requestNewGame(f.deps)).toBe(false);
-    expect(requestNewGame(flow().deps)).toBe(false); // 다른 화면에서 눌러도 앱 전체에서 하나
+    expect(requestNewGame(f.deps)).toBe('started');
+    expect(requestNewGame(f.deps)).toBe('busy');
+    expect(requestNewGame(flow({ owner: 'B' }).deps)).toBe('busy');
     hold.resolve(RUN);
     await tick();
     expect(f.begun).toEqual([{ online: RUN }]);
     expect(called).toBe(1);
-    // 끝나면 다시 요청할 수 있다
-    expect(requestNewGame(flow().deps)).toBe(true);
+    expect(requestNewGame(flow().deps)).toBe('started'); // 끝나면 다시 요청할 수 있다
   });
 
-  it('기다리는 사이 화면이 끝났으면(메뉴로 이동 등) 늦은 응답으로 새 판을 시작하지 않는다', async () => {
+  it('요청한 화면을 떠나면(cancel) 늦은 응답으로 새 판을 시작하지 않고 준비 상태가 풀린다', async () => {
     const hold = deferred<StartedRun | null>();
     const f = flow({ startRun: () => hold.promise });
     requestNewGame(f.deps);
-    f.close();
+    cancelNewGame('A');
+    expect(isPreparing()).toBe(false);
     hold.resolve(RUN);
     await tick();
     expect(f.begun).toEqual([]);
     expect(f.log).toEqual(['wait-show', 'wait-hide']);
-    // 준비 중 표시는 풀려 다음 요청을 받는다
-    expect(requestNewGame(flow().deps)).toBe(true);
+  });
+
+  it('다른 화면의 cancel은 내 요청을 취소하지 않는다', async () => {
+    const hold = deferred<StartedRun | null>();
+    const f = flow({ startRun: () => hold.promise });
+    requestNewGame(f.deps);
+    cancelNewGame('B');
+    expect(isPreparing()).toBe(true);
+    hold.resolve(RUN);
+    await tick();
+    expect(f.begun).toEqual([{ online: RUN }]);
+  });
+
+  it('화면 A 준비 중 → 취소 → B의 새 요청 → A의 늦은 응답은 B의 요청에 영향이 없다 (토큰)', async () => {
+    const holdA = deferred<StartedRun | null>();
+    const holdB = deferred<StartedRun | null>();
+    const a = flow({ owner: 'A', startRun: () => holdA.promise });
+    const b = flow({ owner: 'B', startRun: () => holdB.promise });
+    requestNewGame(a.deps);
+    cancelNewGame('A'); // A를 떠나 B로 이동
+    expect(requestNewGame(b.deps)).toBe('started');
+    holdA.resolve(RUN); // A의 옛 응답이 B의 준비 중에 도착
+    await tick();
+    expect(a.begun).toEqual([]);
+    expect(isPreparing()).toBe(true); // B는 여전히 준비 중
+    expect(b.begun).toEqual([]);
+    holdB.resolve({ runId: 'b', seed: 1 });
+    await tick();
+    expect(b.begun).toEqual([{ online: { runId: 'b', seed: 1 } }]);
+  });
+
+  it('같은 owner가 닫혔다 다시 열려도(같은 씬 객체 새 실행) 옛 응답은 무시한다', async () => {
+    const holdOld = deferred<StartedRun | null>();
+    const old = flow({ owner: 'A', startRun: () => holdOld.promise });
+    requestNewGame(old.deps);
+    cancelNewGame('A'); // 종료
+    const holdNew = deferred<StartedRun | null>();
+    const fresh = flow({ owner: 'A', startRun: () => holdNew.promise }); // 같은 owner 이름으로 새 실행
+    requestNewGame(fresh.deps);
+    holdOld.resolve(RUN);
+    await tick();
+    expect(old.begun).toEqual([]);
+    expect(fresh.begun).toEqual([]);
+    holdNew.resolve(null);
+    await tick();
+    expect(fresh.begun).toEqual([{}]);
   });
 });
 

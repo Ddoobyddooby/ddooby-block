@@ -17,7 +17,8 @@ import { skipsRanking } from './gameStart';
 import { NicknameFlow } from './nicknameFlow';
 import { fakeSubmit } from './nicknameDev';
 import { parseFakeRanking } from './nicknameGate';
-import { requestNewGame } from './newRun';
+import { cancelNewGame, isPreparing } from './newRun';
+import { handleGameOverButton } from './screenActions';
 import { showPreparing } from './preparingLabel';
 import { currentWeek, rankingLine, type RankingTracker } from './rankingResult';
 import { cssColor } from './text';
@@ -38,6 +39,7 @@ export class GameOverScene extends Phaser.Scene {
   /** 버튼 입력이 풀리는 시각 (performance.now 기준). 처음 뜰 때 정하고 resize로 다시 그려도 그대로 쓴다 */
   private unlockAt = 0;
   private ranking: RankingTracker | null = null;
+  private lock: PressLock = { pressed: false };
   /** 이 게임 오버가 새로 떴다 (resize로 다시 그린 것이 아니다) */
   private fresh = true;
   /** resize로 다시 그리는 중: 닉네임 창을 지우지 않고 넘긴다 (키보드가 올라오며 resize가 나도 입력 중인 창이 사라지지 않게) */
@@ -144,6 +146,7 @@ export class GameOverScene extends Phaser.Scene {
     // 처음 뜬 뒤 잠시는 눌리지 않는다 (PressLock이 눌린 상태로 시작했다가 남은 시간이 지나면 풀린다). resize 뒤에도 남은 시간만 적용
     const left = inputDelayLeft(this.unlockAt, performance.now());
     const lock: PressLock = { pressed: left > 0 };
+    this.lock = lock;
     if (left > 0) {
       this.time.delayedCall(left, () => {
         lock.pressed = false;
@@ -175,8 +178,14 @@ export class GameOverScene extends Phaser.Scene {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.redraw, this);
       unsubscribeLine?.();
       rankingText = null;
-      if (!this.redrawing) this.endNickname();
+      if (!this.redrawing) {
+        this.endNickname();
+        // 화면을 떠나는 것이면 준비 중이던 [다시 하기] 요청은 무효 (resize로 다시 그리는 것은 취소가 아니다)
+        cancelNewGame('GameOver');
+      }
     });
+    // 다시 그려도 준비 중이면 "준비 중…"을 계속 보인다
+    if (isPreparing()) showPreparing(this);
 
     // 닉네임 묻기 (W3-03): 점수 제출이 성공한 뒤에만, 새로 뜬 화면에서 한 번 (resize로 다시 그려도 이어진다).
     // DEV `?ranking=fake`는 온라인 없이 가짜 제출로 창만 띄운다 (프로덕션 빌드에서는 그 분기가 지워진다)
@@ -218,22 +227,15 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   private go(button: GameOverButton): void {
-    if (button === 'retry') {
-      // [다시 하기]: 서버에서 새 run을 받는 동안(최대 2.5초) 기다렸다가 시작한다. 실패하면 오프라인 판으로 바로 시작한다 (newRun.ts)
-      requestNewGame({
-        startRun,
-        skipOnline: () => skipsRanking(window.location.search, import.meta.env.DEV),
-        isAlive: () => this.scene.isActive(),
-        showWait: () => showPreparing(this),
-        begin: (data) => {
-          // 끝난 Game 씬을 끝낸다 (run은 게임 오버 때 이미 지워졌다). DEV `?over`에서는 Game 씬이 없어도 상관없다
-          this.scene.stop('Game');
-          this.scene.start('Game', data);
-        },
-      });
-      return;
-    }
-    this.scene.stop('Game');
-    this.scene.start('Menu');
+    handleGameOverButton(button, {
+      lock: this.lock,
+      startRun,
+      skipOnline: () => skipsRanking(window.location.search, import.meta.env.DEV),
+      showWait: () => showPreparing(this),
+      startGame: (data) => this.scene.start('Game', data),
+      // 끝난 Game 씬을 끝낸다 (run은 게임 오버 때 이미 지워졌다). DEV `?over`에서는 Game 씬이 없어도 상관없다
+      stopGame: () => this.scene.stop('Game'),
+      goMenu: () => this.scene.start('Menu'),
+    });
   }
 }

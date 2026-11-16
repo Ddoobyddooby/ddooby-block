@@ -5,9 +5,10 @@ import Phaser from 'phaser';
 import { GAME, VIEW } from '../config';
 import { addButton, type PressLock } from '../view/ui/Button';
 import { startRun } from '../online';
-import { skipsRanking, type GameStartData } from './gameStart';
+import { skipsRanking } from './gameStart';
 import { menuButtons, type MenuButton } from './menuRules';
-import { requestNewGame } from './newRun';
+import { cancelNewGame, isPreparing } from './newRun';
+import { handleMenuButton } from './screenActions';
 import { getPersistence } from './persistenceRegistry';
 import { showPreparing } from './preparingLabel';
 import { cssColor } from './text';
@@ -53,7 +54,9 @@ export class MenuScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.closed = true;
       this.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+      cancelNewGame('Menu');
     });
+    if (isPreparing()) showPreparing(this);
 
     // 부팅 읽기가 3초 제한을 넘겨 메뉴가 먼저 떴다면 읽기가 끝나는 때 이어하기 버튼을 보여 준다.
     // load()는 한 번만 실제로 읽고 같은 약속을 돌려주므로 이미 끝났다면 바로 풀린다 (그때는 위에서 이미 반영됨)
@@ -101,26 +104,18 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private go(button: MenuButton): void {
-    if (button === 'new') {
-      // 서버에서 새 run을 받는 동안(최대 2.5초) 기다렸다가 시작한다. 실패하면 오프라인 판으로 바로 시작한다 (newRun.ts)
-      requestNewGame({
-        startRun,
-        skipOnline: () => skipsRanking(window.location.search, import.meta.env.DEV),
-        isAlive: () => !this.closed,
-        showWait: () => showPreparing(this),
-        begin: (data) => this.scene.start('Game', data),
-      });
-      return;
-    }
-    // 누르는 순간의 저장 상태를 다시 본다. 그 사이 없어졌다면 시작하지 않고 메뉴를 다시 그린다
-    const resume = getPersistence(this.registry)?.resumable() ?? null;
-    if (resume === null) {
-      // 이어하기가 없어졌다: 전환하지 않고 다시 그린다. 다시 누를 수 있게 잠금을 푼다
-      this.lock.pressed = false;
-      this.layout();
-      return;
-    }
-    const data: GameStartData = { resume };
-    this.scene.start('Game', data);
+    handleMenuButton(button, {
+      lock: this.lock,
+      startRun,
+      skipOnline: () => skipsRanking(window.location.search, import.meta.env.DEV),
+      showWait: () => showPreparing(this),
+      startGame: (data) => this.scene.start('Game', data),
+      resumeData: () => {
+        const resume = getPersistence(this.registry)?.resumable() ?? null;
+        return resume === null ? null : { resume };
+      },
+      startResume: (data) => this.scene.start('Game', data),
+      redraw: () => this.layout(),
+    });
   }
 }
