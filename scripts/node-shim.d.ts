@@ -48,6 +48,35 @@ declare module 'node:process' {
   export default process;
 }
 
+/** 원격 시험(scripts/supabase-check)이 새 연결(keep-alive 끔)로 함수를 부른다 */
+declare module 'node:https' {
+  export class Agent {
+    constructor(options: { keepAlive: boolean });
+  }
+  export function request(
+    options: {
+      hostname: string;
+      path: string;
+      method: string;
+      agent: Agent;
+      headers: Record<string, string>;
+      timeout: number;
+    },
+    callback: (res: {
+      statusCode?: number;
+      setEncoding(encoding: 'utf8'): void;
+      headers: Record<string, string | string[] | undefined>;
+      on(event: 'data', listener: (chunk: string) => void): void;
+      on(event: 'end', listener: () => void): void;
+      on(event: 'error', listener: () => void): void;
+    }) => void,
+  ): {
+    on(event: 'timeout' | 'error', listener: () => void): void;
+    destroy(): void;
+    end(data?: string): void;
+  };
+}
+
 declare module 'node:crypto' {
   export function createHash(algorithm: 'sha256'): {
     update(data: string): { digest(encoding: 'hex'): string };
