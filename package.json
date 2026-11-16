@@ -16,7 +16,7 @@
     "supabase:check": "node --disable-warning=ExperimentalWarning scripts/supabase-check/rls-check.ts",
     "server:shared": "node --disable-warning=ExperimentalWarning scripts/server-shared/build.ts",
     "server:shared:check": "node --disable-warning=ExperimentalWarning scripts/server-shared/build.ts --check",
-    "functions:check": "deno check --no-lock --config supabase/functions/set-nickname/deno.json supabase/functions/set-nickname/index.ts"
+    "functions:check": "deno check --no-lock --config supabase/functions/set-nickname/deno.json supabase/functions/set-nickname/index.ts && deno check --no-lock --config supabase/functions/start-run/deno.json supabase/functions/start-run/index.ts && deno check --no-lock --config supabase/functions/submit-score/deno.json supabase/functions/submit-score/index.ts"
   },
   "dependencies": {
     "@capacitor/core": "~8.5.3",

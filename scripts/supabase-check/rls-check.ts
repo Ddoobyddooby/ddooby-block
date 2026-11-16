@@ -4,6 +4,9 @@
 //
 //   npm run supabase:check [-- <env 파일 경로>]               (기본값 .env.local)
 //   npm run supabase:check -- --nickname [<env 파일 경로>]    set-nickname 함수 시험 (W3-02. 아래 runNickname)
+//   npm run supabase:check -- --scores [--parity[=N]] [<env 파일 경로>]
+//                                                             start-run·submit-score 시험 (W3-03. scores.ts). --parity는 서버 발급 seed N판(기본 200)
+//                                                             봇 로그가 모두 같은 점수로 통과하는지 더 본다. 마이그레이션·두 함수를 배포한 뒤에만
 //
 // 종료 코드: 0 모두 PASS / 1 FAIL·시험 불가 있음 / 2 설정·로그인 오류 (시험을 시작하지 못함)
 //
@@ -31,6 +34,7 @@ import {
   judgeUnauthorized,
   type FnRes,
 } from './nicknameJudge.ts';
+import { runScores, type CallInit, type FnName, type ScoresIo } from './scores.ts';
 import {
   type CheckEnv,
   type Outcome,
@@ -89,7 +93,8 @@ const FN_TIMEOUT_MS = 15_000;
 
 async function callFunction(
   env: CheckEnv,
-  init: { method: string; origin: string | null; token: string | null; body?: unknown },
+  init: CallInit,
+  fn: 'set-nickname' | FnName = 'set-nickname',
 ): Promise<FnRes> {
   const headers: Record<string, string> = { apikey: env.key, 'Content-Type': 'application/json' };
   if (init.origin !== null) headers.Origin = init.origin;
@@ -100,10 +105,14 @@ async function callFunction(
     headers['Access-Control-Request-Headers'] = REQUIRED_REQUEST_HEADERS.join(', ');
   }
   try {
-    const res = await fetch(`${env.url}/functions/v1/set-nickname`, {
+    const res = await fetch(`${env.url}/functions/v1/${fn}`, {
       method: init.method,
       headers,
-      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+      ...(init.rawBody !== undefined
+        ? { body: init.rawBody }
+        : init.body === undefined
+          ? {}
+          : { body: JSON.stringify(init.body) }),
       signal: AbortSignal.timeout(FN_TIMEOUT_MS),
     });
     let body: unknown = null;
@@ -269,15 +278,62 @@ async function runNickname(env: CheckEnv, rows: Row[]): Promise<void> {
   }
 }
 
+/**
+ * start-run·submit-score 시험 (W3-03). 새 익명 사용자 A·B와 비로그인으로 정확한 status·code·본문·DB 상태를 확인한다.
+ * 시험이 원격에 남기는 것: 익명 계정 2개, A의 runs·weekly_scores 행 (scores.ts 머리말)
+ */
+async function runScoresRemote(
+  env: CheckEnv,
+  rows: Row[],
+  parity: number | undefined,
+): Promise<void> {
+  const anon = newClient(env);
+  const [a, b] = [newClient(env), newClient(env)];
+  const idA = await signIn(a, 'A');
+  const idB = await signIn(b, 'B');
+  const tokenA = await accessToken(a);
+  const tokenB = await accessToken(b);
+  const io: ScoresIo = {
+    call: (fn, init) => callFunction(env, init, fn),
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    now: () => performance.now(),
+  };
+  await runScores(
+    { anon, a, b, idA, idB, tokenA, tokenB },
+    io,
+    rows,
+    parity === undefined ? {} : { parity },
+  );
+}
+
 async function main(): Promise<number> {
   const args = process.argv.slice(2);
   const nickname = args.includes('--nickname');
+  const scores = args.includes('--scores');
+  const parityArg = args.find((arg) => arg === '--parity' || arg.startsWith('--parity='));
+  const parity =
+    parityArg === undefined
+      ? undefined
+      : parityArg === '--parity'
+        ? 200
+        : Number(parityArg.slice('--parity='.length));
+  if (parity !== undefined && (!Number.isInteger(parity) || parity < 1 || parity > 1000)) {
+    throw new SetupError('--parity=N의 N은 1~1000 정수여야 한다');
+  }
+  if (parity !== undefined && !scores) throw new SetupError('--parity는 --scores와 함께 쓴다');
   const envPath = args.find((arg) => !arg.startsWith('--')) ?? '.env.local';
   const env = loadEnv(envPath);
 
   if (nickname) {
     const rows: Row[] = [];
     await runNickname(env, rows);
+    for (const line of formatTable(rows)) console.log(line);
+    return exitCodeOf(rows);
+  }
+
+  if (scores) {
+    const rows: Row[] = [];
+    await runScoresRemote(env, rows, parity);
     for (const line of formatTable(rows)) console.log(line);
     return exitCodeOf(rows);
   }
@@ -333,9 +389,8 @@ async function main(): Promise<number> {
     readable(await a.from('profiles').select('*').limit(5)),
   );
 
-  // ③ runs: 본인 것만 읽기, 쓰기 불가. 시험용 run을 만들 수단이 없어(start-run은 W3-03) SELECT 두 항목은
-  // 지금의 예상 결과(0행)일 뿐 RLS 증명이 아니다. W3-03에서 start-run fixture로 양성(A가 자기 run을 읽음)·
-  // 음성(B가 못 읽음) 대조를 더한다
+  // ③ runs: 본인 것만 읽기, 쓰기 불가. 기본 시험은 run을 만들지 않으므로 SELECT 두 항목은 예상 결과(0행)일 뿐
+  // RLS 증명이 아니다. 양성(A가 자기 run을 1행 읽음)·음성(B가 같은 run을 0행 읽음) 대조는 `--scores`의 ①이 start-run으로 한다
   await check('③', 'A 본인 runs SELECT', '오류 없음·0행 (권한 증명 아님)', async () =>
     expectNoRowsNow(await a.from('runs').select('*')),
   );

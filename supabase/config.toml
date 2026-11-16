@@ -425,3 +425,11 @@ enabled = true
 # `supabase functions deploy`에 --no-verify-jwt를 붙이지 않는다
 [functions.set-nickname]
 verify_jwt = true
+
+# Edge Function start-run·submit-score (W3-03). set-nickname과 같이 게이트웨이의 JWT 검증을 켜 두고 함수 안에서도 auth.getUser(token)으로 다시 확인한다.
+# `supabase functions deploy`에 --no-verify-jwt를 붙이지 않는다
+[functions.start-run]
+verify_jwt = true
+
+[functions.submit-score]
+verify_jwt = true
