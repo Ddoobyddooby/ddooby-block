@@ -62,12 +62,56 @@ export function earlyResponse(req: Request, cors: Cors): Response | null {
 }
 
 /**
- * 읽지 않는 본문을 버린다. 취소(cancel)를 **기다리지 않는다**: Edge 런타임에서 상한을 넘긴 요청 본문의 cancel() Promise가
- * 끝나지 않아 413 응답이 영원히 오지 않는 일이 원격에서 확인됐다 (W3-03 원격 확인, 1,500,001바이트 요청). 오류는 삼킨다
+ * 읽지 않은 본문을 버리는 읽기의 상한. 이 바이트까지만 읽어 버리고, 시간도 DRAIN_TIMEOUT_MS까지만 쓴다 (자원 고갈 방지).
+ * Supabase Edge에서는 응답을 보낼 때 요청 본문이 약 60만 바이트 넘게 남아 있으면 응답이 나가지 않고 매달린다
+ * (W3-03 후속 원격 실험: 끝까지 읽은 1,500,000바이트는 0.35초에 응답, 읽지 않은 채 응답한 100만 바이트는 응답 없음.
+ * 토큰이 없는 401·405 같은 일찍 보내는 응답도 같다). 그래서 응답 전에 남은 본문을 이 상한까지 읽어 버린다
  */
-function dropBody(source: { cancel(): Promise<void> } | null | undefined): void {
+export const DRAIN_LIMIT_BYTES = 8 * 1024 * 1024;
+export const DRAIN_TIMEOUT_MS = 3000;
+
+/**
+ * reader의 남은 본문을 버린다 (모으지 않으므로 메모리는 늘지 않는다). alreadyRead는 이미 읽은 바이트.
+ * 끝났거나 상한·시간을 넘으면 돌아온다. 넘으면 남은 본문을 취소하되 **취소를 기다리지 않는다**
+ * (Edge에서 취소 Promise가 끝나지 않는 일이 있었다). 오류는 삼킨다
+ */
+async function discardRest(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  alreadyRead: number,
+): Promise<void> {
+  let total = alreadyRead;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), DRAIN_TIMEOUT_MS);
+  });
   try {
-    void source?.cancel().catch(() => undefined);
+    for (;;) {
+      const next = await Promise.race([reader.read(), timedOut]);
+      if (next === 'timeout') break;
+      if (next.done) return;
+      total += next.value.byteLength;
+      if (total > DRAIN_LIMIT_BYTES) break;
+    }
+  } catch {
+    return; // 읽기 오류(연결 끊김)
+  } finally {
+    clearTimeout(timer);
+  }
+  try {
+    void reader.cancel().catch(() => undefined);
+  } catch {
+    // 이미 끝난 스트림
+  }
+}
+
+/**
+ * 응답을 보내기 전에 아직 읽지 않은 요청 본문을 상한까지 버린다 (위 DRAIN_LIMIT_BYTES 설명).
+ * 일찍 응답하는 모든 경로(401·403·405·413·400)에서 부른다. 이미 읽었거나 본문이 없으면 아무 일도 안 한다
+ */
+export async function drainUnread(req: Request): Promise<void> {
+  try {
+    if (!req.body || req.bodyUsed || req.body.locked) return;
+    await discardRest(req.body.getReader(), 0);
   } catch {
     // 이미 잠겼거나 끝난 스트림
   }
@@ -79,12 +123,13 @@ function dropBody(source: { cancel(): Promise<void> } | null | undefined): void 
  */
 export async function readBodyText(req: Request, maxBytes: number): Promise<string | 'too-large'> {
   const declared = Number(req.headers.get('Content-Length'));
-  if (Number.isFinite(declared) && declared > maxBytes) {
-    dropBody(req.body);
-    return 'too-large';
-  }
   const reader = req.body?.getReader();
   if (!reader) return '';
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    // 선언이 이미 상한을 넘었다. 응답 전에 남은 본문을 상한까지 버린다 (선언이 상한의 몇 배여도 버리는 양은 DRAIN_LIMIT_BYTES까지)
+    await discardRest(reader, 0);
+    return 'too-large';
+  }
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {
@@ -92,7 +137,7 @@ export async function readBodyText(req: Request, maxBytes: number): Promise<stri
     if (done) break;
     total += value.byteLength;
     if (total > maxBytes) {
-      dropBody(reader);
+      await discardRest(reader, total);
       return 'too-large';
     }
     chunks.push(value);

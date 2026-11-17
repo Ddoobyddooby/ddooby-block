@@ -24,6 +24,7 @@ import {
   earlyResponse,
   json,
   parseJson,
+  drainUnread,
   readBodyText,
   type Cors,
 } from '../_lib/http.ts';
@@ -95,7 +96,14 @@ function respond(stored: StoredResult, weekKey: string, cors: Cors): Response {
   return json(400, body, cors);
 }
 
+/** 응답을 보내기 전에 읽지 않은 요청 본문을 상한까지 버린다 (http.ts DRAIN_LIMIT_BYTES: 큰 본문을 남긴 채 응답하면 Edge가 응답을 내보내지 않는다) */
 export async function handleSubmitScore(deps: SubmitScoreDeps, req: Request): Promise<Response> {
+  const res = await respondSubmitScore(deps, req);
+  await drainUnread(req);
+  return res;
+}
+
+async function respondSubmitScore(deps: SubmitScoreDeps, req: Request): Promise<Response> {
   const cors = corsHeaders(deps.allowHeaders, req.headers.get('Origin'));
   const early = earlyResponse(req, cors);
   if (early) return early;

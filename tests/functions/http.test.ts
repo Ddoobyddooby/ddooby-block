@@ -5,6 +5,9 @@ import {
   bearerToken,
   corsHeaders,
   readBodyText,
+  drainUnread,
+  DRAIN_LIMIT_BYTES,
+  DRAIN_TIMEOUT_MS,
 } from '../../supabase/functions/_lib/http';
 
 describe('_lib/http', () => {
@@ -87,5 +90,92 @@ describe('_lib/http', () => {
     expect(await within(readBodyText(neverCancels([bytes], bytes.length), 100), 500)).toBe(
       '{"a":1}',
     );
+  });
+
+  // 원격 실험: 큰 본문을 읽지 않은 채 응답하면 Edge가 응답을 내보내지 않는다 → 응답 전에 남은 본문을 상한까지 읽어 버린다
+  const counting = (
+    chunkBytes: number,
+    chunks: number,
+    declared?: number,
+  ): { req: Request; read: () => number; cancelled: () => boolean } => {
+    let sent = 0;
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent >= chunks) controller.close();
+        else {
+          sent += 1;
+          controller.enqueue(new Uint8Array(chunkBytes));
+        }
+      },
+      cancel() {
+        cancelled = true;
+        return new Promise<void>(() => undefined);
+      },
+    });
+    const req = new Request('https://x', {
+      method: 'POST',
+      headers: declared === undefined ? {} : { 'Content-Length': String(declared) },
+      body: stream,
+      duplex: 'half',
+    } as RequestInit);
+    return { req, read: () => sent * chunkBytes, cancelled: () => cancelled };
+  };
+
+  it('상한을 넘은 본문도 too-large를 돌려주기 전에 끝까지 읽어 버린다 (상한 이내인 양)', async () => {
+    const c = counting(1000, 50); // 50,000바이트
+    expect(await within(readBodyText(c.req, 10), 1000)).toBe('too-large');
+    expect(c.read()).toBe(50_000);
+    expect(c.cancelled()).toBe(false); // 끝까지 읽었으므로 취소할 것이 없다
+  });
+
+  it('선언이 상한을 넘어도 남은 본문을 읽어 버린 뒤 too-large', async () => {
+    const c = counting(1000, 50, 50_000);
+    expect(await within(readBodyText(c.req, 10), 1000)).toBe('too-large');
+    expect(c.read()).toBe(50_000);
+  });
+
+  it('버리는 읽기에도 상한이 있다: DRAIN_LIMIT_BYTES를 넘으면 멈추고 취소를 기다리지 않는다', async () => {
+    const chunk = 1024 * 1024;
+    const c = counting(chunk, 1000); // 끝없이 큰 본문
+    expect(await within(readBodyText(c.req, 10), 2000)).toBe('too-large');
+    expect(c.read()).toBeLessThanOrEqual(DRAIN_LIMIT_BYTES + 2 * chunk);
+    expect(c.read()).toBeGreaterThan(DRAIN_LIMIT_BYTES);
+    expect(c.cancelled()).toBe(true);
+  });
+
+  it('drainUnread: 읽지 않은 본문을 읽어 버린다. 본문 없음·이미 읽음·잠김에서는 아무 일도 안 한다', async () => {
+    const c = counting(100, 20);
+    await drainUnread(c.req);
+    expect(c.read()).toBe(2000);
+    await drainUnread(new Request('https://x', { method: 'POST' }));
+    const used = new Request('https://x', { method: 'POST', body: 'abc' });
+    await used.text();
+    await drainUnread(used);
+    const locked = new Request('https://x', { method: 'POST', body: 'abc' });
+    locked.body?.getReader();
+    await drainUnread(locked);
+  });
+
+  it('drainUnread: 오래 걸리면 시간 제한 뒤 돌아온다 (조금씩 끝없이 보내는 본문)', async () => {
+    vi.useFakeTimers();
+    try {
+      const stream = new ReadableStream<Uint8Array>({
+        pull: () => new Promise<void>(() => undefined), // 다음 조각이 영원히 오지 않는다
+      });
+      const req = new Request('https://x', {
+        method: 'POST',
+        body: stream,
+        duplex: 'half',
+      } as RequestInit);
+      let done = false;
+      void drainUnread(req).then(() => (done = true));
+      await vi.advanceTimersByTimeAsync(DRAIN_TIMEOUT_MS - 100);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(200);
+      expect(done).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
