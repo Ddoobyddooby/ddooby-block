@@ -246,6 +246,23 @@ export class GameOverScene extends Phaser.Scene {
     });
   }
 
+  /** Android 뒤로 가기용: 닉네임 창이 떠 있다 */
+  hasOverlay(): boolean {
+    return this.nickname?.isOpen === true;
+  }
+
+  /** 닉네임 창을 [나중에]와 같게 닫는다 */
+  closeOverlay(): void {
+    this.nickname?.dismiss();
+  }
+
+  /** Android 뒤로 가기: [메뉴]와 같다 (입력 지연 중이거나 이미 누른 버튼이 있으면 무시) */
+  requestMenu(): void {
+    if (this.lock.pressed) return;
+    this.lock.pressed = true;
+    this.go('menu');
+  }
+
   private endNickname(): void {
     this.nickname?.end();
     this.nickname = null;

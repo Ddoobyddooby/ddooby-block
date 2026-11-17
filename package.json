@@ -19,15 +19,21 @@
     "supabase:check": "node --disable-warning=ExperimentalWarning scripts/supabase-check/rls-check.ts",
     "server:shared": "node --disable-warning=ExperimentalWarning scripts/server-shared/build.ts",
     "server:shared:check": "node --disable-warning=ExperimentalWarning scripts/server-shared/build.ts --check",
-    "functions:check": "deno check --no-lock --config supabase/functions/set-nickname/deno.json supabase/functions/set-nickname/index.ts && deno check --no-lock --config supabase/functions/start-run/deno.json supabase/functions/start-run/index.ts && deno check --no-lock --config supabase/functions/submit-score/deno.json supabase/functions/submit-score/index.ts"
+    "functions:check": "deno check --no-lock --config supabase/functions/set-nickname/deno.json supabase/functions/set-nickname/index.ts && deno check --no-lock --config supabase/functions/start-run/deno.json supabase/functions/start-run/index.ts && deno check --no-lock --config supabase/functions/submit-score/deno.json supabase/functions/submit-score/index.ts",
+    "android:sync": "npm run build && cap sync android",
+    "icons": "capacitor-assets generate --android --assetPath assets/app-icon"
   },
   "dependencies": {
+    "@capacitor/android": "~8.5.3",
+    "@capacitor/app": "~8.1.2",
     "@capacitor/core": "~8.5.3",
     "@capacitor/preferences": "~8.0.1",
     "@supabase/supabase-js": "2.119.0",
     "phaser": "^3.90.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "~4.0.0",
+    "@capacitor/cli": "~8.5.3",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",

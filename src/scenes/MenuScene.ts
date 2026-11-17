@@ -143,6 +143,15 @@ export class MenuScene extends Phaser.Scene {
     );
   }
 
+  /** Android 뒤로 가기용: 테마 카드 창이 떠 있다 */
+  hasOverlay(): boolean {
+    return this.closePicker !== null;
+  }
+
+  closeOverlay(): void {
+    this.closePicker?.();
+  }
+
   private openPicker(): void {
     if (this.closed || this.closePicker) return;
     this.closePicker = openThemePicker(

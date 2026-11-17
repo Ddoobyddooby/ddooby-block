@@ -240,6 +240,11 @@ export class GameScene extends Phaser.Scene {
     this.fx.setLayout(this.layout);
   }
 
+  /** Android 뒤로 가기: 일시정지 버튼과 같다 (게임 오버 연출 중 등 멈출 수 없을 때는 아무 일도 없다) */
+  requestPause(): void {
+    this.pause();
+  }
+
   /**
    * 일시정지 버튼. 하던 드래그는 취소해 조각을 트레이로 돌려보내고, PauseScene을 띄운 뒤 이 씬을 멈춘다.
    * 이벤트 재생 중에도 멈출 수 있다: 씬이 멈추면 트윈도 같이 멈췄다가 [계속] 뒤에 이어서 끝까지 재생된다.

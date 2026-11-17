@@ -136,6 +136,13 @@ export class PauseScene extends Phaser.Scene {
     this.gate.request(() => this.scene.restart());
   }
 
+  /** Android 뒤로 가기: [계속]과 같다. 누름 잠금을 공유해 버튼과 겹쳐 두 번 실행되지 않는다 */
+  requestResume(): void {
+    if (this.lock.pressed) return;
+    this.lock.pressed = true;
+    this.go('resume');
+  }
+
   private go(button: PauseButton): void {
     handlePauseButton(button, {
       lock: this.lock,

@@ -73,6 +73,16 @@ export class NicknameFlow {
     this.open(fake);
   }
 
+  /** 창이 떠 있다 (뒤로 가기가 창부터 닫는다) */
+  get isOpen(): boolean {
+    return this.prompt?.isOpen === true;
+  }
+
+  /** 뒤로 가기: 창을 [나중에]로 닫는다 */
+  dismiss(): void {
+    this.prompt?.dismiss();
+  }
+
   /** 이 화면을 떠난다: 창을 지우고 진행 중이던 조회·제출의 늦은 결과를 버린다 */
   end(): void {
     this.run += 1;

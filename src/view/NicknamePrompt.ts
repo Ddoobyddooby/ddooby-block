@@ -102,6 +102,11 @@ export class NicknamePrompt {
     return this.root !== null;
   }
 
+  /** 뒤로 가기 버튼: Esc와 같이 [나중에]로 닫는다 (안내를 보인 뒤 닫힌다). 이미 닫히는 중이면 아무 일도 없다 */
+  dismiss(): void {
+    this.later();
+  }
+
   /** 씬이 끝나거나 바뀔 때 부른다. onClose 없이 DOM·타이머·리스너만 지운다 */
   destroy(): void {
     this.done = true;

@@ -11,6 +11,7 @@ import {
 import { Persistence } from '../storage/persistence';
 import { sfxKey, type SfxName } from '../view/Sfx';
 import { applyLoaded } from './bootLoad';
+import { registerAppBridge } from './backButton';
 import { applyLoadedMusic } from './musicRules';
 import { Music } from '../view/Music';
 import { parseFillParam } from './devFill';
@@ -61,6 +62,7 @@ export class BootScene extends Phaser.Scene {
     const persistence = new Persistence(createStore());
     putPersistence(this.registry, persistence);
     requestPersist();
+    registerAppBridge(this.game); // Android: 뒤로 가기·앱 백그라운드 (웹에서는 아무 일도 안 한다)
     // 익명 계정 (W3-02). 기다리지 않는다: 키가 없거나 오프라인·실패면 온라인 기능만 꺼지고 게임은 그대로다
     void ensureAccount();
 

@@ -414,6 +414,23 @@ export class RankingScene extends Phaser.Scene {
     });
   }
 
+  /** Android 뒤로 가기용: 닉네임 창이 떠 있다 */
+  hasOverlay(): boolean {
+    return this.prompt?.isOpen === true;
+  }
+
+  /** 닉네임 창을 [나중에]와 같게 닫는다 */
+  closeOverlay(): void {
+    this.prompt?.dismiss();
+  }
+
+  /** Android 뒤로 가기: [돌아가기]와 같다 */
+  requestMenu(): void {
+    if (this.backLock.pressed) return;
+    this.backLock.pressed = true;
+    this.scene.start('Menu');
+  }
+
   private closePrompt(): void {
     this.prompt?.destroy();
     this.prompt = null;
