@@ -26,6 +26,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # 서버 대조 테스트(tests/server-shared/serverParity.test.ts)가 deno로 서버 코드를 돌린다
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.x
       - run: npm ci
       - run: npm run lint
       # Edge Function용 묶음(supabase/functions/_shared/)이 src와 같은지 (PLAN2 5.8·6.3)
