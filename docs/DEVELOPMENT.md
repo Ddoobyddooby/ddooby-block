@@ -40,7 +40,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `npm run supabase:check -- --ranking` | 주간 랭킹 원격 시험: 비로그인 조회, 이름 있는/없는 시험 사용자의 목록·내 줄, 공동 순위, 클라이언트 직접 쓰기 차단(약 20개). 시험 사용자와 닉네임이 공개 목록에 남는다 | W3-04 |
 | `npm run fonts:subset` / `fonts:check` | 테마 글꼴을 앱에 쓰는 글자만 남겨 다시 만든다(원본 글꼴을 `assets/fonts-src/README.md`대로 받아 두고, Homebrew `hb-subset` 필요) / 문구의 글자가 서브셋에 다 들어 있는지와 글꼴 이름(예약 이름 SUIT가 없는지)만 본다. 문구를 바꾸면 `fonts:check`가 실패하니 `fonts:subset`을 돌린다 | W4-05 |
 | `npm run supabase:check` | Supabase 권한 시험. `.env.local`(또는 `-- <env 경로>`)의 URL·publishable key로 익명 사용자 둘과 비로그인을 만들어 쓰기가 막히는지 본다. 모두 PASS면 0, FAIL·시험 불가가 있으면 1, 설정이 없거나 키가 publishable이 아니면 2. 실행마다 익명 계정 2개가 남는다 | W3-01 |
-| `npm run sim` | 자동 플레이 봇으로 seed 1~1000을 돌려 평균 점수·배치 수·보정 발생률을 찍는다. 가중치·점수를 고친 뒤 밸런스를 잴 때 | W4-02 (예정) |
+| `npm run sim` | 자동 플레이 봇으로 seed 여러 개를 끝까지 돌려 점수·배치 수·줄 제거·콤보·보정 발생률·조각 출현 비율을 표로 낸다. `-- --seeds 1-1000 --bot greedy,random` (봇: greedy·random·smart·survivor, survivor는 느리다), `--json <경로>`로 원본 저장. 가중치·점수를 바꾸기 전후로 같은 seed를 돌려 비교한다 | W4-02 |
 | `npm run android:sync` | 웹 빌드 후 `android/` 앱에 복사 (`cap sync`). Android Studio에서 ▶ 하기 전에 실행 | W4-03 (예정) |
 
 커밋 전에는 항상 `npm run lint && npm test && npm run build`가 통과해야 한다.
