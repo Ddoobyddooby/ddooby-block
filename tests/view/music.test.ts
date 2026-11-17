@@ -86,9 +86,9 @@ describe('Music', () => {
     expect(sounds[0]!.config).toEqual({ loop: true, volume: 0 });
     expect(sounds[0]!.isPlaying).toBe(true);
     tick(SOUND.music.fadeMs / 2);
-    expect(sounds[0]!.volume).toBeCloseTo(SOUND.music.volume / 2);
+    expect(sounds[0]!.volume).toBeCloseTo(SOUND.music.volumes.menu / 2);
     tick(SOUND.music.fadeMs);
-    expect(sounds[0]!.volume).toBeCloseTo(SOUND.music.volume);
+    expect(sounds[0]!.volume).toBeCloseTo(SOUND.music.volumes.menu);
     expect(music.state()).toMatchObject({ current: 'menu', desired: 'menu', playing: true });
   });
 
@@ -174,7 +174,7 @@ describe('Music', () => {
     expect(sounds[0]!.volume).toBe(before);
     music.hold('pause', false);
     tick(SOUND.music.fadeMs);
-    expect(sounds[0]!.volume).toBeCloseTo(SOUND.music.volume);
+    expect(sounds[0]!.volume).toBeCloseTo(SOUND.music.volumes.menu);
   });
 
   it('새 화면이 곡을 정하면 일시정지 멈춤은 풀린다 (메뉴로 나가기·다시 하기)', () => {
@@ -232,5 +232,16 @@ describe('Music', () => {
     };
     expect(() => music.play('menu')).not.toThrow();
     expect(music.state().current).toBeNull();
+  });
+});
+
+describe('Music: 곡별 소리 크기', () => {
+  it('곡마다 정한 크기까지 올라간다', () => {
+    for (const name of ['menu', 'game-soda', 'game-butter', 'game-orbit'] as const) {
+      const { music, sounds, tick } = setup([`music-${name}`]);
+      music.play(name);
+      tick(SOUND.music.fadeMs * 2);
+      expect(sounds[0]!.volume).toBeCloseTo(SOUND.music.volumes[name]);
+    }
   });
 });

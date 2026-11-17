@@ -33,9 +33,6 @@ describe('sfxRate (줄 제거 소리 음 높이)', () => {
   });
 });
 
-/** 에셋이 아직 없는 효과음 (에셋 연결 커밋에서 비운다) */
-const PENDING_ASSETS: string[] = ['newBest', 'gameOverShow'];
-
 describe('SOUND', () => {
   it('볼륨은 0 초과 1 이하, 파일은 확장자 없는 이름, 키는 이름마다 다르다', () => {
     const entries = Object.entries(SOUND.effects);
@@ -68,12 +65,23 @@ describe('SOUND', () => {
   });
 
   it('효과음 파일이 형식마다 public/audio에 있다', () => {
-    for (const [name, { file }] of Object.entries(SOUND.effects)) {
-      // W4-01: 새 효과음 두 개의 파일은 codex-design이 준비해 에셋 연결 커밋에서 들어온다. 파일이 없어도 게임은 진행된다 (Sfx). 그때 이 줄을 지운다
-      if (PENDING_ASSETS.includes(name)) continue;
+    for (const { file } of Object.values(SOUND.effects)) {
       for (const ext of SOUND.formats) {
         expect(audioFiles.has(`${file}.${ext}`), `${file}.${ext}`).toBe(true);
       }
     }
+  });
+
+  it('음악 파일이 곡마다 형식마다 public/audio/music에 있고, 쓰지 않는 음악 파일은 없다', () => {
+    const files = new Set(
+      Object.keys(import.meta.glob('../../public/audio/music/*.{ogg,m4a}')).map((path) =>
+        path.slice(path.lastIndexOf('/') + 1),
+      ),
+    );
+    const expected = SOUND.music.tracks.flatMap((name) =>
+      SOUND.formats.map((ext) => `${name}.${ext}`),
+    );
+    for (const file of expected) expect(files.has(file), file).toBe(true);
+    expect([...files].sort()).toEqual([...expected].sort());
   });
 });

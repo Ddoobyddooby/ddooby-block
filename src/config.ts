@@ -329,7 +329,7 @@ export const SOUND = {
     /** 게임 오버 화면에서 최고 기록을 새로 세웠을 때 (W4-01) */
     newBest: { file: 'newBest', volume: 0.5 },
     /** 게임 오버 화면이 뜰 때 (W4-01). 연출 속 `gameOver` 소리와는 showDelayMs만큼 떨어져 있다 */
-    gameOverShow: { file: 'gameOverShow', volume: 0.45 },
+    gameOverShow: { file: 'gameOverShow', volume: 0.3 },
   },
   /** 게임 오버 화면이 뜬 뒤 `newBest`를 내기까지 (ms). `gameOverShow`와 겹치지 않게 한다 */
   newBestDelayMs: 350,
@@ -346,8 +346,11 @@ export const SOUND = {
     tracks: ['menu', 'game-soda', 'game-butter', 'game-orbit'],
     menuTrack: 'menu',
     gameTracks: { soda: 'game-soda', butter: 'game-butter', orbit: 'game-orbit' },
-    /** 곡 소리 크기 (효과음과 겹쳐도 효과음이 묻히지 않게 낮다) */
-    volume: 0.3,
+    /**
+     * 곡별 소리 크기. 원본 음량이 달라 곡마다 따로 맞췄다 (codex-design 측정, 재생 후 약 -38 LUFS로 정렬해 효과음 아래에 둔다).
+     * 기기 스피커에서의 최종 튜닝은 귀로 한다.
+     */
+    volumes: { menu: 0.22, 'game-soda': 0.07, 'game-butter': 0.12, 'game-orbit': 0.25 },
     /** 곡이 바뀔 때 페이드 (나가는 곡은 줄이며 끝내고 들어오는 곡은 0에서 올린다) */
     fadeMs: 600,
     /** 음악 버튼으로 켜고 끌 때 페이드 */

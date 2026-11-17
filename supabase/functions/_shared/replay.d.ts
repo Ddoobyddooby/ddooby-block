@@ -445,7 +445,7 @@ declare const SOUND: {
         /** 게임 오버 화면이 뜰 때 (W4-01). 연출 속 `gameOver` 소리와는 showDelayMs만큼 떨어져 있다 */
         readonly gameOverShow: {
             readonly file: "gameOverShow";
-            readonly volume: 0.45;
+            readonly volume: 0.3;
         };
     };
     /** 게임 오버 화면이 뜬 뒤 `newBest`를 내기까지 (ms). `gameOverShow`와 겹치지 않게 한다 */
@@ -467,8 +467,16 @@ declare const SOUND: {
             readonly butter: "game-butter";
             readonly orbit: "game-orbit";
         };
-        /** 곡 소리 크기 (효과음과 겹쳐도 효과음이 묻히지 않게 낮다) */
-        readonly volume: 0.3;
+        /**
+         * 곡별 소리 크기. 원본 음량이 달라 곡마다 따로 맞췄다 (codex-design 측정, 재생 후 약 -38 LUFS로 정렬해 효과음 아래에 둔다).
+         * 기기 스피커에서의 최종 튜닝은 귀로 한다.
+         */
+        readonly volumes: {
+            readonly menu: 0.22;
+            readonly 'game-soda': 0.07;
+            readonly 'game-butter': 0.12;
+            readonly 'game-orbit': 0.25;
+        };
         /** 곡이 바뀔 때 페이드 (나가는 곡은 줄이며 끝내고 들어오는 곡은 0에서 올린다) */
         readonly fadeMs: 600;
         /** 음악 버튼으로 켜고 끌 때 페이드 */

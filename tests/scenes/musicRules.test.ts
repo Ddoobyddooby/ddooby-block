@@ -49,8 +49,12 @@ describe('곡 고르기', () => {
     expect(tracks).toContain(menuTrack);
     for (const theme of THEME_IDS) expect(tracks).toContain(gameTracks[theme]);
     expect(new Set(tracks).size).toBe(tracks.length);
-    expect(SOUND.music.volume).toBeGreaterThan(0);
-    expect(SOUND.music.volume).toBeLessThanOrEqual(1);
+    // 곡마다 소리 크기가 있고 0 초과 1 이하
+    expect(Object.keys(SOUND.music.volumes).sort()).toEqual([...tracks].sort());
+    for (const volume of Object.values(SOUND.music.volumes)) {
+      expect(volume).toBeGreaterThan(0);
+      expect(volume).toBeLessThanOrEqual(1);
+    }
   });
 });
 

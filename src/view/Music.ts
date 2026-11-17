@@ -155,7 +155,7 @@ export class Music {
         const sound = this.game.sound.add(musicKey(target), { loop: true, volume: 0 }) as LoopSound;
         const entry: Entry = {
           sound,
-          fade: startFade(0, SOUND.music.volume, fadeMs),
+          fade: startFade(0, SOUND.music.volumes[target], fadeMs),
           stopAtEnd: false,
         };
         this.current = { name: target, entry };
