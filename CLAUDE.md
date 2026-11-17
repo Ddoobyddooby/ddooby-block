@@ -62,7 +62,7 @@ Codex-main은 담당 구현 탭에 결함 재현·추가 테스트·수정·재�
 
 ## 6. 주요 개발 명령
 
-> 아래 명령은 W1-01부터 쓸 수 있다. `npm run android:sync`(W4-03)는 아직 없다.
+> 아래 명령은 W1-01부터 쓸 수 있다. `npm run android:sync`는 W4-03부터.
 
 ```bash
 npm install

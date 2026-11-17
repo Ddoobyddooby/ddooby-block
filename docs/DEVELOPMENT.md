@@ -41,7 +41,9 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `npm run fonts:subset` / `fonts:check` | 테마 글꼴을 앱에 쓰는 글자만 남겨 다시 만든다(원본 글꼴을 `assets/fonts-src/README.md`대로 받아 두고, Homebrew `hb-subset` 필요) / 문구의 글자가 서브셋에 다 들어 있는지와 글꼴 이름(예약 이름 SUIT가 없는지)만 본다. 문구를 바꾸면 `fonts:check`가 실패하니 `fonts:subset`을 돌린다 | W4-05 |
 | `npm run supabase:check` | Supabase 권한 시험. `.env.local`(또는 `-- <env 경로>`)의 URL·publishable key로 익명 사용자 둘과 비로그인을 만들어 쓰기가 막히는지 본다. 모두 PASS면 0, FAIL·시험 불가가 있으면 1, 설정이 없거나 키가 publishable이 아니면 2. 실행마다 익명 계정 2개가 남는다 | W3-01 |
 | `npm run sim` | 자동 플레이 봇으로 seed 여러 개를 끝까지 돌려 점수·배치 수·줄 제거·콤보·보정 발생률·조각 출현 비율을 표로 낸다. `-- --seeds 1-1000 --bot greedy,random` (봇: greedy·random·smart·survivor, survivor는 느리다), `--json <경로>`로 원본 저장. 가중치·점수를 바꾸기 전후로 같은 seed를 돌려 비교한다 | W4-02 |
-| `npm run android:sync` | 웹 빌드 후 `android/` 앱에 복사 (`cap sync`). Android Studio에서 ▶ 하기 전에 실행 | W4-03 (예정) |
+| `npm run android:sync` | 웹 빌드 후 `android/` 앱에 복사 (`cap sync`). Android Studio에서 ▶ 하거나 APK를 만들기 전에 실행. 온라인 기능을 넣으려면 `.env.local`이 있어야 한다 | W4-03 |
+| `npm run icons` | `assets/app-icon/`의 원본으로 Android 아이콘·시작 화면을 다시 만든다 (`@capacitor/assets`) | W4-03 |
+| `cd android && ./gradlew assembleDebug` | 테스트용 APK (`android/app/build/outputs/apk/debug/app-debug.apk`). **Java 21 필요**: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`를 앞에 붙인다. 설치는 `adb install -r <apk>` | W4-03 |
 
 커밋 전에는 항상 `npm run lint && npm test && npm run build`가 통과해야 한다.
 
@@ -229,6 +231,15 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 키 없이 `?ranking` → 창이 뜨지 않고 게임은 정상
 - 프로덕션: `npm run build` 뒤 `grep -r ranking dist/assets` → 아무것도 안 나온다
 - 함수 배포(바꿨을 때만): `supabase functions deploy set-nickname --project-ref <ref>` (`--no-verify-jwt`를 붙이지 않는다)
+
+### W4-03 Android·웹 배포
+
+- `npm test` → 파일 97개, 1,771개 통과
+- APK: `npm run android:sync` → `cd android && JAVA_HOME=... ./gradlew assembleDebug` → `adb install -r app/build/outputs/apk/debug/app-debug.apk`
+- 휴대폰에서: 홈 화면 아이콘(밤의 오비트), 시작 화면(민트), 세로 고정, 노치 가림 없음
+- 뒤로 가기: 게임 중→일시정지, 일시정지→계속, 게임 오버·랭킹→메뉴, 테마 카드·닉네임 창→닫기, 메뉴→앱 종료(확인 없음)
+- 홈 버튼으로 나갔다 오기: 음악이 멈췄다 이어지고 시간이 흐르지 않는다. 앱을 완전히 닫았다 열면 메뉴에 이어하기
+- 웹: main에 push하면 Actions의 `pages.yml`이 배포 → https://ddoobyddooby.github.io/ddooby-block/ (저장소 Settings → Pages → Source: GitHub Actions, Variables에 `VITE_SUPABASE_URL`·`VITE_SUPABASE_PUBLISHABLE_KEY`)
 
 ### W4-01 사운드
 
@@ -489,3 +500,13 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **음량 맞추기 (LUFS)**: 곡마다 원래 크기가 달라서 같은 볼륨 값이면 들리는 크기가 다르다. 사람 귀 기준 크기(LUFS)를 재서 곡마다 볼륨을 다르게 준다 → `SOUND`, `.codex-out/audio-src/README.md`
 - **무료 음원 라이선스**: CC0는 저작자 표시 의무가 없지만 출처를 기록해 둔다. CC-BY 곡은 표시 의무가 있어 이번에는 쓰지 않았다 → `public/audio/CREDITS.md`
 - 참고: [Web Audio 자동 재생 (MDN)](https://developer.mozilla.org/ko/docs/Web/Media/Guides/Autoplay), [Phaser Audio](https://docs.phaser.io/phaser/concepts/audio), [EBU R128 음량](https://tech.ebu.ch/publications/r128)
+
+### W4-03 Android·웹 배포
+
+- **Capacitor**: 웹 빌드(`dist/`)를 Android 앱 안의 WebView에 넣는다. `cap sync`가 복사하고, 앱 안 주소는 `https://localhost`라 서버 CORS에 이 주소를 넣어 두었다 → `capacitor.config.ts`, `android/`
+- **적응형 아이콘**: Android 8 이상은 아이콘을 앞(그림)·뒤(배경) 두 장으로 받아 기기마다 원·둥근 사각형으로 자른다. 잘려도 보이도록 그림을 가운데 안전 영역에 둔다 → `assets/app-icon/`
+- **뒤로 가기와 앱 생명주기**: 하드웨어 뒤로 가기는 화면마다 뜻이 다르다(일시정지·닫기·종료). 앱이 백그라운드로 가는 신호는 웹(visibilitychange)과 앱(appStateChange) 두 곳에서 오고 순서가 엇갈릴 수 있어, 둘 다 "보임"일 때만 재개한다 → `src/scenes/backAction.ts`, `appVisibility.ts`, `appBridge.ts`
+- **리스너 수명**: 붙인 리스너는 대상이 사라질 때 떼야 한다. 안 떼면 없어진 게임을 부르다 오류가 난다
+- **상대 경로 빌드**: Vite `base: './'`로 만들면 GitHub Pages의 `/ddooby-block/` 아래와 앱의 `https://localhost/` 양쪽에서 같은 빌드가 동작한다 → `tests/config/viteBase.test.ts`
+- **GitHub Actions 배포**: push하면 검사·테스트·빌드 뒤 Pages에 올린다. 공개 키(publishable)만 Variables로 넣고 secret 키는 넣지 않는다 → `.github/workflows/pages.yml`
+- 참고: [Capacitor Android](https://capacitorjs.com/docs/android), [Capacitor App 플러그인](https://capacitorjs.com/docs/apis/app), [적응형 아이콘](https://developer.android.com/develop/ui/views/launch/icon_design_adaptive), [GitHub Pages Actions 배포](https://docs.github.com/ko/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
