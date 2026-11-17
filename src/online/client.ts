@@ -6,6 +6,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 /** Edge Function 응답. 연결 자체가 안 되면(오프라인·CORS 차단) 'network' */
 export type FunctionResult = { status: number; body: unknown } | 'network';
 
+/** DB 함수(rpc) 응답. 성공이면 data, 서버가 오류로 답하면 data null과 그 상태 코드. 연결 자체가 안 되면 'network' */
+export type RpcResult = { status: number; data: unknown } | 'network';
+
 export interface OnlineBackend {
   /** 저장된 세션의 사용자 ID. 세션이 없으면 null. 실패는 throw */
   getSessionUserId(): Promise<string | null>;
@@ -23,6 +26,11 @@ export interface OnlineBackend {
   fetchProfile(userId: string): Promise<unknown>;
   /** Edge Function 호출 (세션 토큰은 클라이언트가 붙인다) */
   callFunction(name: string, body: Record<string, unknown>): Promise<FunctionResult>;
+  /**
+   * 인자 없는 DB 함수 호출 (주간 랭킹). 세션이 없으면 publishable key만으로 anon 역할이 호출한다.
+   * `{status, data}`를 그대로 돌려준다: 오류 응답을 빈 결과로 바꾸지 않는다. 네트워크 실패(SDK가 status 0으로 알린다)는 'network'
+   */
+  callRpc(name: string): Promise<RpcResult>;
 }
 
 /** supabase-js의 오류 클래스 (instanceof 판정용. 동적 import한 모듈에서 넘겨받는다) */
@@ -84,6 +92,13 @@ export function backendFromClient(
       if (error instanceof errors.FunctionsFetchError) return 'network';
       // FunctionsRelayError 등: 함수까지 못 간 서버 쪽 오류
       return { status: 502, body: null };
+    },
+    async callRpc(name) {
+      // supabase-js의 rpc는 throw하지 않는다: 네트워크 실패는 {error, status: 0}, 서버 오류는 {error, status: 4xx·5xx}
+      const { data, error, status } = await client.rpc(name);
+      if (!error) return { status: status || 200, data };
+      if (!status) return 'network';
+      return { status, data: null };
     },
   };
 }

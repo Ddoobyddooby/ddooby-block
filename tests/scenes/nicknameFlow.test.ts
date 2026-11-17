@@ -10,7 +10,11 @@ const state = vi.hoisted(() => ({
   profile: null as unknown,
   profileGate: null as Promise<void> | null,
   profileCalls: 0,
-  prompts: [] as { destroyed: boolean; submit: (n: string) => Promise<unknown> }[],
+  prompts: [] as {
+    destroyed: boolean;
+    submit: (n: string) => Promise<unknown>;
+    onClose: (outcome: 'saved' | 'later' | 'failed') => void;
+  }[],
 }));
 
 vi.mock('../../src/online', () => ({
@@ -27,9 +31,12 @@ vi.mock('../../src/online', () => ({
 }));
 vi.mock('../../src/view/NicknamePrompt', () => ({
   NicknamePrompt: class {
-    entry: { destroyed: boolean; submit: (n: string) => Promise<unknown> };
-    constructor(opts: { submit: (n: string) => Promise<unknown> }) {
-      this.entry = { destroyed: false, submit: opts.submit };
+    entry: (typeof state.prompts)[number];
+    constructor(opts: {
+      submit: (n: string) => Promise<unknown>;
+      onClose: (outcome: 'saved' | 'later' | 'failed') => void;
+    }) {
+      this.entry = { destroyed: false, submit: opts.submit, onClose: opts.onClose };
       state.prompts.push(this.entry);
     }
     destroy() {
@@ -160,5 +167,40 @@ describe('NicknameFlow.beginFake (DEV ?ranking=fake)', () => {
     new NicknameFlow(canvas).beginFake(fake);
     expect(state.prompts).toHaveLength(1);
     expect(state.profileCalls).toBe(0);
+  });
+});
+
+describe('NicknameFlow: 이름이 저장되면 onSaved (랭킹 다시 조회용)', () => {
+  const open = async (onSaved: () => void) => {
+    const flow = new NicknameFlow(canvas, onSaved);
+    flow.afterSubmit(ok);
+    await tick();
+    return flow;
+  };
+
+  it('saved(이미 정해져 있던 already-set 포함)로 닫히면 한 번 부른다', async () => {
+    let saved = 0;
+    await open(() => (saved += 1));
+    state.prompts[0]?.onClose('saved');
+    expect(saved).toBe(1);
+  });
+
+  it('later·failed로 닫히면 부르지 않는다', async () => {
+    let saved = 0;
+    await open(() => (saved += 1));
+    state.prompts[0]?.onClose('later');
+    expect(saved).toBe(0);
+    state.prompts.length = 0;
+    await open(() => (saved += 1));
+    state.prompts[0]?.onClose('failed');
+    expect(saved).toBe(0);
+  });
+
+  it('화면을 떠나(end) 지운 창은 부르지 않는다 (destroy는 onClose 없이 지운다)', async () => {
+    let saved = 0;
+    const flow = await open(() => (saved += 1));
+    flow.end();
+    expect(state.prompts[0]?.destroyed).toBe(true);
+    expect(saved).toBe(0);
   });
 });

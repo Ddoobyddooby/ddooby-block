@@ -102,3 +102,47 @@ describe('backendFromClient.callFunction', () => {
     expect(listener).toHaveBeenLastCalledWith(null);
   });
 });
+
+describe('backendFromClient.callRpc', () => {
+  const make = (rpc: () => Promise<{ data: unknown; error: unknown; status: number }>) =>
+    backendFromClient({ rpc } as never, {
+      FunctionsHttpError: class {} as never,
+      FunctionsFetchError: class {} as never,
+    });
+
+  it('성공은 상태와 data 그대로 (빈 배열도 그대로: 오류와 구분)', async () => {
+    const rows = [{ week_key: '2026-W47' }];
+    expect(await make(async () => ({ data: rows, error: null, status: 200 })).callRpc('x')).toEqual(
+      { status: 200, data: rows },
+    );
+    expect(await make(async () => ({ data: [], error: null, status: 200 })).callRpc('x')).toEqual({
+      status: 200,
+      data: [],
+    });
+  });
+
+  it('인자 없이 이름만 넘긴다', async () => {
+    let args: unknown[] = [];
+    const b = backendFromClient(
+      {
+        rpc: async (...a: unknown[]) => {
+          args = a;
+          return { data: [], error: null, status: 200 };
+        },
+      } as never,
+      { FunctionsHttpError: class {} as never, FunctionsFetchError: class {} as never },
+    );
+    await b.callRpc('weekly_ranking');
+    expect(args).toEqual(['weekly_ranking']);
+  });
+
+  it('서버 오류는 상태 코드를 보존하고 data는 null (빈 목록으로 바꾸지 않는다)', async () => {
+    const b = make(async () => ({ data: null, error: { message: 'x' }, status: 503 }));
+    expect(await b.callRpc('x')).toEqual({ status: 503, data: null });
+  });
+
+  it('네트워크 실패(SDK는 reject하지 않고 error + status 0) → network', async () => {
+    const b = make(async () => ({ data: null, error: { message: 'Failed to fetch' }, status: 0 }));
+    expect(await b.callRpc('x')).toBe('network');
+  });
+});

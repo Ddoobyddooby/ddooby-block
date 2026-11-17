@@ -1,12 +1,21 @@
 // 온라인 시험용 가짜 백엔드 (supabase-js 없이 account·profile을 시험한다)
-import type { FunctionResult, OnlineBackend } from '../../src/online/client';
+import type { FunctionResult, OnlineBackend, RpcResult } from '../../src/online/client';
 
 export interface FakeBackend extends OnlineBackend {
-  calls: { getSession: number; signIn: number; fetchProfile: number; callFunction: number };
+  calls: {
+    getSession: number;
+    signIn: number;
+    fetchProfile: number;
+    callFunction: number;
+    callRpc: number;
+  };
+  lastRpc: string | null;
   lastFunction: { name: string; body: Record<string, unknown> } | null;
   /** SDK 세션의 사용자 (로그인하면 바뀐다) */
   sessionUser(): string | null;
   signOut(): void;
+  /** SDK 세션 이벤트를 직접 보낸다 (같은 사용자 ID의 TOKEN_REFRESHED 흉내 등) */
+  emit(userId: string | null): void;
 }
 
 export interface FakeOptions {
@@ -16,6 +25,7 @@ export interface FakeOptions {
   signIn?: () => Promise<string>;
   fetchProfile?: (userId: string) => Promise<unknown>;
   callFunction?: (name: string, body: Record<string, unknown>) => Promise<FunctionResult>;
+  callRpc?: (name: string) => Promise<RpcResult>;
 }
 
 export function fakeBackend(opts: FakeOptions = {}): FakeBackend {
@@ -23,8 +33,9 @@ export function fakeBackend(opts: FakeOptions = {}): FakeBackend {
   // 진짜 SDK처럼 로그인이 성공하면 세션이 저장되고 이벤트가 나간다
   let current: string | null = opts.session ?? null;
   const backend: FakeBackend = {
-    calls: { getSession: 0, signIn: 0, fetchProfile: 0, callFunction: 0 },
+    calls: { getSession: 0, signIn: 0, fetchProfile: 0, callFunction: 0, callRpc: 0 },
     lastFunction: null,
+    lastRpc: null,
     async getSessionUserId() {
       backend.calls.getSession += 1;
       return opts.getSession ? opts.getSession() : current;
@@ -48,6 +59,14 @@ export function fakeBackend(opts: FakeOptions = {}): FakeBackend {
       backend.calls.callFunction += 1;
       backend.lastFunction = { name, body };
       return opts.callFunction ? opts.callFunction(name, body) : { status: 200, body: {} };
+    },
+    async callRpc(name) {
+      backend.calls.callRpc += 1;
+      backend.lastRpc = name;
+      return opts.callRpc ? opts.callRpc(name) : { status: 200, data: [] };
+    },
+    emit(userId) {
+      for (const l of listeners) l(userId);
     },
     signOut() {
       current = null;

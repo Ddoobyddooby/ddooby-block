@@ -280,6 +280,82 @@ declare const VIEW: {
         readonly showAfterMs: 200;
     };
 };
+/**
+ * 주간 랭킹 화면 (W3-04, scenes/RankingScene.ts). 좌표는 폭 720 기준 px, x는 목록 왼쪽 끝 기준. 390×844에서 게임 좌표 약 82px = 44 CSS px
+ * 10자 닉네임(30px) + #0000(22px) + 6~7자리 점수가 한 줄에 들어가게 잡았고, 넘치면 닉네임·태그를 줄여 맞춘다 (RankingScene.drawRow)
+ */
+declare const RANKING: {
+    readonly titleY: 84;
+    readonly titleSize: 60;
+    /** 주 기간 줄 */
+    readonly weekY: 164;
+    readonly weekSize: 30;
+    /** 요청이 이 시간(ms)을 넘길 때만 "불러오는 중…"을 보인다 */
+    readonly loadingMs: 300;
+    /** 목록: top = 목록 칸 맨 위 y, bottomReserve = 목록 칸 맨 아래에서 화면 아래까지 남기는 거리(하단 줄과 버튼 자리) */
+    readonly list: {
+        readonly top: 210;
+        readonly bottomReserve: 270;
+        readonly width: 648;
+        readonly rowH: 84;
+        readonly rowGap: 8;
+        readonly gapH: 52;
+        readonly pad: 8;
+    };
+    readonly row: {
+        readonly radius: 22;
+        /** 순위는 오른쪽 정렬(이 x), 닉네임은 왼쪽 정렬(이 x), 점수는 오른쪽 정렬(이 x) */
+        readonly rankRight: 80;
+        readonly nameLeft: 96;
+        readonly scoreRight: 632;
+        readonly fontSize: 30;
+        readonly tagFontSize: 22;
+        readonly tagGap: 8;
+        /** 닉네임·태그와 점수 사이 최소 간격 */
+        readonly minGap: 14;
+        readonly meStroke: 4;
+    };
+    /** 1~3위 순위 숫자: 금·은·동 (0xRRGGBB). 내 줄 바탕 */
+    readonly colors: {
+        readonly medal: readonly [16766011, 12634328, 16747069];
+        readonly meFill: 2377082;
+        readonly rowAlpha: 0.9;
+    };
+    readonly gapDot: {
+        readonly r: 5;
+        readonly spacing: 22;
+    };
+    /** 안내 문구 (연결 불가·오류·빈 주·불러오는 중) */
+    readonly message: {
+        readonly size: 36;
+        readonly wrapWidth: 560;
+    };
+    /** 하단 고정 줄: height, bottomY = 줄 가운데에서 화면 아래까지 */
+    readonly footer: {
+        readonly height: 96;
+        readonly bottomY: 204;
+        readonly fontSize: 32;
+        readonly subFontSize: 26;
+        readonly textWrap: 330;
+        readonly button: {
+            readonly width: 230;
+            readonly height: 76;
+            readonly radius: 24;
+            readonly fontSize: 30;
+        };
+    };
+    /** 아래 버튼 두 개 (터치 영역 44 CSS px 이상 = 게임 좌표 약 82) */
+    readonly button: {
+        readonly bottomY: 100;
+        readonly width: 300;
+        readonly height: 96;
+        readonly radius: 28;
+        readonly fontSize: 40;
+        readonly dx: 170;
+    };
+    /** 손가락이 이만큼(px) 넘게 움직이면 끌기(스크롤), 아니면 누르기 */
+    readonly dragThreshold: 12;
+};
 declare const ANIM: {
     readonly place: 90;
     readonly clearPerCell: 25;

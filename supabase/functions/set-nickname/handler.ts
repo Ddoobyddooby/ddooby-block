@@ -2,6 +2,7 @@
 // 실제 연결(사용자 확인·DB·난수)은 adapter.ts·index.ts가 넣어 준다. pang의 set-nickname/handler.ts에서 복사해 Origin 정책·본문 크기 상한을 고쳤다.
 // 이 파일은 Deno(deno check)와 tsc(Vitest 경유) 둘 다 읽으므로 상대 import에 .js(생성 파일)·.ts(손으로 쓴 파일) 확장자를 그대로 쓴다
 import { checkNickname, TAG_MAX_ATTEMPTS } from '../_shared/nicknameRules.js';
+import { drainUnread } from '../_lib/http.ts';
 
 /**
  * CORS 허용 출처: GitHub Pages, Capacitor 앱, 개발 서버(메인 5180, 구현 탭 5181).
@@ -76,7 +77,18 @@ async function readJson(req: Request): Promise<unknown | 'too-large' | 'bad-json
   }
 }
 
+/**
+ * 응답을 보내기 전에 읽지 않은 요청 본문을 상한까지 버린다 (W3-03 후속, _lib/http.ts DRAIN_LIMIT_BYTES: 큰 본문을 남긴 채 응답하면
+ * Supabase Edge가 응답을 내보내지 않는다. 405·403·401·413처럼 본문을 읽기 전에 보내는 응답이 해당한다). 이미 읽은 요청에는 아무 일도 안 한다.
+ * 판정 로직은 respondSetNickname이 그대로 한다
+ */
 export async function handleSetNickname(deps: SetNicknameDeps, req: Request): Promise<Response> {
+  const res = await respondSetNickname(deps, req);
+  await drainUnread(req);
+  return res;
+}
+
+async function respondSetNickname(deps: SetNicknameDeps, req: Request): Promise<Response> {
   const origin = req.headers.get('Origin');
   const cors = corsHeaders(deps, origin);
 

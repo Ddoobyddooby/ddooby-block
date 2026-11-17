@@ -59,7 +59,11 @@ export interface Runs {
  * ms 안에 끝나지 않거나 throw하면 fallback. 일은 `live()`가 true인 동안에만 다음 단계를 시작한다
  * (시간이 지난 뒤 계정 준비가 끝나도 새 서버 호출을 하지 않게)
  */
-function within<T>(ms: number, fallback: T, work: (live: () => boolean) => Promise<T>): Promise<T> {
+export function within<T>(
+  ms: number,
+  fallback: T,
+  work: (live: () => boolean) => Promise<T>,
+): Promise<T> {
   return new Promise((resolve) => {
     let over = false;
     const timer = setTimeout(() => {

@@ -4,6 +4,7 @@ import { RULES_VERSION } from '../config';
 import { ACCOUNT_TIMEOUT_MS, createAccount, type Account, type OnlineStatus } from './account';
 import { createDefaultBackend, hasOnlineKeys } from './client';
 import { createProfile, type MyProfile, type Profile, type SetNicknameResult } from './profile';
+import { createRanking, type Ranking, type RankingResult } from './ranking';
 import {
   createRuns,
   type Runs,
@@ -15,6 +16,7 @@ import {
 export type { OnlineStatus } from './account';
 export type { MyProfile, SetNicknameErrorCode, SetNicknameResult } from './profile';
 export type { StartedRun, SubmitOutcome, SubmitPayload } from './runs';
+export type { RankingMe, RankingResult, RankingRow } from './ranking';
 export {
   checkNickname,
   formatTag,
@@ -22,7 +24,7 @@ export {
   type NicknameErrorCode,
 } from './nicknameRules';
 
-let instance: { account: Account; profile: Profile; runs: Runs } | null = null;
+let instance: { account: Account; profile: Profile; runs: Runs; ranking: Ranking } | null = null;
 
 function isOnline(): boolean {
   return typeof navigator === 'undefined' || navigator.onLine;
@@ -43,6 +45,7 @@ function online() {
       account,
       profile: createProfile(account),
       runs: createRuns(account, { version: RULES_VERSION, isOnline }),
+      ranking: createRanking(account, { isOnline }),
     };
   }
   return instance;
@@ -87,4 +90,12 @@ export function startRun(): Promise<StartedRun | null> {
 /** 게임 오버 판을 제출한다 (최대 10초). 절대 throw하지 않고 결과를 분류해 돌려준다 */
 export function submitScore(runId: string, payload: SubmitPayload): Promise<SubmitOutcome> {
   return online().runs.submitScore(runId, payload);
+}
+
+/**
+ * 이번 주(서버 기준) 랭킹을 조회한다 (최대 5초, 계정 준비 포함). 절대 throw하지 않는다.
+ * 키 없음·오프라인이면 요청 없이 offline, 계정이 없으면 공개 목록만(결과의 userId가 null)
+ */
+export function fetchRanking(): Promise<RankingResult> {
+  return online().ranking.fetchRanking();
 }

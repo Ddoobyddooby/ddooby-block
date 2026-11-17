@@ -7,6 +7,7 @@
 //   npm run supabase:check -- --scores [--parity[=N]] [<env 파일 경로>]
 //                                                             start-run·submit-score 시험 (W3-03. scores.ts). --parity는 서버 발급 seed N판(기본 200)
 //                                                             봇 로그가 모두 같은 점수로 통과하는지 더 본다. 마이그레이션·두 함수를 배포한 뒤에만
+//   npm run supabase:check -- --ranking [<env 파일 경로>]     weekly_ranking 시험 (W3-04. ranking.ts). 마이그레이션 w3_04를 적용한 뒤에만
 //
 // 종료 코드: 0 모두 PASS / 1 FAIL·시험 불가 있음 / 2 설정·로그인 오류 (시험을 시작하지 못함)
 //
@@ -32,7 +33,8 @@ import {
   judgeSuccessCors,
   judgeUnauthorized,
 } from './nicknameJudge.ts';
-import { callFunction } from './callFunction.ts';
+import { callFunction, callRpcHttp } from './callFunction.ts';
+import { runRanking, type RankingIo } from './ranking.ts';
 import { runScores, type ScoresIo } from './scores.ts';
 import {
   type CheckEnv,
@@ -267,10 +269,40 @@ async function runScoresRemote(
   );
 }
 
+/**
+ * weekly_ranking 시험 (W3-04). 새 익명 사용자 R·N·Z와 비로그인으로 정확한 status·본문을 확인한다.
+ * 시험이 원격에 남기는 것: 익명 계정 3개, run 2개, weekly_scores 2행, 닉네임 2개 (공개 랭킹에 보인다. ranking.ts 머리말)
+ */
+async function runRankingRemote(env: CheckEnv, rows: Row[]): Promise<void> {
+  const anon = newClient(env);
+  const [r, n, z] = [newClient(env), newClient(env), newClient(env)];
+  const idR = await signIn(r, 'R');
+  const idN = await signIn(n, 'N');
+  const idZ = await signIn(z, 'Z');
+  const [tokenR, tokenN, tokenZ] = [
+    await accessToken(r),
+    await accessToken(n),
+    await accessToken(z),
+  ];
+  const io: RankingIo = {
+    call: (fn, init) => callFunction(env, init, fn),
+    rpc: (token) => callRpcHttp(env, 'weekly_ranking', token),
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    now: () => performance.now(),
+    clock: () => Date.now(),
+  };
+  const nameBase = `시험${String(Math.floor(Math.random() * 100)).padStart(2, '0')}`;
+  await runRanking({ anon, r, idR, idN, idZ, tokenR, tokenN, tokenZ }, io, rows, nameBase);
+}
+
 async function main(): Promise<number> {
   const args = process.argv.slice(2);
   const nickname = args.includes('--nickname');
   const scores = args.includes('--scores');
+  const ranking = args.includes('--ranking');
+  if (ranking && (nickname || scores)) {
+    throw new SetupError('--ranking은 --nickname·--scores와 함께 쓰지 않는다');
+  }
   const parityArg = args.find((arg) => arg === '--parity' || arg.startsWith('--parity='));
   const parity =
     parityArg === undefined
@@ -288,6 +320,13 @@ async function main(): Promise<number> {
   if (nickname) {
     const rows: Row[] = [];
     await runNickname(env, rows);
+    for (const line of formatTable(rows)) console.log(line);
+    return exitCodeOf(rows);
+  }
+
+  if (ranking) {
+    const rows: Row[] = [];
+    await runRankingRemote(env, rows);
     for (const line of formatTable(rows)) console.log(line);
     return exitCodeOf(rows);
   }

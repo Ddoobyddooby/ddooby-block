@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TAG_MAX_ATTEMPTS } from '../../supabase/functions/_shared/nicknameRules.js';
+import { DRAIN_LIMIT_BYTES, DRAIN_TIMEOUT_MS } from '../../supabase/functions/_lib/http';
 import {
   ALLOWED_ORIGINS,
   handleSetNickname,
@@ -377,5 +378,113 @@ describe('set-nickname 핸들러: 저장·태그 충돌', () => {
     ]);
     expect([a.status, b.status].sort()).toEqual([200, 409]);
     expect(db.size).toBe(1);
+  });
+});
+
+describe('응답 전에 읽지 않은 본문을 버린다 (W3-03 후속의 drainUnread를 set-nickname에도)', () => {
+  // Supabase Edge는 큰 본문을 남긴 채 응답하면 응답을 내보내지 않는다 → 일찍 응답하는 길(401·403·405·413)에서 상한까지 읽어 버린다
+  const big = (
+    init: { method?: string; token?: string | null; origin?: string | null } = {},
+    chunks = 20,
+    chunkBytes = 100,
+    declared?: number,
+  ) => {
+    let sent = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent >= chunks) controller.close();
+        else {
+          sent += 1;
+          controller.enqueue(new Uint8Array(chunkBytes));
+        }
+      },
+    });
+    const headers: Record<string, string> = {};
+    if (init.token !== null) headers.Authorization = `Bearer ${init.token ?? 'good'}`;
+    if (init.origin !== null) headers.Origin = init.origin ?? ORIGIN;
+    if (declared !== undefined) headers['Content-Length'] = String(declared);
+    const req = new Request('https://f.example/set-nickname', {
+      method: init.method ?? 'POST',
+      headers,
+      body: stream,
+      duplex: 'half',
+    } as RequestInit);
+    return { req, read: () => sent * chunkBytes };
+  };
+
+  it.each([
+    ['토큰 없음 → 401', { token: null }, 401],
+    ['잘못된 토큰 → 401', { token: 'bad' }, 401],
+    ['허용 안 된 출처 → 403', { origin: 'https://evil.example' }, 403],
+    ['POST가 아님 → 405', { method: 'PUT' }, 405],
+  ] as const)(
+    '%s: 응답 전에 본문을 끝까지 읽어 버린다, 저장·DB 호출 없음',
+    async (_n, init, status) => {
+      const { deps, calls } = fake();
+      const b = big(init);
+      const res = await handleSetNickname(deps, b.req);
+      expect(res.status).toBe(status);
+      expect(b.read()).toBe(2000);
+      expect(calls.save).toEqual([]);
+      expect(calls.getNickname).toEqual([]);
+    },
+  );
+
+  it('선언된 크기(Content-Length)가 상한을 넘으면 413, 읽지 않은 본문은 상한까지만 버린다', async () => {
+    const { deps, calls } = fake();
+    const chunk = 1024 * 1024;
+    const b = big({}, 1000, chunk, 999_999_999); // 끝없이 큰 본문
+    const res = await handleSetNickname(deps, b.req);
+    expect(res.status).toBe(413);
+    expect(b.read()).toBeLessThanOrEqual(DRAIN_LIMIT_BYTES + 2 * chunk);
+    expect(b.read()).toBeGreaterThan(0);
+    expect(calls.save).toEqual([]);
+  });
+
+  it('끝나지 않는 본문이어도 시간 제한(3초) 뒤에는 응답한다', async () => {
+    vi.useFakeTimers();
+    try {
+      const { deps } = fake();
+      const stream = new ReadableStream<Uint8Array>({
+        pull: () => new Promise<void>(() => undefined),
+      });
+      const req = new Request('https://f.example/set-nickname', {
+        method: 'POST',
+        headers: { Origin: ORIGIN },
+        body: stream,
+        duplex: 'half',
+      } as RequestInit);
+      let status = 0;
+      void handleSetNickname(deps, req).then((r) => (status = r.status)); // 토큰이 없어 401
+      await vi.advanceTimersByTimeAsync(DRAIN_TIMEOUT_MS - 100);
+      expect(status).toBe(0);
+      await vi.advanceTimersByTimeAsync(200);
+      expect(status).toBe(401);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('정상 판정은 그대로: 본문을 읽은 요청은 200 저장, 400·409도 같은 결과', async () => {
+    const { deps, calls } = fake({}, [42]);
+    const res = await handleSetNickname(deps, post({ nickname: '뚜비' }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ nickname: '뚜비', tag: 42 });
+    expect(calls.save).toEqual([['user-a', '뚜비', 42]]);
+    expect((await handleSetNickname(deps, post({ nickname: 7 }))).status).toBe(400);
+    const dup = fake({ getNickname: async () => '이미' });
+    expect((await handleSetNickname(dup.deps, post({ nickname: '뚜비' }))).status).toBe(409);
+  });
+
+  it('OPTIONS(preflight)는 본문이 없어 그대로 204', async () => {
+    const { deps } = fake();
+    const res = await handleSetNickname(
+      deps,
+      new Request('https://f.example/set-nickname', {
+        method: 'OPTIONS',
+        headers: { Origin: ORIGIN },
+      }),
+    );
+    expect(res.status).toBe(204);
   });
 });

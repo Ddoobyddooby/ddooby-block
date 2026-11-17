@@ -91,12 +91,18 @@ export interface MenuHost extends NewGameHost {
   startResume(data: GameStartData): void;
   /** 이어하기가 없어졌다: 메뉴를 다시 그린다 */
   redraw(): void;
+  /** [주간 랭킹]: 랭킹 화면으로 간다 (저장된 판·최고 점수는 건드리지 않는다) */
+  openRanking(): void;
 }
 
 export function handleMenuButton(button: MenuButton, host: MenuHost): void {
   if (ignoredWhilePreparing(host.lock)) return;
   if (button === 'new') {
     startNew('Menu', host, () => undefined);
+    return;
+  }
+  if (button === 'ranking') {
+    host.openRanking();
     return;
   }
   const data = host.resumeData();

@@ -27,6 +27,28 @@ export function callFunction(
   fn: 'set-nickname' | FnName = 'set-nickname',
   limits: CallLimits = {},
 ): Promise<FnRes> {
+  return send(env, `/functions/v1/${fn}`, init, limits);
+}
+
+/**
+ * DB 함수(rpc) 호출 (PostgREST): 인자 없이 POST. token이 null이면 publishable key만 보낸다 (anon 역할).
+ * W3-04 `--ranking`이 weekly_ranking의 정확한 status·본문과 위조 토큰 거부를 확인하는 데 쓴다 (supabase-js를 거치지 않는다: 오류를 다듬지 않는다)
+ */
+export function callRpcHttp(
+  env: CallEnv,
+  name: string,
+  token: string | null,
+  limits: CallLimits = {},
+): Promise<FnRes> {
+  return send(
+    env,
+    `/rest/v1/rpc/${name}`,
+    { method: 'POST', origin: null, token, body: {} },
+    limits,
+  );
+}
+
+function send(env: CallEnv, path: string, init: CallInit, limits: CallLimits): Promise<FnRes> {
   const deadlineMs = limits.deadlineMs ?? FN_DEADLINE_MS;
   const idleMs = limits.idleMs ?? FN_IDLE_MS;
   const headers: Record<string, string> = { apikey: env.key, 'Content-Type': 'application/json' };
@@ -63,7 +85,7 @@ export function callFunction(
       req?.destroy();
     };
     try {
-      const url = new URL(`${env.url}/functions/v1/${fn}`);
+      const url = new URL(`${env.url}${path}`);
       const secure = url.protocol === 'https:';
       const make = secure ? httpsRequest : httpRequest;
       const agent = secure

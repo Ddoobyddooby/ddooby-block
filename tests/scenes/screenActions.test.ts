@@ -298,6 +298,7 @@ describe('지적 2: 요청 수명과 버튼 잠금', () => {
       resumeData: () => null,
       startResume: () => undefined,
       redraw: () => undefined,
+      openRanking: () => undefined,
     });
     w.startRunGate.resolve(RUN); // A의 옛 응답
     await tick();
@@ -323,6 +324,7 @@ describe('지적 2: 요청 수명과 버튼 잠금', () => {
         resumeData: () => null,
         startResume: () => undefined,
         redraw: () => undefined,
+        openRanking: () => undefined,
       });
     };
     menu();
@@ -350,6 +352,7 @@ describe('지적 2: 요청 수명과 버튼 잠금', () => {
         resumed += 1;
       },
       redraw: () => undefined,
+      openRanking: () => undefined,
     });
     expect(resumed).toBe(0);
     expect(lock.pressed).toBe(false);
@@ -405,6 +408,7 @@ describe('지적 2: 요청 수명과 버튼 잠금', () => {
       resumeData: () => null,
       startResume: () => undefined,
       redraw: () => undefined,
+      openRanking: () => undefined,
     });
     expect(isPreparing()).toBe(true);
     const lock2: PressLock = { pressed: true };
@@ -413,6 +417,7 @@ describe('지적 2: 요청 수명과 버튼 잠금', () => {
       resumeData: () => null,
       startResume: () => undefined,
       redraw: () => undefined,
+      openRanking: () => undefined,
     });
     expect(lock2.pressed).toBe(false);
   });

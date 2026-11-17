@@ -32,6 +32,11 @@ export interface Account {
   userId(): string | null;
   /** ready일 때만 백엔드를 준다 */
   backend(): OnlineBackend | null;
+  /**
+   * 불러온 백엔드 (계정이 없어도). 세션이 없으면 호출은 anon 역할로 나간다: 공개 읽기(랭킹 TOP)에만 쓴다.
+   * 아직 불러오지 않았거나 키가 없으면 null
+   */
+  publicBackend(): OnlineBackend | null;
 }
 
 export const ACCOUNT_TIMEOUT_MS = 15_000;
@@ -140,5 +145,6 @@ export function createAccount(deps: AccountDeps): Account {
     ensure,
     userId: () => (status === 'ready' ? userId : null),
     backend: () => (status === 'ready' ? backend : null),
+    publicBackend: () => (status === 'disabled' ? null : backend),
   };
 }

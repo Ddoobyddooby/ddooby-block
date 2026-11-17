@@ -504,6 +504,7 @@ describe('익명 계정 상태 전이', () => {
         onSessionChange: (l) => listeners.push(l),
         fetchProfile: async () => null,
         callFunction: async () => ({ status: 200, body: {} }),
+        callRpc: async () => ({ status: 200, data: [] }),
       } as OnlineBackend;
       return { b, sdk: () => sdk, signIns: () => signIns };
     }

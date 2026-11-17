@@ -18,7 +18,7 @@ import { shouldCheckProfile, shouldOpenPrompt } from './nicknameGate';
 type AskState = 'idle' | 'checking' | 'open' | 'done';
 
 /** 실제 제출: set-nickname 함수 결과를 창이 아는 모양으로 바꾼다 (태그는 `#0427` 문자열) */
-async function submitNickname(name: string): Promise<NicknameResult> {
+export async function submitNickname(name: string): Promise<NicknameResult> {
   const r = await setNickname(name);
   return r.ok ? { ok: true, nickname: r.nickname, tag: formatTag(r.tag) } : r;
 }
@@ -29,7 +29,11 @@ export class NicknameFlow {
   private run = 0;
   private prompt: NicknamePrompt | null = null;
 
-  constructor(private readonly canvas: HTMLElement) {}
+  /** onSaved: 이름이 서버에 저장됐다(이미 정해져 있던 경우 포함). 창이 닫힐 때 한 번 부른다. destroy로 지운 창에서는 부르지 않는다 */
+  constructor(
+    private readonly canvas: HTMLElement,
+    private readonly onSaved?: () => void,
+  ) {}
 
   /**
    * 점수 제출이 끝났을 때 한 번 부른다. 성공이고 조건이 맞으면 프로필을 조회해 이름이 없을 때 창을 띄운다.
@@ -80,9 +84,10 @@ export class NicknameFlow {
     this.prompt = new NicknamePrompt({
       canvas: this.canvas,
       submit,
-      onClose: () => {
+      onClose: (outcome) => {
         this.prompt = null;
         this.state = 'done';
+        if (outcome === 'saved') this.onSaved?.();
       },
     });
   }

@@ -1,4 +1,4 @@
-// 메뉴 (PLAN 6.3). [이어하기](저장된 판이 있을 때만) · [새 게임]. 랭킹은 3주차.
+// 메뉴 (PLAN 6.3). [이어하기](저장된 판이 있을 때만) · [새 게임] · [주간 랭킹] (W3-04).
 // 메뉴가 뜰 때마다 저장소의 최신 상태를 본다. 부팅 읽기가 늦어 메뉴가 먼저 떴다면, 읽기가 끝난 뒤 다시 그린다.
 
 import Phaser from 'phaser';
@@ -12,10 +12,12 @@ import { handleMenuButton } from './screenActions';
 import { getPersistence } from './persistenceRegistry';
 import { showPreparing } from './preparingLabel';
 import { cssColor } from './text';
+import { RANKING_TEXT } from '../view/rankingText';
 
 const LABELS: Record<MenuButton, string> = {
   resume: '이어하기',
   new: '새 게임',
+  ranking: RANKING_TEXT.menuButton,
 };
 
 export class MenuScene extends Phaser.Scene {
@@ -78,8 +80,10 @@ export class MenuScene extends Phaser.Scene {
     this.title.setPosition(x, height * menu.titleY);
 
     const ids = menuButtons(getPersistence(this.registry)?.resumable() != null);
+    // [새 게임]은 이어하기 유무와 상관없이 제자리고, 이어하기는 그 위, 주간 랭킹은 그 아래다
+    const newIndex = ids.indexOf('new');
     ids.forEach((id, i) => {
-      const y = height * menu.buttonY - (ids.length - 1 - i) * menu.buttonStep;
+      const y = height * menu.buttonY + (i - newIndex) * menu.buttonStep;
       // 주 버튼(파랑): 이어하기가 있으면 이어하기, 없으면 새 게임
       const primary = i === 0;
       this.buttons.push(
@@ -116,6 +120,7 @@ export class MenuScene extends Phaser.Scene {
       },
       startResume: (data) => this.scene.start('Game', data),
       redraw: () => this.layout(),
+      openRanking: () => this.scene.start('Ranking'),
     });
   }
 }

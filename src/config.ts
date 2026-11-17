@@ -222,6 +222,53 @@ export const VIEW = {
   preparing: { size: 40, y: 0.86, showAfterMs: 200 },
 } as const;
 
+/**
+ * 주간 랭킹 화면 (W3-04, scenes/RankingScene.ts). 좌표는 폭 720 기준 px, x는 목록 왼쪽 끝 기준. 390×844에서 게임 좌표 약 82px = 44 CSS px
+ * 10자 닉네임(30px) + #0000(22px) + 6~7자리 점수가 한 줄에 들어가게 잡았고, 넘치면 닉네임·태그를 줄여 맞춘다 (RankingScene.drawRow)
+ */
+export const RANKING = {
+  titleY: 84,
+  titleSize: 60,
+  /** 주 기간 줄 */
+  weekY: 164,
+  weekSize: 30,
+  /** 요청이 이 시간(ms)을 넘길 때만 "불러오는 중…"을 보인다 */
+  loadingMs: 300,
+  /** 목록: top = 목록 칸 맨 위 y, bottomReserve = 목록 칸 맨 아래에서 화면 아래까지 남기는 거리(하단 줄과 버튼 자리) */
+  list: { top: 210, bottomReserve: 270, width: 648, rowH: 84, rowGap: 8, gapH: 52, pad: 8 },
+  row: {
+    radius: 22,
+    /** 순위는 오른쪽 정렬(이 x), 닉네임은 왼쪽 정렬(이 x), 점수는 오른쪽 정렬(이 x) */
+    rankRight: 80,
+    nameLeft: 96,
+    scoreRight: 632,
+    fontSize: 30,
+    tagFontSize: 22,
+    tagGap: 8,
+    /** 닉네임·태그와 점수 사이 최소 간격 */
+    minGap: 14,
+    meStroke: 4,
+  },
+  /** 1~3위 순위 숫자: 금·은·동 (0xRRGGBB). 내 줄 바탕 */
+  colors: { medal: [0xffd43b, 0xc0c8d8, 0xff8a3d], meFill: 0x24457a, rowAlpha: 0.9 },
+  gapDot: { r: 5, spacing: 22 },
+  /** 안내 문구 (연결 불가·오류·빈 주·불러오는 중) */
+  message: { size: 36, wrapWidth: 560 },
+  /** 하단 고정 줄: height, bottomY = 줄 가운데에서 화면 아래까지 */
+  footer: {
+    height: 96,
+    bottomY: 204,
+    fontSize: 32,
+    subFontSize: 26,
+    textWrap: 330,
+    button: { width: 230, height: 76, radius: 24, fontSize: 30 },
+  },
+  /** 아래 버튼 두 개 (터치 영역 44 CSS px 이상 = 게임 좌표 약 82) */
+  button: { bottomY: 100, width: 300, height: 96, radius: 28, fontSize: 40, dx: 170 },
+  /** 손가락이 이만큼(px) 넘게 움직이면 끌기(스크롤), 아니면 누르기 */
+  dragThreshold: 12,
+} as const;
+
 export const ANIM = {
   place: 90,
   clearPerCell: 25,
