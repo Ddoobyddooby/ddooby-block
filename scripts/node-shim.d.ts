@@ -48,33 +48,65 @@ declare module 'node:process' {
   export default process;
 }
 
-/** 원격 시험(scripts/supabase-check)이 새 연결(keep-alive 끔)로 함수를 부른다 */
+/** 원격 시험(scripts/supabase-check)이 새 연결(keep-alive 끔)로 함수를 부른다. http는 로컬 대역 시험이 같은 호출을 쓴다 */
+interface ShimClientRequest {
+  on(event: 'timeout' | 'error', listener: () => void): void;
+  destroy(): void;
+  end(data?: string): void;
+}
+interface ShimRequestOptions<A> {
+  hostname: string;
+  port?: string | undefined;
+  path: string;
+  method: string;
+  agent: A;
+  headers: Record<string, string>;
+  timeout: number;
+}
+interface ShimIncomingResponse {
+  statusCode?: number;
+  setEncoding(encoding: 'utf8'): void;
+  headers: Record<string, string | string[] | undefined>;
+  on(event: 'data', listener: (chunk: string) => void): void;
+  on(event: 'end' | 'error' | 'aborted', listener: () => void): void;
+}
+
 declare module 'node:https' {
   export class Agent {
     constructor(options: { keepAlive: boolean });
   }
   export function request(
-    options: {
-      hostname: string;
-      path: string;
-      method: string;
-      agent: Agent;
-      headers: Record<string, string>;
-      timeout: number;
-    },
-    callback: (res: {
-      statusCode?: number;
-      setEncoding(encoding: 'utf8'): void;
-      headers: Record<string, string | string[] | undefined>;
-      on(event: 'data', listener: (chunk: string) => void): void;
-      on(event: 'end', listener: () => void): void;
-      on(event: 'error', listener: () => void): void;
-    }) => void,
-  ): {
-    on(event: 'timeout' | 'error', listener: () => void): void;
+    options: ShimRequestOptions<Agent>,
+    callback: (res: ShimIncomingResponse) => void,
+  ): ShimClientRequest;
+}
+
+declare module 'node:http' {
+  export class Agent {
+    constructor(options: { keepAlive: boolean });
+  }
+  export function request(
+    options: ShimRequestOptions<Agent>,
+    callback: (res: ShimIncomingResponse) => void,
+  ): ShimClientRequest;
+  export interface ServerResponse {
+    writeHead(status: number, headers?: Record<string, string>): void;
+    flushHeaders(): void;
+    write(chunk: string): boolean;
+    end(chunk?: string): void;
+    on(event: 'close', listener: () => void): void;
+  }
+  interface Socket {
     destroy(): void;
-    end(data?: string): void;
-  };
+    on(event: 'close', listener: () => void): void;
+  }
+  export interface Server {
+    on(event: 'connection', listener: (socket: Socket) => void): void;
+    listen(port: number, host: string, callback: () => void): void;
+    close(callback?: () => void): void;
+    address(): { port: number } | string | null;
+  }
+  export function createServer(handler: (req: unknown, res: ServerResponse) => void): Server;
 }
 
 declare module 'node:crypto' {

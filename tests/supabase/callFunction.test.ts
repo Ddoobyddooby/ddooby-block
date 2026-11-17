@@ -1,5 +1,4 @@
-import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { createServer, type Server, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { callFunction } from '../../scripts/supabase-check/callFunction';
 
@@ -7,14 +6,14 @@ import { callFunction } from '../../scripts/supabase-check/callFunction';
 let server: Server | undefined;
 const sockets = new Set<{ destroy(): void }>();
 
-async function serve(handler: Parameters<typeof createServer>[1]): Promise<string> {
+async function serve(handler: (req: unknown, res: ServerResponse) => void): Promise<string> {
   server = createServer(handler);
   server.on('connection', (s) => {
     sockets.add(s);
     s.on('close', () => sockets.delete(s));
   });
   await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
-  return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  return `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 }
 
 afterEach(async () => {

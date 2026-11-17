@@ -31,10 +31,9 @@ import {
   judgeSet,
   judgeSuccessCors,
   judgeUnauthorized,
-  type FnRes,
 } from './nicknameJudge.ts';
 import { callFunction } from './callFunction.ts';
-import { runScores, type CallInit, type FnName, type ScoresIo } from './scores.ts';
+import { runScores, type ScoresIo } from './scores.ts';
 import {
   type CheckEnv,
   type Outcome,
