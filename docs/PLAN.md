@@ -33,7 +33,7 @@
 | 3 | 콤보 유예 | 2회 | `COMBO.graceMisses` |
 | 4 | 회전 | 불가 | — |
 | 5 | 조각 세트·가중치 | 4.2절 표 (W4-02 시뮬 후 조정) | `PIECE_WEIGHTS` |
-| 6 | 그래픽 | 단색 블록 + 하이라이트 (코드로 그린 텍스처) | `view/blockTexture.ts` |
+| 6 | 그래픽 | 테마 3종의 코드로 그린 블록(W4-05) | `view/blockTexture.ts` |
 
 추가로 정한 것:
 - **배치 기준점**: `(row, col)` = 조각 bounding box의 왼쪽 위 칸
@@ -324,6 +324,13 @@ Boot → Menu ─┬─ 새 게임 → Game ⇄ Pause → GameOver ─┬─ 다
              └─ 주간 랭킹 → Ranking (3주차)
 ```
 GameOver: 점수, 최고 점수, (3주차) 이번 주 순위. 끝난 Game 위에 덮는 씬(launch)이고 Game은 멈추지 않는다. 마지막 연출·게임 오버 소리 + `VIEW.gameOver.showDelayMs` 뒤에 뜨고 `inputDelayMs` 동안 버튼이 눌리지 않는다(처음 뜬 시각 기준, resize해도 유지). "최고 기록 갱신!"은 판 시작 전 최고 점수보다 클 때만(같으면 아님. 이어한 판은 저장돼 있던 최고 점수 기준, `?fill=` 판은 없음). 부팅 읽기가 늦으면 `LoadResult.storedBest`로 기준을 올린다. Menu: [이어하기]는 `persistence.resumable()`이 있을 때만 [새 게임] 위에 보인다. [새 게임]은 확인 창 없이 시작하고 첫 수를 둘 때 저장된 판이 덮인다. 새 판은 항상 `newGameData()`(빈 데이터)로 시작한다 (Phaser는 데이터 없는 `scene.start`에 이전 데이터를 다시 쓴다). 버튼(`view/ui/Button.ts`·`pressLock.ts`): 한 화면에서 전환 요청은 한 번, 다시 그려져 버려진 버튼의 누름은 실행하지 않는다. 개발 URL 옵션: `?seed=N`(seed 고정. 0~4294967295의 10진 정수만 받고 그 밖의 값은 없는 것으로 본다. 있으면 메뉴를 건너뛰고 바로 Game), `?fill=<패턴>`(DEV 전용, 보드 미리 채우기), `?over`·`?over=low`(DEV 전용, 게임 오버 화면 미리보기), `?resume`(DEV 전용, 저장된 판으로 바로 시작).
+
+### 6.5 테마 (W4-05)
+
+- 테마 세 개: `soda`(소다 가든, 기본)·`butter`(버터 스튜디오)·`orbit`(밤의 오비트). 시안 원본은 `assets/theme-src/`(Codex 제작, SVG·팔레트·아이콘 후보)
+- 정의는 `src/view/theme/themes.ts`: 색 토큰(배경·보드·빈 칸·패널·버튼·글자·블록 7색 등), 블록 그리기 수치(모서리·두께·아래 면·테두리·광택), 배경 장식, 로고, 글꼴. 블록은 코드로 그리고 `block-<테마>-<색>` 키로 캐시한다(`blockPaint.ts`)
+- 적용 테마는 한 판 동안 고정한다(`runTheme`). 저장된 선호 테마(`settings.theme`, 없거나 모르는 값이면 `soda`)는 메뉴에 들어올 때 반영하고, 이번 실행에서 사용자가 고른 값·DEV `?theme=<id>`가 우선한다. 테마는 메뉴의 [테마]에서만 바꾼다
+- 글꼴: 영어 제목 Fredoka(butter)·Space Grotesk(orbit)·Baloo 2(soda), 한글 고운돋움(butter)·Ddooby Sans(SUIT 기반 서브셋, 이름 변경). 앱에 쓰는 글자만 남긴 TTF 서브셋(`npm run fonts:subset`, Homebrew `hb-subset` 필요), 서브셋 밖 글자(닉네임 등)는 시스템 글꼴. 로드가 늦거나 실패해도 게임은 진행되고 로드되면 글자를 다시 그린다. 라이선스 원문은 `public/fonts/`
 
 ### 6.4 연출 (2주차, SPEC 5절)
 

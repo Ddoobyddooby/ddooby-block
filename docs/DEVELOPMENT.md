@@ -38,6 +38,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `npm run functions:check` | Edge Function 타입 검사 (`deno check`) | W3-02 |
 | `npm run supabase:check -- --scores [--parity]` | 점수 제출 원격 시험. `--scores`는 정상·재제출·조작·간격·버전·남의 run·이른 제출·동시 제출 등 약 60개(판마다 실제 시간을 기다려 몇 분), `--parity`는 서버가 발급한 seed로 200판을 서버에서 다시 계산해 점수가 같은지 본다(run 200개가 남는다) | W3-03 |
 | `npm run supabase:check -- --ranking` | 주간 랭킹 원격 시험: 비로그인 조회, 이름 있는/없는 시험 사용자의 목록·내 줄, 공동 순위, 클라이언트 직접 쓰기 차단(약 20개). 시험 사용자와 닉네임이 공개 목록에 남는다 | W3-04 |
+| `npm run fonts:subset` / `fonts:check` | 테마 글꼴을 앱에 쓰는 글자만 남겨 다시 만든다(원본 글꼴을 `assets/fonts-src/README.md`대로 받아 두고, Homebrew `hb-subset` 필요) / 문구의 글자가 서브셋에 다 들어 있는지와 글꼴 이름(예약 이름 SUIT가 없는지)만 본다. 문구를 바꾸면 `fonts:check`가 실패하니 `fonts:subset`을 돌린다 | W4-05 |
 | `npm run supabase:check` | Supabase 권한 시험. `.env.local`(또는 `-- <env 경로>`)의 URL·publishable key로 익명 사용자 둘과 비로그인을 만들어 쓰기가 막히는지 본다. 모두 PASS면 0, FAIL·시험 불가가 있으면 1, 설정이 없거나 키가 publishable이 아니면 2. 실행마다 익명 계정 2개가 남는다 | W3-01 |
 | `npm run sim` | 자동 플레이 봇으로 seed 1~1000을 돌려 평균 점수·배치 수·보정 발생률을 찍는다. 가중치·점수를 고친 뒤 밸런스를 잴 때 | W4-02 (예정) |
 | `npm run android:sync` | 웹 빌드 후 `android/` 앱에 복사 (`cap sync`). Android Studio에서 ▶ 하기 전에 실행 | W4-03 (예정) |
@@ -67,6 +68,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `?resume` | (개발 모드) 저장된 판이 있으면 그 판을 이어서 시작한다. 메뉴의 [이어하기]를 누른 것과 같다 | W2-05 |
 | `?ranking` | (W3-03부터 쓰지 않는다) 닉네임 창은 점수 제출이 성공한 뒤에 저절로 뜬다 | W3-02 |
 | `?rankingFake=<이름>` | (개발 모드) 서버 없이 랭킹 화면 모양만 본다: `top`·`far`(51위 밖)·`around`·`long`·`noname`·`empty`·`norecord`·`anon`·`offline`·`error` | W3-04 |
+| `?theme=<id>` | (개발 모드) 테마를 바로 바꿔 본다: `soda`·`butter`·`orbit`. 저장하지 않는다 | W4-05 |
 | `?ranking=fake` | (개발 모드) 서버 없이 입력 창만 본다. 이름으로 결과를 정한다: `서버오류`·`연결끊김`·`권한없음`·`이미있음`·`무응답`(10초 뒤 닫힘), 그 밖은 성공 `#0427` | W3-02 |
 | `?over` | (개발 모드) 게임 없이 게임 오버 화면만 띄운다. `?over`는 최고 기록을 넘은 화면, `?over=low`는 못 넘은 화면. 예시 점수이고 저장되지 않는다 | W2-06 |
 
@@ -227,6 +229,13 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 키 없이 `?ranking` → 창이 뜨지 않고 게임은 정상
 - 프로덕션: `npm run build` 뒤 `grep -r ranking dist/assets` → 아무것도 안 나온다
 - 함수 배포(바꿨을 때만): `supabase functions deploy set-nickname --project-ref <ref>` (`--no-verify-jwt`를 붙이지 않는다)
+
+### W4-05 테마
+
+- `npm test` → 파일 86개, 1634개 통과. `npm run fonts:check` → 0
+- `npm run dev` → 메뉴 [테마] → 카드 세 개 중 하나를 고르면 메뉴가 바로 바뀐다 → 새로고침해도 유지
+- 세 테마로 각각 한 판: 보드 빈 칸과 블록 색이 구분되는지, 고스트(놓일 자리)·흐린 조각·줄 제거 연출이 보이는지, 일시정지·게임 오버·랭킹·닉네임 창 색이 맞는지. **휴대폰 밝기를 낮춰서도** 빈 칸이 보이는지 본다
+- `?theme=orbit`처럼 주소로 바로 바꿔 볼 수 있다(개발 모드만)
 
 ### W3-04 주간 랭킹
 
@@ -453,3 +462,13 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **먼저 구독하고 나중에 시작**: 결과를 기다리는 객체를 만들기 전에 화면이 그 결과를 듣지 않으면, 결과가 와도 화면이 모른다. 객체를 먼저 만들고 듣기를 연결한 뒤 일을 시작한다
 - **늦은 응답 버리기**: [새로고침]을 여러 번 누르면 응답이 순서대로 오지 않을 수 있다. 요청마다 번호를 붙여 마지막 요청의 응답만 화면에 쓴다 → `scenes/rankingController.ts`
 - 참고: [PostgreSQL window 함수](https://www.postgresql.org/docs/current/functions-window.html), [ISO 8601 주 (Wikipedia)](https://ko.wikipedia.org/wiki/ISO_8601), [Supabase RPC](https://supabase.com/docs/reference/javascript/rpc)
+
+### W4-05 테마
+
+- **디자인 토큰**: 색·모서리·광택 같은 값을 화면 코드에 흩어 두지 않고 테마 객체 하나에 모은다. 테마를 바꾸면 객체만 갈아 끼우면 된다 → `src/view/theme/themes.ts`
+- **그림도 순수 함수로**: "이 블록을 어떻게 그릴지"를 그리기 명령 목록으로 만드는 순수 함수와, 그 명령을 실제로 그리는 Phaser 코드를 나눈다. 앞쪽은 Phaser 없이 시험할 수 있다 → `blockPaint.ts`
+- **한 판은 같은 옷을 입는다**: 판 도중에 테마가 바뀌면 이미 그린 보드와 새로 그리는 트레이의 테마가 달라진다. 판을 시작할 때 테마를 고정하고, 바뀐 선호는 다음 메뉴에서 적용한다 → `runTheme`
+- **글꼴 줄이기 (서브셋)**: 한글 글꼴 하나가 수 MB다. 앱에 실제로 나오는 글자만 남기면 수십~백여 KB가 된다. 대신 사용자가 입력한 글자(닉네임)는 빠질 수 있어 시스템 글꼴로 보인다 → `scripts/fonts/`
+- **글꼴 라이선스 (OFL)**: 무료 글꼴도 조건이 있다. SUIT는 "SUIT"라는 이름을 예약해 두어, 글자를 뺀 수정본에는 다른 이름을 붙여야 한다 → `public/fonts/SUIT-NOTICE.txt`
+- **색 대비 재기**: 글자와 배경의 밝기 비율(WCAG 대비)과 두 색이 얼마나 다르게 보이는지(CIE 색차)를 숫자로 재서 시험한다. 숫자가 기준을 넘어도 낮은 밝기의 실제 화면은 따로 봐야 한다 → `tests/view/themes.test.ts`
+- 참고: [WCAG 대비 (MDN)](https://developer.mozilla.org/ko/docs/Web/Accessibility/Understanding_WCAG/Perceivable/Color_contrast), [FontFace (MDN)](https://developer.mozilla.org/ko/docs/Web/API/FontFace), [OFL FAQ](https://openfontlicense.org/ofl-faq/), [HarfBuzz hb-subset](https://harfbuzz.github.io/)
