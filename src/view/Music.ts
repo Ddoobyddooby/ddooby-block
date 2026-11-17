@@ -7,7 +7,7 @@
 // ddooby-pang의 Music.ts에서 복사해 맞췄다. 바뀐 점: 볼륨 낮추기(duck) 대신 멈춤(hold), 곡 이름·크기는 SOUND.music.
 
 import type Phaser from 'phaser';
-import { nativeBlocksResume } from '../scenes/appVisibility';
+import { isAppHidden, nativeBlocksResume } from '../scenes/appVisibility';
 import { SOUND } from '../config';
 import {
   isHeld,
@@ -67,7 +67,7 @@ export class Music {
     game.events.on('visible', () => {
       if (!nativeBlocksResume()) this.hold('hidden', false); // Android 앱이 아직 백그라운드면 이어지지 않는다
     });
-    if (typeof document !== 'undefined' && document.hidden)
+    if (isAppHidden(typeof document !== 'undefined' && document.hidden))
       this.holds = withHold(this.holds, 'hidden', true);
     // DEV: 브라우저 콘솔에서 window.__music.state()로 지금 곡·볼륨 확인
     if (import.meta.env.DEV && typeof window !== 'undefined')

@@ -10,6 +10,14 @@ export function nativeBlocksResume(): boolean {
   return nativeInactive;
 }
 
+/**
+ * 새 시계·새 음악이 시작할 때의 숨김 판정: 웹이 숨겨져 있거나 native 앱이 백그라운드면 멈춘 채 시작한다.
+ * 이후 이어지는 것은 VISIBLE 이벤트(웹)와 native 복귀(웹이 보일 때만 알림)가 정한다
+ */
+export function isAppHidden(webHidden: boolean): boolean {
+  return webHidden || nativeInactive;
+}
+
 /** 시험용·Game 정리용: native 상태를 활성으로 되돌린다 */
 export function resetNativeVisibility(): void {
   nativeInactive = false;

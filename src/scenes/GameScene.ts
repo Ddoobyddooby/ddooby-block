@@ -25,7 +25,7 @@ import { buildGameOverData, raiseStartBest } from './gameOverRules';
 import { chooseSeedAndRun, type GameStartData } from './gameStart';
 import { canPause, RETRY_EVENT } from './pauseRules';
 import { getPersistence } from './persistenceRegistry';
-import { nativeBlocksResume } from './appVisibility';
+import { isAppHidden, nativeBlocksResume } from './appVisibility';
 import { PlayClock } from './playClock';
 import { playEvents } from './playback';
 import { RankingTracker } from './rankingResult';
@@ -100,7 +100,7 @@ export class GameScene extends Phaser.Scene {
     this.replayable = fill === null;
     // 시계는 이어한 판이면 저장된 elapsedMs에서 시작한다. 화면이 숨겨진 채 시작하면 멈춰 둔다
     this.clock = new PlayClock(() => performance.now(), resume?.saved.elapsedMs ?? 0);
-    if (document.hidden) this.clock.block('hidden');
+    if (isAppHidden(document.hidden)) this.clock.block('hidden');
     this.session = new RunSession({
       seed: this.seed,
       state: this.state,

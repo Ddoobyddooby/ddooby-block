@@ -1,7 +1,8 @@
 import type Phaser from 'phaser';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SOUND } from '../../src/config';
 import { applyLoadedMusic, setMusicOn, type MusicStore } from '../../src/scenes/musicRules';
+import { nativeChange, resetNativeVisibility } from '../../src/scenes/appVisibility';
 import { Music, musicKey, musicUrls } from '../../src/view/Music';
 
 function fakeStore(): MusicStore {
@@ -578,5 +579,43 @@ describe('Music: 잠금 해제 뒤에 곡 만들기 (재리뷰 지적 2)', () =>
     tick(1000);
     sounds[0]!.destroy();
     expect(music.state().current).toBeNull();
+  });
+});
+
+describe('Music 시작 시 숨김 (W4-03 재리뷰)', () => {
+  afterEach(() => {
+    resetNativeVisibility();
+    vi.unstubAllGlobals();
+  });
+
+  it('native 비활성 상태에서 만들면 멈춘 채 시작한다', () => {
+    nativeChange(false, false);
+    const { music } = setup();
+    expect(music.state().held).toEqual(['hidden']);
+  });
+
+  it('한쪽만 복귀하면 멈춘 채, 양쪽 복귀하면 이어진다 (웹 hidden + native 비활성으로 시작)', () => {
+    vi.stubGlobal('document', { hidden: true });
+    nativeChange(false, true);
+    const { music, emit } = setup();
+    expect(music.state().held).toEqual(['hidden']);
+    emit('visible'); // 웹만 복귀: native가 아직 비활성
+    expect(music.state().held).toEqual(['hidden']);
+    expect(nativeChange(true, false)).toBe('visible'); // native 복귀 → bridge가 visible을 알린다
+    emit('visible');
+    expect(music.state().held).toEqual([]);
+  });
+
+  it('document.hidden만 true로 시작하는 기존 경로', () => {
+    vi.stubGlobal('document', { hidden: true });
+    const { music, emit } = setup();
+    expect(music.state().held).toEqual(['hidden']);
+    emit('visible');
+    expect(music.state().held).toEqual([]);
+  });
+
+  it('둘 다 활성이면 멈추지 않고 시작한다', () => {
+    const { music } = setup();
+    expect(music.state().held).toEqual([]);
   });
 });
