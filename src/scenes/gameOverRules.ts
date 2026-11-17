@@ -84,18 +84,13 @@ export function raiseStartBest(startBest: number, loadedBest: number): number {
 }
 
 /**
- * 게임 오버 화면이 처음 뜰 때 낼 효과음 (W4-01). `gameOverShow`는 화면이 뜰 때마다 한 번, `newBest`는 최고 기록을 새로 세웠을 때만 그 뒤에 낸다.
- * resize로 다시 그릴 때는(fresh = false) 아무것도 내지 않는다. `newBestAfterMs`는 `gameOverShow`와 겹치지 않게 띄우는 간격이다.
+ * 게임 오버 화면이 처음 뜰 때 낼 효과음 하나 (W4-01). 최고 기록을 새로 세웠으면 `newBest`, 아니면 `gameOverShow`.
+ * 둘은 1.5초·3.8초라 같이 내면 겹치므로 하나만 낸다. resize로 다시 그릴 때(fresh = false)는 내지 않는다.
  */
-export function gameOverSounds(
+export function gameOverSound(
   data: Pick<GameOverData, 'newBest'>,
   fresh: boolean,
-  newBestAfterMs: number,
-): { name: 'gameOverShow' | 'newBest'; afterMs: number }[] {
-  if (!fresh) return [];
-  const list: { name: 'gameOverShow' | 'newBest'; afterMs: number }[] = [
-    { name: 'gameOverShow', afterMs: 0 },
-  ];
-  if (data.newBest) list.push({ name: 'newBest', afterMs: newBestAfterMs });
-  return list;
+): 'gameOverShow' | 'newBest' | null {
+  if (!fresh) return null;
+  return data.newBest ? 'newBest' : 'gameOverShow';
 }

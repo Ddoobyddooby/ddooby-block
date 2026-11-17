@@ -1,7 +1,13 @@
 import type Phaser from 'phaser';
 import { describe, expect, it } from 'vitest';
 import { SOUND } from '../../src/config';
+import { applyLoadedMusic, setMusicOn, type MusicStore } from '../../src/scenes/musicRules';
 import { Music, musicKey, musicUrls } from '../../src/view/Music';
+
+function fakeStore(): MusicStore {
+  const map = new Map<string, unknown>();
+  return { get: (k) => map.get(k), set: (k, v) => map.set(k, v) };
+}
 
 // W4-01: Music(곡 하나 재생·페이드·멈춤)를 Phaser 없이 대역으로 본다. 실제 소리는 자동 브라우저로 들을 수 없다.
 
@@ -11,6 +17,9 @@ class FakeLoop {
   volume: number;
   destroyed = false;
   playCalls = 0;
+  /** 'false'면 play가 false, 'throw'면 던진다 */
+  playResult: 'ok' | 'false' | 'throw' = 'ok';
+  private listeners = new Map<string, (() => void)[]>();
   constructor(
     readonly key: string,
     readonly config: { loop?: boolean; volume?: number },
@@ -19,6 +28,8 @@ class FakeLoop {
   }
   play(): boolean {
     this.playCalls++;
+    if (this.playResult === 'throw') throw new Error('play 실패');
+    if (this.playResult === 'false') return false;
     this.isPlaying = true;
     this.isPaused = false;
     return true;
@@ -38,7 +49,15 @@ class FakeLoop {
     this.isPaused = false;
   }
   destroy(): void {
+    if (this.destroyed) return;
     this.destroyed = true;
+    this.isPlaying = false;
+    const fns = this.listeners.get('destroy') ?? [];
+    this.listeners.clear();
+    for (const fn of fns) fn();
+  }
+  once(event: string, fn: () => void): void {
+    this.listeners.set(event, [...(this.listeners.get(event) ?? []), fn]);
   }
   setVolume(v: number): void {
     this.volume = v;
@@ -48,6 +67,7 @@ class FakeLoop {
 function setup(cached: string[] = ['menu', 'game-soda', 'game-orbit'].map((n) => `music-${n}`)) {
   const handlers = new Map<string, ((...args: number[]) => void)[]>();
   const sounds: FakeLoop[] = [];
+  const manager = { locked: false, nextPlay: 'ok' as 'ok' | 'false' | 'throw' };
   const game = {
     events: {
       on: (name: string, fn: (...args: number[]) => void) => {
@@ -56,8 +76,12 @@ function setup(cached: string[] = ['menu', 'game-soda', 'game-orbit'].map((n) =>
     },
     cache: { audio: { exists: (key: string) => cached.includes(key) } },
     sound: {
+      get locked() {
+        return manager.locked;
+      },
       add: (key: string, config: { loop?: boolean; volume?: number }) => {
         const s = new FakeLoop(key, config);
+        s.playResult = manager.nextPlay;
         sounds.push(s);
         return s;
       },
@@ -66,7 +90,7 @@ function setup(cached: string[] = ['menu', 'game-soda', 'game-orbit'].map((n) =>
   const emit = (name: string, ...args: number[]): void =>
     (handlers.get(name) ?? []).forEach((fn) => fn(...args));
   const tick = (ms: number): void => emit('step', 0, ms);
-  return { music: Music.of(game), game, sounds, emit, tick, cached };
+  return { music: Music.of(game), game, sounds, emit, tick, cached, manager };
 }
 
 const live = (sounds: FakeLoop[]): FakeLoop[] => sounds.filter((s) => !s.destroyed);
@@ -200,7 +224,7 @@ describe('Music', () => {
     expect(music.state()).toMatchObject({ enabled: false, current: null, desired: 'game-orbit' });
     music.play('game-orbit'); // 꺼진 채로 화면이 곡을 불러도 소리는 나지 않는다
     expect(sounds).toHaveLength(1);
-    music.setEnabled(true);
+    music.setEnabled(true, true);
     expect(sounds).toHaveLength(2);
     expect(sounds[1]!.key).toBe('music-game-orbit');
   });
@@ -210,7 +234,7 @@ describe('Music', () => {
     music.setEnabled(false);
     music.play('game-soda');
     music.hold('pause', true);
-    music.setEnabled(true);
+    music.setEnabled(true, true);
     expect(music.state().held).toEqual([]);
     expect(sounds.at(-1)!.isPlaying).toBe(true);
     tick(10);
@@ -243,5 +267,161 @@ describe('Music: 곡별 소리 크기', () => {
       tick(SOUND.music.fadeMs * 2);
       expect(sounds[0]!.volume).toBeCloseTo(SOUND.music.volumes[name]);
     }
+  });
+});
+
+/** 지금 소리가 나는 객체(파괴되지 않고 재생 중이고 멈춰 있지 않은 것) */
+const audible = (sounds: FakeLoop[]): FakeLoop[] =>
+  sounds.filter((s) => !s.destroyed && s.isPlaying && !s.isPaused);
+
+describe('Music: 교차 페이드 중 멈춤 (리뷰 지적 1)', () => {
+  it('전환 중 일시정지하면 나가는 곡도 멈추고, 풀리면 둘 다 이어서 낸다', () => {
+    const { music, sounds, tick } = setup();
+    music.play('menu');
+    tick(1000);
+    music.play('game-soda');
+    tick(100);
+    music.hold('pause', true);
+    expect(audible(sounds)).toEqual([]);
+    tick(5000); // 멈춘 동안 페이드는 진행하지 않는다
+    expect(sounds[0]!.destroyed).toBe(false);
+    music.hold('pause', false);
+    expect(audible(sounds)).toHaveLength(2);
+    tick(SOUND.music.fadeMs * 2);
+    expect(live(sounds)).toEqual([sounds[1]]);
+    expect(audible(sounds)).toEqual([sounds[1]]);
+  });
+
+  it('전환 → 숨김 → (visible) 아직 일시정지 → 계속: 살아 있는 모든 소리가 멈춰 있다가 마지막에 이어진다', () => {
+    const { music, sounds, emit, tick } = setup();
+    music.play('menu');
+    tick(1000);
+    music.play('game-soda');
+    tick(100);
+    music.hold('pause', true);
+    emit('hidden');
+    expect(audible(sounds)).toEqual([]);
+    emit('visible');
+    expect(audible(sounds)).toEqual([]); // 일시정지가 아직 남아 있다
+    music.hold('pause', false);
+    expect(audible(sounds)).toHaveLength(2);
+  });
+
+  it('전환 중 숨김만 걸려도 나가는 곡이 멈춘다', () => {
+    const { music, sounds, emit, tick } = setup();
+    music.play('menu');
+    tick(1000);
+    music.play('game-soda');
+    tick(100);
+    emit('hidden');
+    expect(audible(sounds)).toEqual([]);
+    emit('visible');
+    expect(audible(sounds)).toHaveLength(2);
+  });
+});
+
+describe('Music: 저장값 반영과 사용자의 켜기 구분 (리뷰 지적 2)', () => {
+  it('저장값 true를 늦게 반영해도 일시정지·숨김 멈춤은 그대로다', () => {
+    const { music, sounds, emit, tick } = setup();
+    music.play('game-soda');
+    tick(1000);
+    music.hold('pause', true);
+    emit('hidden');
+    applyLoadedMusic(fakeStore(), music, true);
+    expect(music.state().held).toEqual(['pause', 'hidden']);
+    expect(audible(sounds)).toEqual([]);
+  });
+
+  it('저장값 false를 늦게 반영하면 곡을 끝낸다', () => {
+    const { music, sounds, tick } = setup();
+    music.play('game-soda');
+    tick(1000);
+    applyLoadedMusic(fakeStore(), music, false);
+    tick(SOUND.music.quickFadeMs + 10);
+    expect(live(sounds)).toEqual([]);
+  });
+
+  it('사용자가 먼저 바꿨다면 늦은 저장값이 덮지 않고 멈춤도 건드리지 않는다', () => {
+    const { music, sounds, tick } = setup();
+    const store = fakeStore();
+    music.play('game-soda');
+    tick(1000);
+    music.hold('pause', true);
+    setMusicOn(store, music, true); // 일시정지 창의 켜기: 일시정지 멈춤을 푼다
+    expect(music.state().held).toEqual([]);
+    music.hold('pause', true);
+    applyLoadedMusic(store, music, false);
+    expect(music.state().enabled).toBe(true);
+    expect(audible(sounds)).toEqual([]);
+  });
+
+  it('사용자의 켜기는 숨김 멈춤은 풀지 않는다', () => {
+    const { music, sounds, emit } = setup();
+    music.setEnabled(false);
+    music.play('game-soda');
+    emit('hidden');
+    music.hold('pause', true);
+    setMusicOn(fakeStore(), music, true);
+    expect(music.state().held).toEqual(['hidden']);
+    expect(audible(sounds)).toEqual([]);
+    emit('visible');
+    expect(audible(sounds)).toHaveLength(1);
+  });
+});
+
+describe('Music: 소리 객체 정리 (리뷰 지적 4)', () => {
+  it('add 뒤 play가 던져도 만든 객체를 정리하고, 반복해도 남지 않는다', () => {
+    const { music, sounds, manager } = setup();
+    manager.nextPlay = 'throw';
+    for (let i = 0; i < 3; i++) {
+      music.play('menu');
+      music.play(null);
+      music.play('menu');
+    }
+    expect(sounds.length).toBeGreaterThan(0);
+    expect(live(sounds)).toEqual([]);
+    expect(music.state().current).toBeNull();
+  });
+
+  it('잠금 중이면(play=false, manager.locked) 대기로 보고 소리를 유지한다', () => {
+    const { music, sounds, manager } = setup();
+    manager.locked = true;
+    manager.nextPlay = 'false';
+    music.play('menu');
+    expect(live(sounds)).toHaveLength(1);
+    expect(music.state().current).toBe('menu');
+  });
+
+  it('잠금이 아닌데 play=false면 실패로 보고 정리한다 (HTML5 태그 부족 등)', () => {
+    const { music, sounds, manager } = setup();
+    manager.nextPlay = 'false';
+    music.play('menu');
+    expect(live(sounds)).toEqual([]);
+    expect(music.state().current).toBeNull();
+  });
+
+  it('멈춘 채 만든 소리의 pause가 던져도 정리한다', () => {
+    const { music, sounds, emit, game } = setup();
+    emit('hidden');
+    const add = game.sound.add.bind(game.sound);
+    (game.sound as unknown as { add: typeof add }).add = (k, c) => {
+      const s = add(k, c) as unknown as FakeLoop;
+      s.pause = () => {
+        throw new Error('pause 실패');
+      };
+      return s as never;
+    };
+    music.play('menu');
+    expect(live(sounds)).toEqual([]);
+  });
+
+  it('밖에서 파괴된 소리는 목록에서만 빼고 다시 destroy하지 않는다', () => {
+    const { music, sounds, tick } = setup();
+    music.play('menu');
+    tick(1000);
+    sounds[0]!.destroy();
+    expect(music.state().current).toBeNull();
+    music.play('menu'); // 새로 만든다
+    expect(sounds).toHaveLength(2);
   });
 });

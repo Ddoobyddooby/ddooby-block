@@ -326,13 +326,11 @@ export const SOUND = {
     boardClear: { file: 'boardClear', volume: 0.5 },
     gameOver: { file: 'gameOver', volume: 0.4 },
     button: { file: 'button', volume: 0.5 },
-    /** 게임 오버 화면에서 최고 기록을 새로 세웠을 때 (W4-01) */
+    /** 게임 오버 화면: 최고 기록을 새로 세웠을 때 (W4-01). 이때는 `gameOverShow` 대신 이것만 낸다 */
     newBest: { file: 'newBest', volume: 0.5 },
-    /** 게임 오버 화면이 뜰 때 (W4-01). 연출 속 `gameOver` 소리와는 showDelayMs만큼 떨어져 있다 */
+    /** 게임 오버 화면: 최고 기록이 아닐 때 화면이 뜨며 낸다 (W4-01). 연출 속 `gameOver` 소리와는 showDelayMs만큼 떨어져 있다 */
     gameOverShow: { file: 'gameOverShow', volume: 0.3 },
   },
-  /** 게임 오버 화면이 뜬 뒤 `newBest`를 내기까지 (ms). `gameOverShow`와 겹치지 않게 한다 */
-  newBestDelayMs: 350,
   formats: ['ogg', 'm4a'],
   /** 줄 제거 소리의 콤보별 재생 속도(음 높이). index = 콤보 - 1, 마지막 값이 상한 */
   clearRateByCombo: [1, 1.12, 1.26, 1.33, 1.5],

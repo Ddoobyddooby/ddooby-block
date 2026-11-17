@@ -86,7 +86,8 @@ export function readMusic(store: MusicStore): boolean {
 
 /** Music에서 쓰는 부분 */
 export interface MusicOutput {
-  setEnabled(on: boolean): void;
+  /** byUser: 사용자가 직접 켠 것 (일시정지 멈춤을 푼다). 저장값 반영은 false */
+  setEnabled(on: boolean, byUser?: boolean): void;
 }
 
 /**
@@ -100,7 +101,7 @@ export function setMusicOn(
   persist?: (on: boolean) => void,
 ): void {
   store.set(KEY, on);
-  output.setEnabled(on);
+  output.setEnabled(on, true);
   persist?.(on);
 }
 
@@ -109,5 +110,5 @@ export function setMusicOn(
  */
 export function applyLoadedMusic(store: MusicStore, output: MusicOutput, saved: boolean): void {
   if (store.get(KEY) === undefined) store.set(KEY, saved);
-  output.setEnabled(readMusic(store));
+  output.setEnabled(readMusic(store), false);
 }

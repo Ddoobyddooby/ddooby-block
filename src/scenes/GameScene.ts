@@ -194,7 +194,7 @@ export class GameScene extends Phaser.Scene {
     const onResume = (): void => {
       this.paused = false;
       this.clock.unblock('paused');
-      // 음소거를 켰다면 사운드 매니저의 mute가 출력을 막고 있어 들리지 않는다
+      // 그 사이 음소거를 켰다면 Sfx.resume이 멈춰 있던 소리를 이어 내지 않고 버린다
       this.sfx.resume();
       Music.of(this.game).hold('pause', false);
     };

@@ -2,7 +2,7 @@
 // 점수·최고 점수·최고 기록 갱신 여부는 GameScene이 계산해 넘긴다 (gameOverRules.ts). 저장은 이미 끝났다 (게임 오버 때 RunSession이 한다).
 
 import Phaser from 'phaser';
-import { SOUND, VIEW } from '../config';
+import { VIEW } from '../config';
 import { addButton, type PressLock } from '../view/ui/Button';
 import { drawPanel } from '../view/ui/Panel';
 import { Sfx } from '../view/Sfx';
@@ -11,7 +11,7 @@ import { textStyle, type TextRole } from '../view/theme/textStyle';
 import { themeOf } from '../view/theme/themeSetting';
 import {
   gameOverButtons,
-  gameOverSounds,
+  gameOverSound,
   gameOverTexts,
   inputDelayLeft,
   type GameOverButton,
@@ -55,6 +55,8 @@ export class GameOverScene extends Phaser.Scene {
   private lock: PressLock = { pressed: false };
   /** 이 게임 오버가 새로 떴다 (resize로 다시 그린 것이 아니다) */
   private fresh = true;
+  /** 결과 효과음을 낸 Sfx. resize로 다시 그려도 같은 것을 쓰고(소리가 이어진다), 화면을 떠날 때 멈춘다 */
+  private resultSfx: Sfx | null = null;
   /** resize로 다시 그리는 중: 닉네임 창을 지우지 않고 넘긴다 (키보드가 올라오며 resize가 나도 입력 중인 창이 사라지지 않게) */
   private redrawing = false;
   /** 다시 그리기 예약을 합친다 (restartGate.ts) */
@@ -99,12 +101,10 @@ export class GameOverScene extends Phaser.Scene {
       this.rankUi = new GameOverRanking(this.ranking, { fetchRanking, currentUserId });
     }
     const buttons = gameOverButtons();
-    // 효과음: 화면이 새로 뜰 때만 (resize로 다시 그릴 때는 내지 않는다). 최고 기록은 화면 소리 뒤에 따로
-    const sfx = new Sfx(this);
-    for (const { name, afterMs } of gameOverSounds(this.data0, this.fresh, SOUND.newBestDelayMs)) {
-      if (afterMs <= 0) sfx.play(name);
-      else this.time.delayedCall(afterMs, () => sfx.play(name));
-    }
+    // 결과 효과음: 화면이 새로 뜰 때만 하나 (최고 기록이면 newBest, 아니면 gameOverShow). 이 씬이 소유해 화면을 떠날 때 멈춘다.
+    // 버튼 확인음은 Button이 따로 낸다 (짧아서 이탈 뒤에도 끝까지 난다)
+    const result = gameOverSound(this.data0, this.fresh);
+    if (result !== null) (this.resultSfx ??= new Sfx(this)).play(result);
 
     // 화면 전체 덮개: 눌러도 아무 일 없고, 아래 게임으로 입력이 가지 않는다
     this.add
@@ -201,6 +201,9 @@ export class GameOverScene extends Phaser.Scene {
       unsubscribeLine?.();
       rankingText = null;
       if (!this.gate.restarting) {
+        // 화면을 떠난다: 결과 징글이 메뉴·새 판에 남지 않게 멈춘다 (resize 다시 그리기는 이어서 낸다)
+        this.resultSfx?.stopAll();
+        this.resultSfx = null;
         this.endNickname();
         this.rankUi?.end();
         this.rankUi = null;

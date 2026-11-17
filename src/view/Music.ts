@@ -108,12 +108,12 @@ export class Music {
   }
 
   /**
-   * 음악 버튼·저장값. 다시 켜면 지금 화면의 곡부터 나온다.
-   * 일시정지 화면에서 사용자가 직접 켠 것이므로 일시정지로 멈춘 상태도 푼다 (눌렀는데 소리가 안 나지 않게)
+   * 켜고 끈다. 다시 켜면 지금 화면의 곡부터 나온다. 멈춤 이유(일시정지·숨김)는 건드리지 않는다 (저장값을 늦게 반영할 때도 쓰므로).
+   * `byUser`: 일시정지 창의 음악 버튼처럼 사용자가 직접 켠 것이면 일시정지 멈춤만 푼다 (눌렀는데 소리가 안 나지 않게). 숨김은 풀지 않는다
    */
-  setEnabled(on: boolean): void {
+  setEnabled(on: boolean, byUser = false): void {
     this.enabled = on;
-    if (on) this.holds = withHold(this.holds, 'pause', false);
+    if (on && byUser) this.holds = withHold(this.holds, 'pause', false);
     this.apply(SOUND.music.quickFadeMs);
   }
 
@@ -151,38 +151,75 @@ export class Music {
       this.current = null;
     }
     if (change === 'switch' && target && this.game.cache.audio.exists(musicKey(target))) {
+      let entry: Entry | null = null;
       try {
         const sound = this.game.sound.add(musicKey(target), { loop: true, volume: 0 }) as LoopSound;
-        const entry: Entry = {
+        entry = {
           sound,
           fade: startFade(0, SOUND.music.volumes[target], fadeMs),
           stopAtEnd: false,
         };
         this.current = { name: target, entry };
-        // 브라우저가 소리를 막고 있으면 play()가 false를 돌려주고 Phaser가 첫 터치 때 시작한다 (실패가 아니다)
-        sound.play();
+        // 밖에서 파괴되면 목록에서만 뺀다 (이미 파괴됐으므로 다시 destroy하지 않는다)
+        const own = entry;
+        sound.once('destroy', () => this.forget(own));
+        // false: 브라우저가 소리를 막는 중(manager.locked)이면 Phaser가 첫 터치 때 시작하니 기다린다.
+        // 잠금이 아닌데 false면 (HTML5 Audio 태그 부족 등) 실패이므로 정리한다. 다음 곡 요청 때 다시 시도한다
+        if (sound.play() === false && !this.isLocked())
+          throw new Error('play returned false while not locked');
         if (isHeld(this.holds)) sound.pause();
       } catch (error) {
-        // 소리가 안 나도 게임은 계속된다
-        this.current = null;
+        // 소리가 안 나도 게임은 계속된다. 만든 객체는 남기지 않는다
+        if (entry) this.release(entry);
         if (import.meta.env.DEV) console.warn('[music] 재생 실패', target, error);
       }
     }
   }
 
-  /** 멈춤 이유가 생기거나 사라졌을 때 지금 곡을 멈추거나 이어서 낸다 */
+  private isLocked(): boolean {
+    return (this.game.sound as { locked?: boolean }).locked === true;
+  }
+
+  /** 지금 곡과 줄어드는 중인 곡 모두 */
+  private entries(): Entry[] {
+    return [...(this.current ? [this.current.entry] : []), ...this.leaving];
+  }
+
+  /** 멈춤 이유가 생기거나 사라졌을 때 살아 있는 모든 곡(나가는 중인 곡 포함)을 멈추거나 이어서 낸다 */
   private syncHeld(): void {
-    const sound = this.current?.entry.sound;
-    if (!sound) return;
-    try {
-      if (isHeld(this.holds)) {
-        if (sound.isPlaying) sound.pause();
-      } else if (sound.isPaused) {
-        sound.resume();
+    for (const entry of this.entries()) {
+      const { sound } = entry;
+      try {
+        if (isHeld(this.holds)) {
+          if (sound.isPlaying) sound.pause();
+        } else if (sound.isPaused) {
+          sound.resume();
+        }
+      } catch {
+        this.release(entry);
       }
+    }
+  }
+
+  /** 소리 목록에서 뺀다. 소리 객체는 건드리지 않는다 (밖에서 파괴된 경우) */
+  private forget(entry: Entry): void {
+    this.leaving.delete(entry);
+    if (this.current?.entry === entry) this.current = null;
+    entry.fade = null;
+  }
+
+  /** 끝낸다: 목록에서 먼저 빼고 멈춘 뒤 없앤다. 여러 번 불려도 안전하고 던지지 않는다. 이벤트 안에서 부르지 않는다 */
+  private release(entry: Entry): void {
+    this.forget(entry);
+    try {
+      entry.sound.stop();
     } catch {
-      // 파괴된 소리: 다음 apply가 새로 만든다
-      this.current = null;
+      // 이미 파괴된 소리
+    }
+    try {
+      entry.sound.destroy();
+    } catch {
+      // 이미 파괴된 소리
     }
   }
 
@@ -193,26 +230,20 @@ export class Music {
   }
 
   private step(delta: number): void {
-    if (this.current) this.advance(this.current.entry, delta);
-    for (const entry of [...this.leaving]) this.advance(entry, delta);
+    // 멈춰 있는 동안에는 페이드도 멈춘다 (나가는 곡도 소리가 멈춰 있으므로 끝내지 않는다. 풀리면 이어서 줄어든다)
+    if (isHeld(this.holds)) return;
+    for (const entry of this.entries()) this.advance(entry, delta);
   }
 
   private advance(entry: Entry, delta: number): void {
     if (entry.fade === null) return;
-    // 멈춰 있는 동안에는 페이드도 멈춘다 (이어서 낼 때 처음부터 다시 올라가지 않게)
-    if (isHeld(this.holds) && !entry.stopAtEnd) return;
     try {
       const next = stepFade(entry.fade, delta);
       entry.sound.setVolume(next.volume);
       entry.fade = next.done ? null : next.fade;
-      if (next.done && entry.stopAtEnd) {
-        this.leaving.delete(entry);
-        entry.sound.stop();
-        entry.sound.destroy();
-      }
+      if (next.done && entry.stopAtEnd) this.release(entry);
     } catch {
-      this.leaving.delete(entry);
-      entry.fade = null;
+      this.release(entry);
     }
   }
 }

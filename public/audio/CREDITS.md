@@ -1,6 +1,6 @@
 # 오디오 출처 (효과음·배경 음악)
 
-모두 Kenney(www.kenney.nl)의 무료 에셋이고 라이선스는 **CC0 1.0** (Creative Commons Zero, http://creativecommons.org/publicdomain/zero/1.0/)다. 출처 표시 의무는 없지만 기록해 둔다.
+기존 효과음 6종은 모두 Kenney(www.kenney.nl)의 무료 에셋이고 라이선스는 **CC0 1.0** (Creative Commons Zero, http://creativecommons.org/publicdomain/zero/1.0/)다. 출처 표시 의무는 없지만 기록해 둔다.
 `ddooby-pang`의 `public/audio/`에서 필요한 것만 복사했고, 파일 이름만 block의 쓰임에 맞게 바꿨다.
 
 | 파일 | 원본 팩 | 원본 파일 (pang에서의 이름) | 쓰는 곳 |
