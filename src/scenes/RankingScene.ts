@@ -25,6 +25,7 @@ import { whenSubmissionsSettle } from './pendingSubmission';
 import { fakeRankingResult, parseFakeRankingList } from './rankingDev';
 import { RankingController, type RankingScreen } from './rankingController';
 import { Backdrop } from '../view/theme/backdrop';
+import { FONTS_REFRESHED } from '../view/theme/fonts';
 import { textStyle, type TextRole } from '../view/theme/textStyle';
 import { themeOf } from '../view/theme/themeSetting';
 
@@ -94,6 +95,8 @@ export class RankingScene extends Phaser.Scene {
     this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.onPointerUp, this);
     this.input.on(Phaser.Input.Events.GAME_OUT, this.cancelGesture, this);
     this.input.on(Phaser.Input.Events.POINTER_WHEEL, this.onWheel, this);
+    // 글꼴이 늦게 도착해 글자 폭이 바뀌면 이름·태그 위치와 줄임 비율을 다시 계산한다
+    this.events.on(FONTS_REFRESHED, this.draw, this);
     this.game.events.on(Phaser.Core.Events.BLUR, this.cancelGesture, this);
     this.game.events.on(Phaser.Core.Events.HIDDEN, this.cancelGesture, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -102,6 +105,7 @@ export class RankingScene extends Phaser.Scene {
       this.closePrompt();
       this.cancelGesture();
       this.scale.off(Phaser.Scale.Events.RESIZE, this.draw, this);
+      this.events.off(FONTS_REFRESHED, this.draw, this);
       this.input.off(Phaser.Input.Events.POINTER_DOWN, this.onPointerDown, this);
       this.input.off(Phaser.Input.Events.POINTER_MOVE, this.onPointerMove, this);
       this.input.off(Phaser.Input.Events.POINTER_UP, this.onPointerUp, this);

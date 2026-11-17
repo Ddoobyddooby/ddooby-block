@@ -175,7 +175,7 @@ export const THEMES: Readonly<Record<ThemeId, Theme>> = {
       ui: stack('Gowun Dodum'),
       uiWeight: 400,
       uiBoldWeight: 700,
-      number: stack('SUIT'),
+      number: stack('Ddooby Sans'),
       numberWeight: 750,
     },
     logo: {
@@ -231,10 +231,10 @@ export const THEMES: Readonly<Record<ThemeId, Theme>> = {
     fonts: {
       title: stack('Space Grotesk'),
       titleWeight: 700,
-      ui: stack('SUIT'),
+      ui: stack('Ddooby Sans'),
       uiWeight: 600,
       uiBoldWeight: 750,
-      number: stack('SUIT'),
+      number: stack('Ddooby Sans'),
       numberWeight: 750,
     },
     logo: {
@@ -296,10 +296,10 @@ export const THEMES: Readonly<Record<ThemeId, Theme>> = {
     fonts: {
       title: stack('Baloo 2'),
       titleWeight: 750,
-      ui: stack('SUIT'),
+      ui: stack('Ddooby Sans'),
       uiWeight: 600,
       uiBoldWeight: 750,
-      number: stack('SUIT'),
+      number: stack('Ddooby Sans'),
       numberWeight: 750,
     },
     logo: {

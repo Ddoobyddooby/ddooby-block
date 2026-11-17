@@ -17,7 +17,7 @@ export const FONT_FILES: readonly FontFile[] = [
   { family: 'Fredoka', file: 'Fredoka-subset.ttf', weight: '300 700' },
   { family: 'Space Grotesk', file: 'SpaceGrotesk-subset.ttf', weight: '300 700' },
   { family: 'Baloo 2', file: 'Baloo2-subset.ttf', weight: '400 800' },
-  { family: 'SUIT', file: 'SUIT-subset.ttf', weight: '100 900' },
+  { family: 'Ddooby Sans', file: 'SUIT-subset.ttf', weight: '100 900' },
   { family: 'Gowun Dodum', file: 'GowunDodum-subset.ttf', weight: '400' },
 ];
 
@@ -39,6 +39,9 @@ export async function loadFonts(): Promise<boolean> {
   return results.every(Boolean);
 }
 
+/** 글꼴이 늦게 도착해 글자를 다시 그렸다 (씬 이벤트). 글자 폭에 맞춰 배치를 계산하는 화면(랭킹)이 다시 배치한다 */
+export const FONTS_REFRESHED = 'fonts-refreshed';
+
 function refreshObject(object: Phaser.GameObjects.GameObject): void {
   if (object.type === 'Text') {
     (object as Phaser.GameObjects.Text).style.update(true);
@@ -52,5 +55,6 @@ export function refreshTexts(game: Phaser.Game): void {
   for (const scene of game.scene.getScenes(false)) {
     if (scene.children === undefined) continue;
     for (const object of scene.children.list) refreshObject(object);
+    scene.events.emit(FONTS_REFRESHED);
   }
 }

@@ -27,7 +27,7 @@ const PICKER = {
     nameSize: 38,
   },
   /** 카드 안 블록 미리보기: 색 그룹, 칸 크기, 간격. 카드 오른쪽에 둔다 */
-  preview: { colors: [1, 0, 2] as const, size: 64, gap: 72, right: 40 },
+  preview: { colors: [1, 0, 2] as const, size: 64, gap: 70, right: 64 },
   close: { text: '닫기', width: 400, height: 100, fontSize: 40, gap: 34 },
 } as const;
 

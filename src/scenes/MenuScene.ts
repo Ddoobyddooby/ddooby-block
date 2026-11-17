@@ -15,7 +15,14 @@ import { showPreparing } from './preparingLabel';
 import { RANKING_TEXT } from '../view/rankingText';
 import { Backdrop } from '../view/theme/backdrop';
 import { MenuLogo } from '../view/theme/logo';
-import { readThemeId, setTheme, themeOf } from '../view/theme/themeSetting';
+import {
+  adoptPreferredTheme,
+  clearRunTheme,
+  hasPendingTheme,
+  setTheme,
+  themeOf,
+} from '../view/theme/themeSetting';
+import { lateThemeAction } from './lateTheme';
 import { openThemePicker } from '../view/ThemePicker';
 import type { ThemeId } from '../themeIds';
 
@@ -46,6 +53,9 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    // 메뉴가 뜨는 때가 테마를 바꿔도 안전한 때다: 한 판의 고정을 풀고, 늦게 읽힌 저장 테마를 반영한다
+    clearRunTheme(this.registry);
+    adoptPreferredTheme(this.registry);
     const theme = themeOf(this);
     this.cameras.main.setBackgroundColor(theme.colors.background);
     this.closed = false;
@@ -72,9 +82,13 @@ export class MenuScene extends Phaser.Scene {
       ?.load()
       .then(() => {
         if (this.closed) return;
-        // 저장된 테마가 늦게 반영됐다면 (부팅 읽기가 제한 시간을 넘김) 새 테마로 메뉴를 다시 만든다
-        if (readThemeId(this.registry) !== theme.id) this.scene.restart();
-        else this.layout();
+        // 저장된 테마가 늦게 반영됐다면 (부팅 읽기가 제한 시간을 넘김) 메뉴를 새 테마로 다시 만든다.
+        // 새 게임을 준비하는 중이면 다시 만들지 않는다: 다시 만들면 SHUTDOWN이 그 요청을 취소한다 (lateTheme.ts)
+        if (lateThemeAction(isPreparing(), hasPendingTheme(this.registry)) === 'restart') {
+          this.scene.restart();
+        } else {
+          this.layout();
+        }
       });
   }
 

@@ -11,6 +11,7 @@ import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
+import { findReserved, renameFont } from './rename.mjs';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const SRC_DIR = join(ROOT, 'src');
@@ -18,12 +19,16 @@ const FONT_SRC = join(ROOT, 'assets/fonts-src');
 const OUT_DIR = join(ROOT, 'public/fonts');
 const CHARS_FILE = join(OUT_DIR, 'subset-chars.txt');
 
+/** SUIT 서브셋의 새 이름. 앱의 font-family(src/view/theme/themes.ts·fonts.ts)도 이 이름이다 */
+const RENAMED_SUIT = { family: 'Ddooby Sans', reserved: 'SUIT(?: ?Variable)?' };
+
 /** 원본 파일 → 서브셋 이름, 한글 포함 여부 */
 const FONTS = [
   { src: 'Fredoka.ttf', out: 'Fredoka-subset.ttf', hangul: false },
   { src: 'SpaceGrotesk.ttf', out: 'SpaceGrotesk-subset.ttf', hangul: false },
   { src: 'Baloo2.ttf', out: 'Baloo2-subset.ttf', hangul: false },
-  { src: 'SUIT.ttf', out: 'SUIT-subset.ttf', hangul: true },
+  // SUIT는 Reserved Font Name이 SUIT: 글자를 뺀 수정본이므로 내부 이름을 독자 이름으로 바꾼다 (rename.mjs, OFL 제3조)
+  { src: 'SUIT.ttf', out: 'SUIT-subset.ttf', hangul: true, rename: RENAMED_SUIT },
   { src: 'GowunDodum.ttf', out: 'GowunDodum-subset.ttf', hangul: true },
 ];
 
@@ -66,6 +71,16 @@ if (process.argv.includes('--check')) {
   } catch {
     // 없음: 아래에서 다르다고 본다
   }
+  // 예약 이름: 이름을 바꾼 서브셋의 name 테이블에 원래 이름이 남아 있지 않아야 한다
+  for (const font of FONTS.filter((f) => f.rename)) {
+    const left = findReserved(readFileSync(join(OUT_DIR, font.out)), font.rename.reserved);
+    if (left.length > 0) {
+      console.error(
+        `${font.out}의 name 테이블에 예약 이름이 남았다: ${left.map((n) => `ID ${n.nid} "${n.text}"`).join(', ')}`,
+      );
+      process.exit(1);
+    }
+  }
   if (saved !== summary) {
     console.error('글꼴 서브셋이 소스의 글자와 다릅니다. `npm run fonts:subset`을 실행하세요.');
     process.exit(1);
@@ -89,6 +104,11 @@ for (const font of FONTS) {
     `--text-file=${textFile}`,
     `--output-file=${out}`,
   ]);
+  if (font.rename) {
+    writeFileSync(out, renameFont(readFileSync(out), font.rename));
+    if (findReserved(readFileSync(out), font.rename.reserved).length > 0)
+      throw new Error(`${font.out}: 예약 이름이 남았다`);
+  }
   const before = statSync(join(FONT_SRC, font.src)).size;
   const after = statSync(out).size;
   total += after;

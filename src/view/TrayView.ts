@@ -7,6 +7,7 @@ import { getPiece } from '../core/pieces';
 import type { PieceDef, PieceId } from '../core/types';
 import { blockTextureKey } from './blockTexture';
 import { themeOf } from './theme/themeSetting';
+import type { ThemeId } from '../themeIds';
 import { trayPieceRect, type Point } from './drag';
 import { boardLayout, type ScreenLayout } from './layout';
 import { stopTweensOf, tweenAsync } from './tween';
@@ -22,11 +23,14 @@ export class TrayView {
   private slots: (Slot | null)[] = [];
   /** 트레이 받침: 패널색 둥근 판 + 슬롯 사이 가는 선과 슬롯 아래 점 (시안 game) */
   private readonly panel: Phaser.GameObjects.Graphics;
+  /** 이 트레이가 그리는 테마 (만들 때 정해진다. 새 조각을 그릴 때마다 다시 읽지 않는다) */
+  private readonly themeId: ThemeId;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private screen: ScreenLayout,
   ) {
+    this.themeId = themeOf(scene).id;
     this.panel = scene.add.graphics().setDepth(VIEW.depth.panel);
     this.drawPanel();
   }
@@ -158,7 +162,7 @@ export class TrayView {
           {
             x: (c + 0.5) * cell,
             y: (r + 0.5) * cell,
-            key: blockTextureKey(themeOf(this.scene).id, piece.color),
+            key: blockTextureKey(this.themeId, piece.color),
           },
           false,
         )

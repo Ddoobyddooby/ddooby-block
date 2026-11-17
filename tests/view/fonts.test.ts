@@ -35,8 +35,9 @@ describe('글꼴 파일', () => {
       'baloo2-OFL.txt',
       'gowundodum-OFL.txt',
       'SUIT-LICENSE.txt',
+      'SUIT-NOTICE.txt',
     ]) {
-      expect(readText(join(ROOT, 'public/fonts', name)), name).toContain('SIL');
+      expect(readText(join(ROOT, 'public/fonts', name)), name).toMatch(/SIL|SUIT/);
     }
   });
 

@@ -12,6 +12,7 @@ import type { Pos } from '../../core/types';
 import { mixColor, TEXTURE } from '../blockTexture';
 import { cssColor, textStyle } from '../theme/textStyle';
 import { themeOf } from '../theme/themeSetting';
+import type { Theme } from '../theme/themes';
 import { cellCenter, type Layout } from '../layout';
 import type { Sfx } from '../Sfx';
 import { stopTweensOf, tweenAsync } from '../tween';
@@ -23,12 +24,15 @@ type Decor = Phaser.GameObjects.Image | Phaser.GameObjects.Text | Phaser.GameObj
 export class FxDirector {
   private readonly live = new Set<Decor>();
   private readonly shaker: ShakeController;
+  /** 이 연출이 쓰는 테마 (만들 때 정해진다) */
+  private readonly theme: Theme;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly sfx: Sfx,
     private layout: Layout,
   ) {
+    this.theme = themeOf(scene);
     // 카메라는 씬이 다시 시작해도 같은 것을 쓰므로 부를 때마다 읽는다
     this.shaker = new ShakeController(
       {
@@ -71,7 +75,7 @@ export class FxDirector {
       const { popup: cfg } = FX;
       const size = popup.kind === 'line' ? cfg.lineSize : cfg.comboSize;
       // 보드 위에 뜨는 글자라 배경색이 아니라 블록 색(노랑)·흰색을 쓴다. 바깥선은 테마의 짙은 색
-      const color = popup.kind === 'line' ? 0xffffff : themeOf(this.scene).colors.blocks[0];
+      const color = popup.kind === 'line' ? 0xffffff : this.theme.colors.blocks[0];
       const y =
         this.layout.y + this.layout.height * cfg.lineY + (i - (all.length - 1) / 2) * cfg.stackGap;
       this.popup(popup.text, size, color, y, i * cfg.stagger);
@@ -82,7 +86,7 @@ export class FxDirector {
   burstCell(pos: Pos, color: number, order: number): void {
     const { particles: cfg } = FX;
     const { x, y } = cellCenter(this.layout, pos);
-    const theme = themeOf(this.scene);
+    const theme = this.theme;
     const base = theme.colors.blocks[color] ?? 0xffffff;
     const tint = mixColor(base, theme.spark.target, theme.spark.amount);
     for (let i = 0; i < cfg.perCell; i++) {
@@ -119,7 +123,7 @@ export class FxDirector {
     this.popup(
       '전체 비우기!',
       cfg.boardClearSize,
-      themeOf(this.scene).colors.blocks[0],
+      this.theme.colors.blocks[0],
       layout.y + layout.height * cfg.boardClearY,
       0,
     );
@@ -152,8 +156,8 @@ export class FxDirector {
     const x = this.layout.x + this.layout.width / 2;
     const label = this.scene.add
       .text(x, y, text, {
-        ...textStyle(themeOf(this.scene), 'heading', size, color),
-        stroke: cssColor(themeOf(this.scene).colors.popupStroke),
+        ...textStyle(this.theme, 'heading', size, color),
+        stroke: cssColor(this.theme.colors.popupStroke),
         strokeThickness: cfg.strokeWidth,
       })
       .setOrigin(0.5)

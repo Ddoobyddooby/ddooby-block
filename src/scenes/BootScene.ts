@@ -17,7 +17,8 @@ import { hasResumeParam, type GameStartData } from './gameStart';
 import { putPersistence } from './persistenceRegistry';
 import { loadFonts, refreshTexts } from '../view/theme/fonts';
 import { devTheme } from '../view/theme/themes';
-import { writeTheme } from '../view/theme/themeSetting';
+import { hasTheme, lockTheme, writeTheme } from '../view/theme/themeSetting';
+import { DEFAULT_THEME } from '../themeIds';
 import { parseSeedParam } from './seed';
 
 /** 앱(Android)은 Capacitor Preferences, 웹은 localStorage (PLAN 6.2) */
@@ -64,7 +65,7 @@ export class BootScene extends Phaser.Scene {
     // DEV `?theme=<id>`: 저장하지 않고 이 실행에만 적용한다. 저장값 반영(applyLoaded)은 이미 정해진 테마를 덮지 않는다 (프로덕션 빌드에서는 이 분기가 지워진다)
     if (import.meta.env.DEV) {
       const dev = devTheme(window.location.search, true);
-      if (dev !== null) writeTheme(this.registry, dev);
+      if (dev !== null) lockTheme(this.registry, dev);
     }
 
     const direct =
@@ -74,6 +75,8 @@ export class BootScene extends Phaser.Scene {
     const start = (): void => {
       if (started) return;
       started = true;
+      // 첫 화면이 뜨는 순간의 테마를 정한다: 읽기가 늦으면 기본 테마로 시작하고, 늦게 읽힌 저장 테마는 다음 메뉴 진입 때 반영된다
+      if (!hasTheme(this.registry)) writeTheme(this.registry, DEFAULT_THEME);
       // DEV 전용 `?over`: 게임 없이 게임 오버 화면만 본다 (예시 값, 저장소는 건드리지 않는다). 프로덕션 빌드에서는 이 분기가 지워진다
       if (import.meta.env.DEV) {
         const over = parseOverParam(window.location.search, true);

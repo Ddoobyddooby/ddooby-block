@@ -6,7 +6,7 @@ import { createGame, previewPlacement } from '../core/engine';
 import type { GameEvent, GameState, PlaceAction, Pos } from '../core/types';
 import { createBlockTextures } from '../view/blockTexture';
 import { Backdrop } from '../view/theme/backdrop';
-import { themeOf } from '../view/theme/themeSetting';
+import { pinRunTheme } from '../view/theme/themeSetting';
 import { diffBoard } from '../view/boardCheck';
 import { BoardView } from '../view/BoardView';
 import { DragController, type PointerLike } from '../view/DragController';
@@ -119,7 +119,8 @@ export class GameScene extends Phaser.Scene {
     // startBest가 이어한 판의 점수로 화면용 최고 점수를 올리기 전에 기억한다
     this.bestAtStart = readBest(this.game.registry);
     this.watchLateBest();
-    const theme = themeOf(this);
+    // 이 판의 테마는 시작할 때 고정한다. Pause·GameOver도 이것을 쓰고(themeOf), 늦게 읽힌 저장 테마가 판 도중에 끼어들지 않는다
+    const theme = pinRunTheme(this.registry);
     this.cameras.main.setBackgroundColor(theme.colors.background);
     createBlockTextures(this, theme.id);
     this.backdrop = new Backdrop(this);

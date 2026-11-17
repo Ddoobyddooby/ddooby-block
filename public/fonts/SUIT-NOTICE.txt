@@ -1,0 +1,7 @@
+Ddooby Sans (SUIT-subset.ttf)
+
+이 글꼴은 SUIT (https://github.com/sun-typeface/SUIT, Copyright (c) 2022, SUNN, SIL Open Font License 1.1)를
+바탕으로 한 수정본입니다. 앱에 쓰는 글자만 남긴 서브셋이며(npm run fonts:subset), SUIT의 Reserved Font Name 때문에
+내부 글꼴 이름(name 테이블의 family·full·PostScript 이름 등)을 "Ddooby Sans"로 바꿨습니다.
+원저작자 표시와 라이선스 원문(SUIT-LICENSE.txt)은 그대로 두었고, 이 수정본도 같은 SIL OFL 1.1 아래에 있습니다.
+This is a modified version (character subset, renamed to "Ddooby Sans") of SUIT, licensed under the SIL OFL 1.1.
