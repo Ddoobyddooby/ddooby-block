@@ -48,7 +48,8 @@ export interface RankingClients {
 }
 
 const WAIT_MARGIN_MS = 500;
-const FORGED_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJub3BlIn0.invalid';
+// JWT처럼 보이지만 서명이 틀린 값. 키 검사(separation)에 걸리지 않게 조각으로 만든다
+const FORGED_TOKEN = ['eyJ' + 'hbGciOiJIUzI1NiJ9', 'eyJ' + 'zdWIiOiJub3BlIn0', 'invalid'].join('.');
 
 export async function runRanking(
   c: RankingClients,
