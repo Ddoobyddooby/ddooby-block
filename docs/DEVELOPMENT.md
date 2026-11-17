@@ -36,6 +36,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `npm run build` | 타입체크 + 배포용 빌드 (`dist/`) | W1-01 |
 | `npm run server:shared` / `server:shared:check` | 닉네임 규칙(`src/online/nicknameRules.ts`·`bannedWords.ts`)을 서버 함수용 파일로 묶는다 / 묶어 둔 파일이 원본과 같은지만 본다(다르면 1). 규칙을 고치면 `server:shared`를 돌리고 같이 커밋한다 | W3-02 |
 | `npm run functions:check` | Edge Function 타입 검사 (`deno check`) | W3-02 |
+| `npm run supabase:check -- --scores [--parity]` | 점수 제출 원격 시험. `--scores`는 정상·재제출·조작·간격·버전·남의 run·이른 제출·동시 제출 등 약 60개(판마다 실제 시간을 기다려 몇 분), `--parity`는 서버가 발급한 seed로 200판을 서버에서 다시 계산해 점수가 같은지 본다(run 200개가 남는다) | W3-03 |
 | `npm run supabase:check` | Supabase 권한 시험. `.env.local`(또는 `-- <env 경로>`)의 URL·publishable key로 익명 사용자 둘과 비로그인을 만들어 쓰기가 막히는지 본다. 모두 PASS면 0, FAIL·시험 불가가 있으면 1, 설정이 없거나 키가 publishable이 아니면 2. 실행마다 익명 계정 2개가 남는다 | W3-01 |
 | `npm run sim` | 자동 플레이 봇으로 seed 1~1000을 돌려 평균 점수·배치 수·보정 발생률을 찍는다. 가중치·점수를 고친 뒤 밸런스를 잴 때 | W4-02 (예정) |
 | `npm run android:sync` | 웹 빌드 후 `android/` 앱에 복사 (`cap sync`). Android Studio에서 ▶ 하기 전에 실행 | W4-03 (예정) |
@@ -63,7 +64,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `?seed=1001` | 항상 같은 조각 순서. 메뉴를 건너뛰고 바로 게임으로 간다. 버그를 봤으면 seed를 적어두고 이 주소로 재현. 0~4294967295의 정수만 받는다 | W1-07 |
 | `?fill=<이름>` | (개발 모드) 보드를 미리 채운 상태로 시작. 이름은 `line1`, `line2`, `line3`, `combo3`, `clear`. 맨 왼쪽 조각을 놓을 자리는 4절 W2-04 표 참고. 이 판은 저장·랭킹 대상이 아니다 | W2-04 |
 | `?resume` | (개발 모드) 저장된 판이 있으면 그 판을 이어서 시작한다. 메뉴의 [이어하기]를 누른 것과 같다 | W2-05 |
-| `?ranking` | (개발 모드) 게임 오버에서 닉네임 입력 창을 연다. `.env.local`에 키가 있고 로그인돼 있고 아직 이름이 없을 때만. 실제 서버에 저장된다 | W3-02 |
+| `?ranking` | (W3-03부터 쓰지 않는다) 닉네임 창은 점수 제출이 성공한 뒤에 저절로 뜬다 | W3-02 |
 | `?ranking=fake` | (개발 모드) 서버 없이 입력 창만 본다. 이름으로 결과를 정한다: `서버오류`·`연결끊김`·`권한없음`·`이미있음`·`무응답`(10초 뒤 닫힘), 그 밖은 성공 `#0427` | W3-02 |
 | `?over` | (개발 모드) 게임 없이 게임 오버 화면만 띄운다. `?over`는 최고 기록을 넘은 화면, `?over=low`는 못 넘은 화면. 예시 점수이고 저장되지 않는다 | W2-06 |
 
@@ -224,6 +225,16 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 키 없이 `?ranking` → 창이 뜨지 않고 게임은 정상
 - 프로덕션: `npm run build` 뒤 `grep -r ranking dist/assets` → 아무것도 안 나온다
 - 함수 배포(바꿨을 때만): `supabase functions deploy set-nickname --project-ref <ref>` (`--no-verify-jwt`를 붙이지 않는다)
+
+### W3-03 점수 제출·서버 리플레이
+
+- `npm test` → 파일 67개, 1277개 통과. `npm run server:shared:check`·`npm run functions:check` → 0
+- 실제 서버 (`.env.local`에 키): 메뉴 [새 게임] → 개발자 도구 Network에 `start-run` 200 → 게임 오버까지 → `submit-score` 200, 게임 오버 화면에 "이번 주 최고 N점". 대시보드 Table Editor → `weekly_scores`에 그 점수
+- 이름을 아직 안 정한 계정이면 위 결과 줄 뒤에 닉네임 창이 뜬다
+- 새로고침해도 다시 제출되지 않는다. 오프라인(Network → Offline)에서 [새 게임] → 2.5초 안에 시작하고 게임 오버에 결과 줄이 없다
+- `?seed=1`이나 `?fill=`로 시작한 판은 랭킹에 올리지 않는다(결과 줄 없음)
+- 원격 시험: `npm run supabase:check -- --scores --parity` → ⑫ 200/200. 지금은 1.5MB 초과 본문 항목 등 "시험 불가" 2개가 남는다(TASKS W3-03 알려진 문제)
+- 함수 배포(바꿨을 때만): `supabase functions deploy start-run --project-ref <ref>`, `submit-score`도 같이. DB 함수를 바꿨으면 `supabase db push --dry-run --remote` 뒤 `supabase db push --remote`
 
 ## 5. 문제 해결
 
@@ -412,3 +423,14 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **한 벌의 코드를 두 곳에서**: 이름 규칙은 앱(브라우저)과 서버 함수(Deno)가 같이 쓴다. 원본은 하나만 두고 서버용 파일은 도구로 만들며, 만든 파일이 원본과 같은지 검사한다 → `scripts/server-shared/`
 - **캔버스 위의 글자 입력**: Phaser에는 글자 입력칸이 없어 HTML `<input>`을 화면 위에 띄운다. 한글은 조합 중에도 Enter가 오므로(`isComposing`) 그때는 제출하지 않는다 → `src/view/NicknamePrompt.ts`
 - 참고: [Supabase 익명 로그인](https://supabase.com/docs/guides/auth/auth-anonymous), [onAuthStateChange](https://supabase.com/docs/reference/javascript/auth-onauthstatechange), [Edge Functions CORS](https://supabase.com/docs/guides/functions/cors), [CORS (MDN)](https://developer.mozilla.org/ko/docs/Web/HTTP/CORS), [compositionstart (MDN)](https://developer.mozilla.org/ko/docs/Web/API/Element/compositionstart_event)
+
+### W3-03 점수 제출·서버 리플레이
+
+- **점수는 서버가 다시 계산한다**: 앱이 보내는 점수는 믿지 않는다. 서버가 같은 seed와 놓은 순서로 게임을 처음부터 다시 돌려 점수를 구하고, 앱 점수와 다르면 거부한다. 그래서 seed 기반 결정적 게임(W1-02)이 필요했다 → `src/replay/judge.ts`
+- **한 벌의 core를 서버로**: 서버(Deno)는 앱의 `src/core`를 묶은 파일을 쓴다. 묶은 파일이 원본과 다르면 검사가 실패한다. 200판을 앱과 서버 양쪽에서 돌려 결과가 같은지도 본다 → `scripts/server-shared/`, `supabase/functions/_shared/replay.js`
+- **여러 단계를 한 번에 (트랜잭션)**: "아직 안 낸 판인가 확인 → 결과 저장 → 주간 최고 점수 갱신"을 따로 하면 사이에 다른 요청이 끼어든다. DB 함수 하나 안에서 판을 잠그고 한 번에 처리한다 → `supabase/migrations/20261117120000_w3_03_submit_score.sql`의 `commit_submission`
+- **같은 요청을 두 번 받아도 괜찮게 (멱등)**: 응답을 못 받은 앱이 같은 내용을 다시 보내면 처음 결과를 그대로 돌려준다. 내용이 같은지는 해시로 비교한다. 다른 내용이면 거부한다
+- **시간도 증거가 된다**: 기록상 플레이 시간이 서버가 판을 내준 뒤 실제로 흐른 시간보다 길면 미리 계산한 기록이다. 반대로 이 거부는 저장하지 않아 나중에 같은 내용으로 다시 낼 수 있다
+- **기다리는 동안 화면이 바뀐다**: 서버 응답을 기다리는 2.5초 사이에 버튼이 다시 눌리거나 화면이 다시 그려질 수 있다. 요청마다 번호를 붙이고, 기존 판은 새 판으로 실제 넘어갈 때만 버린다 → `src/scenes/newRun.ts`·`screenActions.ts`·`restartGate.ts`
+- **시험이 거짓말하지 않게**: 원격 시험은 "실패했다"만 보지 않고 정확한 응답 코드를 본다. 네트워크가 끊겨 판정하지 못한 항목은 통과가 아니라 "시험 불가"로 센다 → `scripts/supabase-check/scoresJudge.ts`
+- 참고: [PostgreSQL SELECT FOR UPDATE](https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE), [PostgREST 트랜잭션](https://docs.postgrest.org/en/stable/references/transactions.html), [Supabase Edge Functions](https://supabase.com/docs/guides/functions), [멱등성 (MDN)](https://developer.mozilla.org/ko/docs/Glossary/Idempotent)

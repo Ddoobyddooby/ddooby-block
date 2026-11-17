@@ -182,13 +182,15 @@ weekly_scores  (user_id, week_key text, best_score int, run_id, updated_at,
 ```
 게임 시작 → start-run → run_id + seed 발급
 게임 오버 → submit-score
-   { run_id, seed, placements: [{ trayIndex, row, col, t }], clientScore, version }
+   { runId, seed, placements: [{ trayIndex, row, col, t }], clientScore, version }
       ├─ core로 리플레이 → 점수 재계산, 불일치 시 거부
-      ├─ 재사용된 run_id 거부
+      ├─ 이미 제출한 run에 다른 내용 거부 (같은 내용 재전송은 처음 결과를 그대로 돌려준다)
       ├─ 배치 간격이 사람 한계 미만이면 거부
+      ├─ 게임 오버가 아닌 판(빈 기록 포함)은 거부
       └─ 통과 → weekly_scores upsert
 ```
-- 시간 제한이 없는 게임이라 시간 검증은 **최소 간격**만 본다
+- 시간 제한이 없는 게임이라 시간 검증은 **최소 간격**과 **마지막 배치 시각 ≤ 발급 뒤 실제 경과 시간** 두 가지다. run은 만료되지 않는다
+- API 필드는 camelCase(`runId`, `clientScore`)이고 DB 열은 snake_case(`run_id`)다
 - 이어하기로 며칠에 걸친 판은 **시작한 주** 기준으로 등록한다
 
 ## 9. 기술 스택
