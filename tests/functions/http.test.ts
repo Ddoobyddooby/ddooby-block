@@ -7,6 +7,7 @@ import {
   readBodyText,
   drainUnread,
   DRAIN_LIMIT_BYTES,
+  DRAIN_MAX_READS,
   DRAIN_TIMEOUT_MS,
 } from '../../supabase/functions/_lib/http';
 
@@ -177,5 +178,57 @@ describe('_lib/http', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('drainUnread: 작은 청크가 아주 많아도 자원이 제한된다 (W3-03 후속 리뷰 지적 1)', () => {
+  const tiny = (chunks: number, chunkBytes: number) => {
+    let sent = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent >= chunks) controller.close();
+        else {
+          sent += 1;
+          controller.enqueue(new Uint8Array(chunkBytes));
+        }
+      },
+    });
+    const req = new Request('https://x', {
+      method: 'POST',
+      body: stream,
+      duplex: 'half',
+    } as RequestInit);
+    return { req, sent: () => sent };
+  };
+  /** 읽기 횟수 상한(DRAIN_MAX_READS)보다 훨씬 넉넉한 시험용 한계. 수정 전 코드는 20만 번을 다 읽는다 */
+  const LOOSE_READS = 20_000;
+
+  it('1바이트 × 200,000: 읽기 횟수가 상한에서 멈추고 힙이 청크 수에 비례해 늘지 않는다', async () => {
+    const before = process.memoryUsage().heapUsed;
+    const c = tiny(200_000, 1);
+    let peak = 0;
+    const sample = setInterval(
+      () => (peak = Math.max(peak, process.memoryUsage().heapUsed - before)),
+      1,
+    );
+    await drainUnread(c.req);
+    clearInterval(sample);
+    peak = Math.max(peak, process.memoryUsage().heapUsed - before);
+    expect(c.sent()).toBeLessThanOrEqual(LOOSE_READS);
+    // 수정 전: 약 112~136MiB. 기준은 그 1/4보다 한참 아래
+    expect(peak).toBeLessThan(30 * 1024 * 1024);
+  });
+
+  it('빈 청크가 끝없이 와도 읽기 횟수 상한에서 끝난다 (상한 시험: 8MiB 바이트 상한에 걸리지 않는 입력)', async () => {
+    const c = tiny(10_000_000, 0);
+    await drainUnread(c.req);
+    expect(c.sent()).toBeLessThanOrEqual(DRAIN_MAX_READS + 2); // 스트림 prefetch 여유
+    expect(c.sent()).toBeGreaterThan(0);
+  });
+
+  it('정상 크기(청크 100개)는 끝까지 버린다 (상한에 걸리지 않는다)', async () => {
+    const c = tiny(100, 1000);
+    await drainUnread(c.req);
+    expect(c.sent()).toBe(100);
   });
 });

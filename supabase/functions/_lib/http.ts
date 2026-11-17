@@ -70,24 +70,42 @@ export function earlyResponse(req: Request, cors: Cors): Response | null {
 export const DRAIN_LIMIT_BYTES = 8 * 1024 * 1024;
 export const DRAIN_TIMEOUT_MS = 3000;
 
+/** 한 번의 drain에서 reader.read()를 부르는 횟수 상한. 정상 본문은 수백 번이면 끝난다 (8MiB ÷ 수십 KB 청크). 1바이트·빈 청크 반복 대비 */
+export const DRAIN_MAX_READS = 10_000;
+
 /**
  * reader의 남은 본문을 버린다 (모으지 않으므로 메모리는 늘지 않는다). alreadyRead는 이미 읽은 바이트.
- * 끝났거나 상한·시간을 넘으면 돌아온다. 넘으면 남은 본문을 취소하되 **취소를 기다리지 않는다**
- * (Edge에서 취소 Promise가 끝나지 않는 일이 있었다). 오류는 삼킨다
+ * 끝났거나 바이트·시간·읽기 횟수 상한을 넘으면 돌아온다. 넘으면 남은 본문을 취소하되 **취소를 기다리지 않는다**
+ * (Edge에서 취소 Promise가 끝나지 않는 일이 있었다). 오류는 삼킨다.
+ * 시간 제한은 **작업 전체에 타이머 하나**다: read마다 같은 미완료 Promise와 race하면 청크 수만큼 reaction이 쌓인다
+ * (W3-03 후속 리뷰 지적 1: 1바이트 × 200,000 → 힙 약 112~136MiB). read마다 새 Promise를 만들고 타이머는 그 자리(wake)만 깨운다.
+ * 시계 검사도 매 반복에 둔다: 청크가 계속 바로 준비되면 타이머 콜백이 돌 틈이 없다
  */
 async function discardRest(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   alreadyRead: number,
 ): Promise<void> {
   let total = alreadyRead;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timedOut = new Promise<'timeout'>((resolve) => {
-    timer = setTimeout(() => resolve('timeout'), DRAIN_TIMEOUT_MS);
-  });
+  let expired = false;
+  let wake: (() => void) | null = null;
+  const startedAt = performance.now();
+  const timer = setTimeout(() => {
+    expired = true;
+    wake?.();
+  }, DRAIN_TIMEOUT_MS);
   try {
-    for (;;) {
-      const next = await Promise.race([reader.read(), timedOut]);
-      if (next === 'timeout') break;
+    for (let reads = 0; ; reads++) {
+      if (expired || performance.now() - startedAt > DRAIN_TIMEOUT_MS || reads >= DRAIN_MAX_READS) {
+        break;
+      }
+      const next = await new Promise<ReadableStreamReadResult<Uint8Array> | null>(
+        (resolve, reject) => {
+          wake = () => resolve(null); // 시간 만료
+          reader.read().then(resolve, reject);
+        },
+      );
+      wake = null;
+      if (next === null) break;
       if (next.done) return;
       total += next.value.byteLength;
       if (total > DRAIN_LIMIT_BYTES) break;

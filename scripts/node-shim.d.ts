@@ -124,5 +124,6 @@ declare const process: {
   argv: string[];
   env: Record<string, string | undefined>;
   execPath: string;
+  memoryUsage(): { heapUsed: number };
   exit(code?: number): never;
 };
