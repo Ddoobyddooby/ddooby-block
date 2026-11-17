@@ -230,6 +230,14 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 프로덕션: `npm run build` 뒤 `grep -r ranking dist/assets` → 아무것도 안 나온다
 - 함수 배포(바꿨을 때만): `supabase functions deploy set-nickname --project-ref <ref>` (`--no-verify-jwt`를 붙이지 않는다)
 
+### W4-01 사운드
+
+- `npm test` → 파일 92개, 1,729개 통과
+- `npm run dev` → 화면을 한 번 누른 뒤 메뉴 곡이 나온다 → [새 게임]이면 테마별 곡으로 바뀐다(테마를 바꿔 각각 들어 본다) → 일시정지하면 음악이 멈추고 [계속]이면 이어진다
+- 일시정지 화면 [♫]로 음악만 끄고, 스피커 버튼으로 효과음만 끈다 → 새로고침해도 유지
+- 게임 오버: 최고 기록이면 축하 소리, 아니면 게임 오버 소리 하나. [메뉴]를 바로 눌러도 소리가 따라오지 않는다
+- **귀로 볼 것**: 곡이 끝에서 처음으로 넘어갈 때 "딱" 소리가 나는지(메뉴·소다·버터), 음악이 효과음보다 작게 들리는지. 곡 원본·이음새 샘플은 `.codex-out/audio-src/preview.html`
+
 ### W4-05 테마
 
 - `npm test` → 파일 86개, 1634개 통과. `npm run fonts:check` → 0
@@ -472,3 +480,12 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **글꼴 라이선스 (OFL)**: 무료 글꼴도 조건이 있다. SUIT는 "SUIT"라는 이름을 예약해 두어, 글자를 뺀 수정본에는 다른 이름을 붙여야 한다 → `public/fonts/SUIT-NOTICE.txt`
 - **색 대비 재기**: 글자와 배경의 밝기 비율(WCAG 대비)과 두 색이 얼마나 다르게 보이는지(CIE 색차)를 숫자로 재서 시험한다. 숫자가 기준을 넘어도 낮은 밝기의 실제 화면은 따로 봐야 한다 → `tests/view/themes.test.ts`
 - 참고: [WCAG 대비 (MDN)](https://developer.mozilla.org/ko/docs/Web/Accessibility/Understanding_WCAG/Perceivable/Color_contrast), [FontFace (MDN)](https://developer.mozilla.org/ko/docs/Web/API/FontFace), [OFL FAQ](https://openfontlicense.org/ofl-faq/), [HarfBuzz hb-subset](https://harfbuzz.github.io/)
+
+### W4-01 사운드
+
+- **브라우저 소리 잠금**: 브라우저는 사용자가 화면을 한 번 누르기 전에는 소리를 막는다. 잠겨 있을 때 소리를 미리 만들어 두면 나중에 취소해도 예약이 남아 오류가 날 수 있어, "무슨 곡을 틀지"만 기억했다가 잠금이 풀리면 만든다 → `src/view/Music.ts`
+- **교차 페이드**: 곡을 바꿀 때 이전 곡을 줄이면서 새 곡을 키운다. 이 짧은 동안에는 소리가 두 개라, 일시정지·끄기 같은 동작이 두 곡 모두에 적용돼야 한다
+- **설정 반영과 사용자 동작 구분**: 저장소에서 늦게 읽힌 "음악 켬"과 사용자가 직접 누른 "음악 켬"은 다르게 다룬다. 앞의 것이 일시정지 중인 음악을 다시 틀면 안 된다
+- **음량 맞추기 (LUFS)**: 곡마다 원래 크기가 달라서 같은 볼륨 값이면 들리는 크기가 다르다. 사람 귀 기준 크기(LUFS)를 재서 곡마다 볼륨을 다르게 준다 → `SOUND`, `.codex-out/audio-src/README.md`
+- **무료 음원 라이선스**: CC0는 저작자 표시 의무가 없지만 출처를 기록해 둔다. CC-BY 곡은 표시 의무가 있어 이번에는 쓰지 않았다 → `public/audio/CREDITS.md`
+- 참고: [Web Audio 자동 재생 (MDN)](https://developer.mozilla.org/ko/docs/Web/Media/Guides/Autoplay), [Phaser Audio](https://docs.phaser.io/phaser/concepts/audio), [EBU R128 음량](https://tech.ebu.ch/publications/r128)
