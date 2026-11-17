@@ -12,6 +12,9 @@ export interface Options {
   maxPlacements: number | null;
 }
 
+/** seed 상한 (서버 JUDGE.maxSeed와 같은 uint32) */
+export const MAX_SEED = 0xffffffff;
+
 export const DEFAULT_BOTS: readonly BotName[] = ['greedy', 'random'];
 
 export function parseArgs(argv: readonly string[]): Options {
@@ -36,6 +39,12 @@ export function parseArgs(argv: readonly string[]): Options {
         if (m === null) throw new Error('--seeds는 N 또는 A-B 형식이다 (예: 1-1000)');
         opts.seedFrom = Number(m[1]);
         opts.seedTo = m[2] === undefined ? opts.seedFrom : Number(m[2]);
+        // 안전한 정수가 아니면 seed++가 멈추거나(2^53) Infinity가 되어 끝나지 않는다. core는 seed를 uint32로 다룬다
+        for (const seed of [opts.seedFrom, opts.seedTo]) {
+          if (!Number.isSafeInteger(seed) || seed < 0 || seed > MAX_SEED) {
+            throw new Error(`--seeds는 0~${MAX_SEED} 범위의 정수여야 한다`);
+          }
+        }
         if (opts.seedTo < opts.seedFrom) throw new Error('--seeds의 끝이 시작보다 작다');
         break;
       }

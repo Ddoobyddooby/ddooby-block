@@ -42,6 +42,21 @@ describe('parseArgs', () => {
     expect(parseArgs(['--seeds', '7']).seedTo).toBe(7);
     expect(parseArgs(['--bot', 'all']).bots).toHaveLength(4);
   });
+  it('seed 범위 경계: 0과 uint32 최댓값은 허용, 그 밖과 안전하지 않은 정수는 거부', () => {
+    expect(parseArgs(['--seeds', '0-4294967295'])).toMatchObject({
+      seedFrom: 0,
+      seedTo: 4294967295,
+    });
+    expect(() => parseArgs(['--seeds', '4294967296'])).toThrow(/범위/);
+    expect(() => parseArgs(['--seeds', '1-4294967296'])).toThrow(/범위/);
+    // 2^53은 seed++가 제자리라 끝나지 않는다
+    expect(() => parseArgs(['--seeds', '9007199254740992'])).toThrow(/범위/);
+    expect(() => parseArgs(['--seeds', '1-9007199254740993'])).toThrow(/범위/);
+    // 아주 긴 숫자는 Number()가 Infinity로 바꾼다
+    expect(() => parseArgs(['--seeds', '9'.repeat(400)])).toThrow(/범위/);
+    expect(() => parseArgs(['--seeds', `1-${'9'.repeat(400)}`])).toThrow(/범위/);
+  });
+
   it('잘못된 옵션은 던진다', () => {
     for (const bad of [
       ['--seeds', 'x'],
@@ -80,36 +95,75 @@ describe('stats', () => {
 });
 
 describe('probeTray (생성기 추첨 따라 하기)', () => {
-  it('첫 트레이는 시도 1번, 보정 없음', () => {
+  /** (0,0) 한 칸만 비어 dot만 놓을 수 있는 보드 */
+  const oneHole = (): Board => {
+    const cells = new Array<number | null>(64).fill(1);
+    cells[0] = null;
+    return { size: 8, cells };
+  };
+  /** generateTray가 낸 값 */
+  const real = (board: Board, seed: number) => {
+    const rng = createRng(seed);
+    const [tray, after] = generateTray(board, rng);
+    return { rng, tray, after };
+  };
+
+  it('첫 트레이는 시도 1번, 보정 없음 (다음 RNG 상태까지 일치)', () => {
     const state = createGame(7);
-    expect(probeTray(createBoard(8), createRng(7), state.tray as string[])).toEqual({
-      attempts: 1,
-      corrected: false,
-    });
+    expect(probeTray(createBoard(8), createRng(7), state.tray as string[], state.rngState)).toEqual(
+      {
+        attempts: 1,
+        corrected: false,
+      },
+    );
   });
+
   it('실제 트레이와 다르면 던진다', () => {
     expect(() => probeTray(createBoard(8), createRng(7), ['dot', 'dot', 'dot'])).toThrow(/probe/);
   });
-  it('보정 횟수는 maxRerolls와 같다', () => {
-    // 한 칸만 비고 나머지가 찬 보드: dot만 놓인다. 가중치 추첨에 dot이 한 번도 없으면 보정 (seed를 찾아 확인)
-    const cells = new Array<number | null>(64).fill(1);
-    cells[0] = null;
-    const board = { size: 8, cells };
+
+  it('정상 보정(seed 8, 리뷰 재현): 실제 [dot, i4v, l3a]를 통과', () => {
+    const { rng, tray, after } = real(oneHole(), 8);
+    // 독립 기대값: 리뷰가 계산한 실제 생성기 출력
+    expect(tray).toEqual(['dot', 'i4v', 'l3a']);
+    expect(probeTray(oneHole(), rng, tray, after)).toEqual({
+      attempts: GENERATOR.maxRerolls,
+      corrected: true,
+    });
+  });
+
+  it('보정을 건너뛴 트레이(마지막 실패 추첨 그대로)는 거부', () => {
+    const { rng } = real(oneHole(), 8);
+    expect(() => probeTray(oneHole(), rng, ['l3a', 'i4v', 'l3a'])).toThrow(/probe/);
+  });
+
+  it('잘못된 슬롯에 보정한 트레이와 다른 교체 조각은 거부', () => {
+    const { rng, tray, after } = real(oneHole(), 8);
+    const slot = tray.indexOf('dot');
+    const failed = ['l3a', 'i4v', 'l3a'];
+    // 다른 슬롯에 dot
+    const wrongSlot = [...failed];
+    wrongSlot[(slot + 1) % 3] = 'dot';
+    expect(() => probeTray(oneHole(), rng, wrongSlot, after)).toThrow(/probe/);
+    // 같은 슬롯에 놓을 수 없는 다른 조각
+    const wrongPiece = [...failed];
+    wrongPiece[slot] = 'i2h';
+    expect(() => probeTray(oneHole(), rng, wrongPiece, after)).toThrow(/probe/);
+  });
+
+  it('다음 RNG 상태가 다르면 거부', () => {
+    const { rng, tray, after } = real(oneHole(), 8);
+    expect(() => probeTray(oneHole(), rng, tray, after + 1)).toThrow(/RNG/);
+  });
+
+  it('여러 seed에서 generateTray와 항상 일치 (보정이 섞인 보드 포함)', () => {
     let corrected = 0;
-    for (let seed = 1; seed <= 300 && corrected === 0; seed++) {
-      // 보정 여부는 generateTray 결과와 probe가 서로 맞는지로 확인된다 (맞지 않으면 probe가 던진다)
-      const result = probeTrayFor(board, seed);
-      if (result.corrected) {
-        corrected++;
-        expect(result.attempts).toBe(GENERATOR.maxRerolls);
+    for (let seed = 1; seed <= 200; seed++) {
+      for (const board of [createBoard(8), oneHole()]) {
+        const { rng, tray, after } = real(board, seed);
+        if (probeTray(board, rng, tray, after).corrected) corrected++;
       }
     }
-    expect(corrected).toBe(1);
+    expect(corrected).toBeGreaterThan(0);
   });
 });
-
-function probeTrayFor(board: Board, seed: number) {
-  const rng = createRng(seed);
-  const [tray] = generateTray(board, rng);
-  return probeTray(board, rng, tray);
-}

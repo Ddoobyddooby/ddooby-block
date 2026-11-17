@@ -86,15 +86,16 @@ export function playGame(
     board: typeof state.board,
     rngBefore: number,
     tray: readonly string[],
+    rngAfter: number,
   ): void => {
-    const probe = probeTray(board, rngBefore, tray);
+    const probe = probeTray(board, rngBefore, tray, rngAfter);
     rec.trays++;
     rec.rerolls += probe.attempts - 1;
     if (probe.attempts > 1) rec.traysRerolled++;
     if (probe.corrected) rec.traysCorrected++;
     for (const id of tray) pieceCounts[id] = (pieceCounts[id] ?? 0) + 1;
   };
-  countTray(state.board, createRng(seed), state.tray as string[]);
+  countTray(state.board, createRng(seed), state.tray as string[], state.rngState);
 
   while (!state.over) {
     if (log.length >= maxPlacements) {
@@ -117,7 +118,7 @@ export function playGame(
       } else if (e.type === 'boardClear') {
         rec.boardClears++;
       } else if (e.type === 'tray') {
-        countTray(state.board, before.rngState, e.tray);
+        countTray(state.board, before.rngState, e.tray, state.rngState);
       }
     }
     const bucket = Math.min(state.combo, COMBO_BUCKETS - 1);

@@ -7,8 +7,8 @@ import { GENERATOR, PIECE_WEIGHTS, TRAY } from '../../src/config';
 import { canPlaceAnywhere } from '../../src/core/board';
 import { weightedPick } from '../../src/core/generator';
 import { PIECES } from '../../src/core/pieces';
-import type { RngState } from '../../src/core/rng';
-import type { Board, PieceId } from '../../src/core/types';
+import { nextInt, type RngState } from '../../src/core/rng';
+import type { Board, PieceDef, PieceId } from '../../src/core/types';
 
 const WEIGHTS: readonly number[] = PIECES.map((p) => PIECE_WEIGHTS[p.id] ?? 0);
 
@@ -19,40 +19,59 @@ export interface TrayProbe {
   corrected: boolean;
 }
 
+const pieceOf = (index: number): PieceDef => {
+  const piece = PIECES[index];
+  if (piece === undefined) throw new Error(`probe: 조각 index ${index} 없음`);
+  return piece;
+};
+
 /**
- * `board`·`rng`로 `generateTray`가 `actual`을 냈다고 할 때의 시도 횟수와 보정 여부.
- * 보정이 아니면 마지막 시도의 추첨과 `actual`이 같아야 하고, 보정이면 슬롯 하나만 달라도 된다.
+ * `board`·`rng`로 `generateTray`가 `actual`(과 `rngAfter`)을 냈다고 할 때의 시도 횟수와 보정 여부.
+ * generateTray와 같은 순서로 끝까지 따라 계산해 트레이 전체를 비교한다:
+ * 시도마다 가중치 추첨 3번 → 놓을 수 있는 조각이 있으면 끝, maxRerolls번 모두 실패하면
+ * 슬롯 추첨(nextInt) → 놓을 수 있는 조각들 중 가중치 추첨 → 그 슬롯을 바꾼다.
+ * `rngAfter`를 주면 다음 RNG 상태도 대조한다 (RNG 소비 순서 확인). 다르면 던진다.
  */
-export function probeTray(board: Board, rng: RngState, actual: readonly PieceId[]): TrayProbe {
+export function probeTray(
+  board: Board,
+  rng: RngState,
+  actual: readonly PieceId[],
+  rngAfter?: RngState,
+): TrayProbe {
   let state = rng;
-  let drawn: PieceId[] = [];
-  for (let attempt = 1; attempt <= GENERATOR.maxRerolls; attempt++) {
+  let drawn: PieceDef[] = [];
+  let result: { tray: PieceId[]; probe: TrayProbe } | null = null;
+  for (let attempt = 1; attempt <= GENERATOR.maxRerolls && result === null; attempt++) {
     drawn = [];
     for (let i = 0; i < TRAY.size; i++) {
       const [index, nextRng] = weightedPick(WEIGHTS, state);
       state = nextRng;
-      const piece = PIECES[index];
-      if (piece === undefined) throw new Error(`probe: 조각 index ${index} 없음`);
-      drawn.push(piece.id);
+      drawn.push(pieceOf(index));
     }
-    const placeable = drawn.some((id) => {
-      const piece = PIECES.find((p) => p.id === id);
-      return piece !== undefined && canPlaceAnywhere(board, piece);
-    });
-    if (placeable) {
-      if (drawn.join() !== actual.join()) {
-        throw new Error(
-          `probe: ${attempt}번째 시도 추첨 ${drawn.join()}이 실제 ${actual.join()}과 다르다`,
-        );
-      }
-      return { attempts: attempt, corrected: false };
+    if (drawn.some((piece) => canPlaceAnywhere(board, piece))) {
+      result = { tray: drawn.map((p) => p.id), probe: { attempts: attempt, corrected: false } };
     }
   }
-  const diff = drawn.filter((id, i) => id !== actual[i]).length;
-  if (actual.length !== drawn.length || diff > 1) {
-    throw new Error(
-      `probe: 보정 뒤 트레이 ${actual.join()}이 마지막 추첨 ${drawn.join()}과 슬롯 하나 넘게 다르다`,
+  if (result === null) {
+    const placeable = PIECES.filter((piece) => canPlaceAnywhere(board, piece));
+    if (placeable.length === 0) throw new Error('probe: 놓을 수 있는 조각이 없는 보드');
+    const [slot, afterSlot] = nextInt(state, TRAY.size);
+    const [index, afterPiece] = weightedPick(
+      placeable.map((p) => PIECE_WEIGHTS[p.id] ?? 0),
+      afterSlot,
     );
+    state = afterPiece;
+    const tray = drawn.map((p) => p.id);
+    const replacement = placeable[index];
+    if (replacement === undefined) throw new Error(`probe: 보정 조각 index ${index} 없음`);
+    tray[slot] = replacement.id;
+    result = { tray, probe: { attempts: GENERATOR.maxRerolls, corrected: true } };
   }
-  return { attempts: GENERATOR.maxRerolls, corrected: true };
+  if (result.tray.join() !== actual.join()) {
+    throw new Error(`probe: 따라 한 트레이 ${result.tray.join()}이 실제 ${actual.join()}과 다르다`);
+  }
+  if (rngAfter !== undefined && state !== rngAfter) {
+    throw new Error(`probe: 따라 한 다음 RNG 상태 ${state}가 실제 ${rngAfter}와 다르다`);
+  }
+  return result.probe;
 }
