@@ -177,3 +177,19 @@ describe('색 대비 (시안 색을 그대로 두고 측정)', () => {
     });
   }
 });
+
+// 랭킹 1~3위 순위 숫자는 일반 줄(panel)과 내 줄(meFill) 위에 놓인다. 기준 3 이상.
+// 측정한 최솟값(WCAG 대비): butter 3.92(1위)·soda 3.64(1위)·orbit 4.11(3위). 낮으면 시안 색은 두고 보고한다.
+describe('랭킹 메달 색 대 내 줄 배경 (meFill)', () => {
+  const MIN = { butter: 3.9, orbit: 4.1, soda: 3.6 } as const;
+  for (const theme of THEME_LIST) {
+    it(`${theme.id}: 메달 3색이 panel·meFill 위에서 3 이상이고 기록한 최솟값을 지킨다`, () => {
+      const { medal, meFill, panel } = theme.colors;
+      const onMe = medal.map((m) => contrastRatio(m, meFill));
+      for (const ratio of [...onMe, ...medal.map((m) => contrastRatio(m, panel))]) {
+        expect(ratio).toBeGreaterThanOrEqual(3);
+      }
+      expect(Math.min(...onMe)).toBeGreaterThanOrEqual(MIN[theme.id]);
+    });
+  }
+});
