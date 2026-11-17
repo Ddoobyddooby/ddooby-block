@@ -152,6 +152,13 @@ export class MenuScene extends Phaser.Scene {
     this.closePicker?.();
   }
 
+  /** Android 뒤로 가기 종료: 버튼 누름 잠금이 걸려 있으면(전환 중) 하지 않는다. 확인 창 없이 바로 끝낸다 */
+  requestExit(): boolean {
+    if (this.lock.pressed) return false;
+    this.lock.pressed = true;
+    return true;
+  }
+
   private openPicker(): void {
     if (this.closed || this.closePicker) return;
     this.closePicker = openThemePicker(

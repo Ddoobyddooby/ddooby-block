@@ -25,6 +25,7 @@ import { buildGameOverData, raiseStartBest } from './gameOverRules';
 import { chooseSeedAndRun, type GameStartData } from './gameStart';
 import { canPause, RETRY_EVENT } from './pauseRules';
 import { getPersistence } from './persistenceRegistry';
+import { nativeBlocksResume } from './appVisibility';
 import { PlayClock } from './playClock';
 import { playEvents } from './playback';
 import { RankingTracker } from './rankingResult';
@@ -183,7 +184,10 @@ export class GameScene extends Phaser.Scene {
       this.clock.block('hidden');
       this.session.checkpoint();
     };
-    const onVisible = (): void => this.clock.unblock('hidden');
+    // 웹이 보여도 Android 앱이 아직 백그라운드면 이어지지 않는다 (appVisibility.ts)
+    const onVisible = (): void => {
+      if (!nativeBlocksResume()) this.clock.unblock('hidden');
+    };
     this.game.events.on(Phaser.Core.Events.HIDDEN, onHidden);
     this.game.events.on(Phaser.Core.Events.VISIBLE, onVisible);
     // [다시 하기]: 저장된 run을 지운다
