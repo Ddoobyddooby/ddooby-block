@@ -130,12 +130,16 @@ function checkSection(rows: Row[], section: 'top' | 'around'): string | null {
       }
       const tie = r.best_score === prev.best_score;
       if (tie && r.rank !== prev.rank) return `${section}: 동점인데 rank가 다름`;
-      if (!tie && (r.rank as number) <= (prev.rank as number)) {
-        return `${section}: 점수가 낮아졌는데 rank가 안 늘어남`;
+      // rank()는 점수가 내려가는 첫 행의 rank가 그 행의 seq다 (100·90·90·80 → 1·2·2·4). dense_rank(1·2·2·3)는 계약 위반
+      if (!tie && r.rank !== r.seq) {
+        return `${section}: 점수가 낮아졌는데 rank(${String(r.rank)})가 seq(${String(r.seq)})와 다름 (rank()가 아님)`;
       }
     }
     prev = r;
   }
+  // top은 1위부터 시작하므로 첫 행의 rank는 1이다. around는 연속 구간이라 앞쪽 동점 집단의 시작이 안 보여 첫 행은 검사하지 않는다
+  if (section === 'top' && part.length > 0 && part[0]?.rank !== 1)
+    return 'top의 첫 rank가 1이 아님';
   if (section === 'top') {
     if (part.length > 50) return 'top이 50행 초과';
     if (part.length > 0 && part[0]?.seq !== 1) return 'top이 seq 1에서 시작하지 않음';

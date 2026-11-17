@@ -89,10 +89,6 @@ describe('RankLookup: 제출 성공 뒤 이번 주 순위', () => {
   it.each<[string, RankingResult]>([
     ['오프라인', { kind: 'offline' }],
     ['오류', { kind: 'error' }],
-    [
-      '다른 주의 응답 (지난주 판에 이번 주 순위를 붙이지 않는다)',
-      result({ rank: 1, score: 1 }, { weekKey: '2026-W48' }),
-    ],
     ['다른 계정의 응답', result({ rank: 1, score: 1 }, { userId: 'b' })],
     ['계정 없이 본 응답', result({ rank: 1, score: 1 }, { userId: null })],
     ['제출은 성공했는데 내 기록이 없다', result(null)],
@@ -102,6 +98,14 @@ describe('RankLookup: 제출 성공 뒤 이번 주 순위', () => {
     w.fetches[0]?.resolve(res);
     await tick();
     expect(w.lookup.state).toEqual({ phase: 'failed' });
+  });
+
+  it('서버 이번 주가 제출한 주와 다르면 pastWeek (이번 주 순위를 붙이지 않는다)', async () => {
+    const w = world();
+    w.lookup.start(submitted());
+    w.fetches[0]?.resolve(result({ rank: 1, score: 1 }, { weekKey: '2026-W48' }));
+    await tick();
+    expect(w.lookup.state).toEqual({ phase: 'pastWeek' });
   });
 
   it('조회 중 계정이 바뀌어 응답이 도착하면 순위를 붙이지 않는다', async () => {
@@ -178,7 +182,7 @@ describe('순서: 제출이 끝난 뒤에만 순위를 조회한다 (R19, 병렬
     expect(log).toEqual(['submitted', 'fetches:1']);
     w.fetches[0]?.resolve(result({ rank: 4, score: 5100 }));
     await tick();
-    expect(rankingLine(tracker.state, WEEK, w.lookup.state)).toBe('이번 주 최고 5,100점 · 4위');
+    expect(rankingLine(tracker.state, w.lookup.state)).toBe('이번 주 최고 5,100점 · 4위');
   });
 
   it('제출이 화면보다 먼저 끝나 있었어도 같은 경로 (바로 한 번 호출)', async () => {
@@ -205,7 +209,7 @@ describe('rankingLine: 순위 조회를 붙인 결과 줄', () => {
   const done = (outcome: SubmitOutcome) => ({ phase: 'done' as const, outcome });
 
   it('순위가 있으면 "이번 주 최고 N점 · N위" — 점수·순위는 조회값 (isNewBest=false여도, 제출 응답 best와 달라도)', () => {
-    const line = rankingLine(done(submitted({ best: 100, isNewBest: false })), WEEK, {
+    const line = rankingLine(done(submitted({ best: 100, isNewBest: false })), {
       phase: 'ranked',
       score: 9000,
       rank: 3,
@@ -214,37 +218,35 @@ describe('rankingLine: 순위 조회를 붙인 결과 줄', () => {
   });
 
   it('이름 없는 계정: "이번 주 최고 N점 · 이름을 정하면 순위가 보여요" (0위·null위 없음)', () => {
-    const line = rankingLine(done(submitted()), WEEK, { phase: 'unnamed', score: 4200 });
+    const line = rankingLine(done(submitted()), { phase: 'unnamed', score: 4200 });
     expect(line).toBe('이번 주 최고 4,200점 · 이름을 정하면 순위가 보여요');
     expect(line).not.toMatch(/0위|null|undefined/);
   });
 
   it.each([[{ phase: 'idle' }], [{ phase: 'loading' }], [{ phase: 'failed' }]] as const)(
-    '순위를 모르거나 못 읽었으면(%j) "이번 주 최고 N점"만',
+    '서버 주를 모르거나 못 읽었으면(%j) 주를 단정하지 않는 "랭킹에 올렸어요 · 최고 N점"',
     (lookup) => {
-      expect(rankingLine(done(submitted({ best: 12840 })), WEEK, lookup)).toBe(
-        '이번 주 최고 12,840점',
+      expect(rankingLine(done(submitted({ best: 12840 })), lookup)).toBe(
+        '랭킹에 올렸어요 · 최고 12,840점',
       );
     },
   );
 
-  it('조회 인자를 생략해도 기존 문구 그대로', () => {
-    expect(rankingLine(done(submitted({ best: 12840 })), WEEK)).toBe('이번 주 최고 12,840점');
+  it('조회 인자를 생략해도 같은 문구 (기기 시계를 쓰지 않는다)', () => {
+    expect(rankingLine(done(submitted({ best: 12840 })))).toBe('랭킹에 올렸어요 · 최고 12,840점');
   });
 
-  it('지난주 판은 순위가 있어도 붙이지 않는다 (기존 "지난주 기록으로 올렸어요")', () => {
-    const line = rankingLine(done(submitted({ weekKey: '2026-W46', best: 777 })), WEEK, {
-      phase: 'ranked',
-      score: 1,
-      rank: 1,
+  it('서버 이번 주와 제출한 주가 다르면(pastWeek) "지난주 기록으로 올렸어요"이고 순위는 붙이지 않는다', () => {
+    const line = rankingLine(done(submitted({ weekKey: '2026-W46', best: 777 })), {
+      phase: 'pastWeek',
     });
     expect(line).toBe('지난주 기록으로 올렸어요 · 최고 777점');
   });
 
   it('거부·실패·새 버전은 순위와 무관하게 기존 문구', () => {
     const lookup = { phase: 'ranked', score: 1, rank: 1 } as const;
-    expect(rankingLine(done({ kind: 'failed' }), WEEK, lookup)).toBe('랭킹에 올리지 못했어요');
-    expect(rankingLine(done({ kind: 'outdated' }), WEEK, lookup)).toBe(
+    expect(rankingLine(done({ kind: 'failed' }), lookup)).toBe('랭킹에 올리지 못했어요');
+    expect(rankingLine(done({ kind: 'outdated' }), lookup)).toBe(
       '새 버전이 있어요. 새로고침해 주세요',
     );
   });

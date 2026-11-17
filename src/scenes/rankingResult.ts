@@ -107,28 +107,29 @@ export function onSubmitDone(
 }
 
 /**
- * 결과 줄 문구. 지금 주(`nowWeek`)와 run을 발급한 주가 다르면 며칠 이어서 한 판이라는 뜻이므로 "지난주 기록"이라고 밝힌다
- * (응답의 최고 점수는 그 지난주의 것이다. 이번 주 최고 점수인 것처럼 쓰지 않고, 이번 주 순위도 붙이지 않는다).
- * 이번 주 판이면 순위 조회(`lookup`, rankLookup.ts)가 있을 때 서버가 말한 최고 점수·순위를 쓴다:
- * 순위가 있으면 "이번 주 최고 N점 · N위", 이름이 없으면 "… · 이름을 정하면 순위가 보여요", 조회 전·실패면 "이번 주 최고 N점".
+ * 결과 줄 문구. **기기 시계로 이번 주·지난주를 단정하지 않는다**: 주는 서버가 정한다.
+ * 순위 조회(`lookup`, rankLookup.ts)가 끝나기 전·실패했을 때는 주를 모르므로 "랭킹에 올렸어요 · 최고 N점"(제출 응답 기준)이다.
+ * 서버 이번 주 조회가 끝나면: 순위가 있으면 "이번 주 최고 N점 · N위"(점수·순위는 조회값), 이름이 없으면 "… · 이름을 정하면 순위가 보여요",
+ * 제출한 주가 서버 이번 주와 다르면(며칠 이어서 한 판) "지난주 기록으로 올렸어요 · 최고 N점" (이번 주 순위는 붙이지 않는다).
  */
 export function rankingLine(
   state: RankingState,
-  nowWeek: string,
   lookup: RankLookupState = { phase: 'idle' },
 ): string {
   if (state.phase === 'pending') return '랭킹에 올리는 중…';
   const outcome = state.outcome;
   switch (outcome.kind) {
     case 'ok': {
-      if (outcome.weekKey !== nowWeek) {
-        return `지난주 기록으로 올렸어요 · 최고 ${formatScore(outcome.best)}점`;
+      switch (lookup.phase) {
+        case 'ranked':
+          return RANKING_TEXT.weekBestRank(formatScore(lookup.score), lookup.rank);
+        case 'unnamed':
+          return RANKING_TEXT.weekBestNoName(formatScore(lookup.score));
+        case 'pastWeek':
+          return `지난주 기록으로 올렸어요 · 최고 ${formatScore(outcome.best)}점`;
+        default:
+          return RANKING_TEXT.submittedBest(formatScore(outcome.best));
       }
-      if (lookup.phase === 'ranked') {
-        return RANKING_TEXT.weekBestRank(formatScore(lookup.score), lookup.rank);
-      }
-      if (lookup.phase === 'unnamed') return RANKING_TEXT.weekBestNoName(formatScore(lookup.score));
-      return RANKING_TEXT.weekBest(formatScore(outcome.best));
     }
     case 'outdated':
       return '새 버전이 있어요. 새로고침해 주세요';

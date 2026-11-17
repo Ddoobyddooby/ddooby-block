@@ -116,28 +116,23 @@ describe('RankingTracker', () => {
 describe('rankingLine: 결과 줄 문구', () => {
   const done = (outcome: SubmitOutcome) => ({ phase: 'done' as const, outcome });
 
-  it('제출 중 / 이번 주 / 지난주 / 실패 / 새 버전', () => {
-    expect(rankingLine({ phase: 'pending' }, '2026-W46')).toBe('랭킹에 올리는 중…');
-    const ok = (weekKey: string): SubmitOutcome => ({
+  it('제출 중 / 제출 성공(주 미확인) / 실패 / 거부 / 새 버전', () => {
+    expect(rankingLine({ phase: 'pending' })).toBe('랭킹에 올리는 중…');
+    const ok: SubmitOutcome = {
       kind: 'ok',
       score: 1,
       best: 12840,
-      weekKey,
+      weekKey: '2026-W46',
       isNewBest: false,
       userId: 'u',
-    });
-    expect(rankingLine(done(ok('2026-W46')), '2026-W46')).toBe('이번 주 최고 12,840점');
-    // 며칠 이어서 한 판: 최고 점수는 시작한 주의 것이다
-    expect(rankingLine(done(ok('2026-W45')), '2026-W46')).toBe(
-      '지난주 기록으로 올렸어요 · 최고 12,840점',
-    );
-    expect(rankingLine(done({ kind: 'failed' }), '2026-W46')).toBe('랭킹에 올리지 못했어요');
-    expect(rankingLine(done({ kind: 'rejected', code: 'too-fast' }), '2026-W46')).toBe(
+    };
+    // 기기 시계로 이번 주·지난주를 단정하지 않는다: 순위 조회 전에는 제출 응답 기준 문구
+    expect(rankingLine(done(ok))).toBe('랭킹에 올렸어요 · 최고 12,840점');
+    expect(rankingLine(done({ kind: 'failed' }))).toBe('랭킹에 올리지 못했어요');
+    expect(rankingLine(done({ kind: 'rejected', code: 'too-fast' }))).toBe(
       '랭킹에 올리지 못했어요',
     );
-    expect(rankingLine(done({ kind: 'outdated' }), '2026-W46')).toBe(
-      '새 버전이 있어요. 새로고침해 주세요',
-    );
+    expect(rankingLine(done({ kind: 'outdated' }))).toBe('새 버전이 있어요. 새로고침해 주세요');
   });
 
   it('currentWeek는 KST 월요일 00:00에 바뀐다', () => {

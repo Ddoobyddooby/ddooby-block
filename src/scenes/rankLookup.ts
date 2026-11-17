@@ -2,20 +2,22 @@
 //
 // 점수 제출이 **성공한 뒤에만** 조회한다 (병렬로 먼저 부르면 방금 제출한 기록이 목록에 빠진다: pang R19). 점수·순위는 서버 조회값을 그대로 쓴다
 // (클라이언트가 점수로 순위를 세지 않는다). 조회가 실패해도 제출 성공은 그대로다: 순위만 못 읽은 상태(failed)로 남는다.
-// 서버 응답의 주가 제출한 주와 다르거나 다른 계정의 응답이면 순위를 붙이지 않는다 (지난주 판에 이번 주 순위를 붙이지 않는다).
+// 서버 응답의 주가 제출한 주와 다르면(pastWeek) 순위를 붙이지 않고, 다른 계정의 응답이면 버린다 (지난주 판에 이번 주 순위를 붙이지 않는다).
 import type { RankingResult, SubmitOutcome } from '../online';
 
 /**
  * - idle·loading: 아직 모른다 (결과 줄은 제출 응답의 최고 점수를 보인다)
  * - ranked: 서버가 말한 이번 주 최고 점수와 순위
  * - unnamed: 이름이 없는 계정이라 순위가 없다 (이름을 정하면 다시 조회한다)
- * - failed: 순위를 못 읽었다 (오프라인·오류·시간 초과·주/계정 불일치)
+ * - pastWeek: 서버의 이번 주가 제출한 주와 다르다 (며칠 이어서 한 지난주 판). 이번 주 순위를 붙이지 않는다
+ * - failed: 순위를 못 읽었다 (오프라인·오류·시간 초과·다른 계정)
  */
 export type RankLookupState =
   | { phase: 'idle' }
   | { phase: 'loading' }
   | { phase: 'ranked'; score: number; rank: number }
   | { phase: 'unnamed'; score: number }
+  | { phase: 'pastWeek' }
   | { phase: 'failed' };
 
 export interface RankLookupDeps {
@@ -93,7 +95,8 @@ export class RankLookup {
     if (result.userId !== context.userId || this.deps.currentUserId() !== context.userId) {
       return failed;
     }
-    if (result.weekKey !== context.weekKey) return failed;
+    // 기기 시계가 아니라 **서버가 말한 이번 주**와 제출한 주를 비교한다 (기기 시계가 틀려도, 주 경계에서도 서버가 기준)
+    if (result.weekKey !== context.weekKey) return { phase: 'pastWeek' };
     // 제출은 성공했는데 내 기록이 없다: 일시적 불일치라 순위를 지어내지 않는다
     if (result.me === null) return failed;
     if (result.me.rank === null) return { phase: 'unnamed', score: result.me.score };

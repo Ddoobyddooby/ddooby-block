@@ -12,7 +12,7 @@ import {
   type GameOverButton,
   type GameOverData,
 } from './gameOverRules';
-import { currentUserId, fetchRanking, startRun, type SubmitOutcome } from '../online';
+import { currentUserId, fetchRanking, startRun } from '../online';
 import { skipsRanking } from './gameStart';
 import { NicknameFlow } from './nicknameFlow';
 import { fakeSubmit } from './nicknameDev';
@@ -21,8 +21,8 @@ import { cancelNewGame, isPreparing } from './newRun';
 import { RestartGate } from './restartGate';
 import { handleGameOverButton } from './screenActions';
 import { showPreparing } from './preparingLabel';
-import { currentWeek, onSubmitDone, rankingLine, type RankingTracker } from './rankingResult';
-import { RankLookup } from './rankLookup';
+import { GameOverRanking } from './gameOverRanking';
+import type { RankingTracker } from './rankingResult';
 import { cssColor } from './text';
 
 const LABELS: Record<GameOverButton, string> = {
@@ -33,12 +33,12 @@ const LABELS: Record<GameOverButton, string> = {
 /**
  * 화면 크기가 바뀌어 다시 그릴 때는 입력 지연을 또 주지 않는다 (unlockAt).
  * ranking: 이 판의 점수 제출 진행 (W3-03). 랭킹 대상이 아닌 판(run 없음, `?fill=`, `?over` 미리보기)에는 없다: 결과 줄도, 닉네임 창도 없다
- * lookup: 제출 성공 뒤의 이번 주 순위 조회 (W3-04). resize로 다시 그려도 같은 조회를 이어 쓴다
+ * rankUi: 제출 결과·순위 조회·닉네임 묻기의 연결 (W3-04, gameOverRanking.ts). resize로 다시 그려도 같은 객체를 이어 쓴다
  */
 type SceneData = GameOverData & {
   unlockAt?: number;
   ranking?: RankingTracker | null;
-  lookup?: RankLookup | null;
+  rankUi?: GameOverRanking | null;
 };
 
 export class GameOverScene extends Phaser.Scene {
@@ -46,8 +46,8 @@ export class GameOverScene extends Phaser.Scene {
   /** 버튼 입력이 풀리는 시각 (performance.now 기준). 처음 뜰 때 정하고 resize로 다시 그려도 그대로 쓴다 */
   private unlockAt = 0;
   private ranking: RankingTracker | null = null;
-  /** 제출 성공 뒤 이번 주 순위를 조회한다 (W3-04). 화면을 떠날 때 끝낸다 */
-  private lookup: RankLookup | null = null;
+  /** 제출 결과 → 닉네임 묻기·서버 이번 주 순위 조회 → 결과 줄. 처음 뜰 때 만들고 resize에서는 재사용, 화면을 떠날 때 끝낸다 */
+  private rankUi: GameOverRanking | null = null;
   private lock: PressLock = { pressed: false };
   /** 이 게임 오버가 새로 떴다 (resize로 다시 그린 것이 아니다) */
   private fresh = true;
@@ -57,8 +57,6 @@ export class GameOverScene extends Phaser.Scene {
   private readonly gate = new RestartGate();
   /** 점수 제출이 성공한 뒤 닉네임을 묻는 진행 (W3-03). 화면을 떠날 때 끝낸다 */
   private nickname: NicknameFlow | null = null;
-  /** 제출 결과를 기다리는 닉네임 묻기의 구독. resize로 다시 그려도 이어지고, 화면을 떠날 때 끊는다 */
-  private nicknameUnsub: (() => void) | null = null;
 
   constructor() {
     super('GameOver');
@@ -70,7 +68,7 @@ export class GameOverScene extends Phaser.Scene {
       this.fresh = data.unlockAt === undefined;
       this.unlockAt = data.unlockAt ?? performance.now() + VIEW.gameOver.inputDelayMs;
       this.ranking = data.ranking ?? null;
-      this.lookup = data.lookup ?? null;
+      this.rankUi = data.rankUi ?? null;
     }
   }
 
@@ -79,6 +77,16 @@ export class GameOverScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const cx = width / 2;
     const texts = gameOverTexts(this.data0);
+    // 새로 뜬 게임 오버면 결과 연결을 **텍스트를 만들고 구독하기 전에** 만든다 (resize로 다시 그릴 때는 같은 객체). DEV `?ranking=fake`는 온라인이 없어 만들지 않는다
+    if (
+      this.fresh &&
+      !this.redrawing &&
+      this.ranking !== null &&
+      !(import.meta.env.DEV && parseFakeRanking(window.location.search, true))
+    ) {
+      this.rankUi?.end();
+      this.rankUi = new GameOverRanking(this.ranking, { fetchRanking, currentUserId });
+    }
     const buttons = gameOverButtons();
 
     // 화면 전체 덮개: 눌러도 아무 일 없고, 아래 게임으로 입력이 가지 않는다
@@ -118,7 +126,7 @@ export class GameOverScene extends Phaser.Scene {
     }
     if (this.ranking !== null) {
       textRows.push({
-        text: rankingLine(this.ranking.state, currentWeek(Date.now()), this.lookup?.state),
+        text: this.rankUi?.line() ?? '',
         size: g.rankingSize,
         color: colors.textDim,
         bold: false,
@@ -150,15 +158,7 @@ export class GameOverScene extends Phaser.Scene {
       y += row.size + row.gap;
     }
     // 제출 결과·순위 조회 결과가 오면 결과 줄을 바꾼다. 화면(이 create)이 끝나면 구독을 끊는다 (늦은 응답이 지워진 글자를 건드리지 않게)
-    const tracker = this.ranking;
-    const lookup = this.lookup;
-    const updateLine = () => {
-      if (tracker !== null) {
-        rankingText?.setText(rankingLine(tracker.state, currentWeek(Date.now()), lookup?.state));
-      }
-    };
-    const unsubscribeTracker = tracker?.subscribe(updateLine);
-    const unsubscribeLookup = lookup?.subscribe(updateLine);
+    const unsubscribeLine = this.rankUi?.subscribe((text) => rankingText?.setText(text));
 
     const firstY = y + g.buttonsGap + g.buttonH / 2;
     // 처음 뜬 뒤 잠시는 눌리지 않는다 (PressLock이 눌린 상태로 시작했다가 남은 시간이 지나면 풀린다). resize 뒤에도 남은 시간만 적용
@@ -194,13 +194,12 @@ export class GameOverScene extends Phaser.Scene {
     this.scale.on(Phaser.Scale.Events.RESIZE, this.redraw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.redraw, this);
-      unsubscribeTracker?.();
-      unsubscribeLookup?.();
+      unsubscribeLine?.();
       rankingText = null;
       if (!this.gate.restarting) {
         this.endNickname();
-        this.lookup?.end();
-        this.lookup = null;
+        this.rankUi?.end();
+        this.rankUi = null;
         // 화면을 떠나는 것이면 준비 중이던 [다시 하기] 요청은 무효 (resize로 다시 그리는 것은 취소가 아니다)
         cancelNewGame('GameOver');
       }
@@ -215,21 +214,12 @@ export class GameOverScene extends Phaser.Scene {
       if (import.meta.env.DEV && parseFakeRanking(window.location.search, true)) {
         this.nickname = new NicknameFlow(this.game.canvas);
         this.nickname.beginFake(fakeSubmit);
-      } else if (this.ranking !== null) {
+      } else if (this.rankUi !== null) {
         // 이름을 정하면(이미 정해져 있던 경우 포함) 순위를 다시 조회한다
-        const flow = new NicknameFlow(this.game.canvas, () => this.lookup?.refresh());
+        const flow = new NicknameFlow(this.game.canvas, () => this.rankUi?.refreshRank());
         this.nickname = flow;
-        // 순위 조회는 제출이 끝난 **뒤에** 시작한다 (병렬로 부르면 방금 기록이 목록에 없다, pang R19)
-        const lookup = new RankLookup({ fetchRanking, currentUserId });
-        this.lookup = lookup;
-        const afterSubmit = (outcome: SubmitOutcome) => {
-          flow.afterSubmit(outcome);
-          // 순위는 이번 주 판에만 붙인다 (며칠 이어서 한 지난주 판에는 이번 주 순위를 붙이지 않는다)
-          if (outcome.kind === 'ok' && outcome.weekKey === currentWeek(Date.now())) {
-            lookup.start(outcome);
-          }
-        };
-        this.nicknameUnsub = onSubmitDone(this.ranking, afterSubmit);
+        // 닉네임 묻기와 순위 조회는 제출이 끝난 **뒤에** 시작한다 (병렬 금지, pang R19)
+        this.rankUi.begin((outcome) => flow.afterSubmit(outcome));
       }
     }
     this.redrawing = false;
@@ -244,14 +234,12 @@ export class GameOverScene extends Phaser.Scene {
         ...this.data0,
         unlockAt: this.unlockAt,
         ranking: this.ranking,
-        lookup: this.lookup,
+        rankUi: this.rankUi,
       });
     });
   }
 
   private endNickname(): void {
-    this.nicknameUnsub?.();
-    this.nicknameUnsub = null;
     this.nickname?.end();
     this.nickname = null;
   }

@@ -241,3 +241,63 @@ describe('⑤ 위조·만료 Bearer', () => {
     expect(judgeBadBearer(res(404, null)).unverified).toBeUndefined();
   });
 });
+
+describe('공동 순위 규칙: rank()는 1·2·2·4 (dense_rank 1·2·2·3은 FAIL)', () => {
+  const e1: Expected = { nickname: 'n1', tag: 1, score: 100 };
+  const four = (ranks: number[]) => [
+    week(),
+    line('top', 1, { best_score: 100, rank: ranks[0] }),
+    line('top', 2, { best_score: 90, rank: ranks[1] }),
+    line('top', 3, { best_score: 90, rank: ranks[2] }),
+    line('top', 4, { best_score: 80, rank: ranks[3] }),
+  ];
+  it('정상 1·2·2·4는 anon PASS', () => {
+    expect(judgeAnon(res(200, four([1, 2, 2, 4])), weeks, e1).pass).toBe(true);
+  });
+  it('잘못된 1·2·2·3(dense_rank)은 anon FAIL', () => {
+    const out = judgeAnon(res(200, four([1, 2, 2, 3])), weeks, e1);
+    expect(out.pass).toBe(false);
+    expect(out.unverified).toBeUndefined();
+  });
+  it('top의 첫 rank가 1이 아니면 FAIL', () => {
+    expect(judgeAnon(res(200, four([2, 2, 2, 4])), weeks, e1).pass).toBe(false);
+  });
+  it('named: 정상 1·2·2·4 PASS, 1·2·2·3 FAIL (around·me 포함)', () => {
+    const named = (ranks: number[]) => {
+      const rows = four(ranks);
+      return [
+        ...rows,
+        ...rows.slice(1).map((r) => ({ ...r, section: 'around' })),
+        // 내 줄 = seq 4 (80점)
+        ...[],
+      ];
+    };
+    const mine = { nickname: 'n4', tag: 4, score: 80 };
+    const withMe = (ranks: number[]) => {
+      const rows = named(ranks).map((r) =>
+        (r as { seq: number }).seq === 4 ? { ...r, is_me: true } : r,
+      );
+      return [...rows, me({ seq: 4, rank: ranks[3], best_score: 80, nickname: 'n4', tag: 4 })];
+    };
+    expect(judgeNamed(res(200, withMe([1, 2, 2, 4])), weeks, mine).pass).toBe(true);
+    expect(judgeNamed(res(200, withMe([1, 2, 2, 3])), weeks, mine).pass).toBe(false);
+  });
+  it('around는 연속 구간이라 첫 행의 rank는 검사하지 않고, 이후 점수가 내려가는 행은 rank = seq', () => {
+    const around = (ranks: number[]) => [
+      week(),
+      line('around', 5, { best_score: 90, rank: ranks[0] }),
+      line('around', 6, { best_score: 90, rank: ranks[1] }),
+      line('around', 7, { best_score: 80, rank: ranks[2] }),
+      line('around', 8, { best_score: 80, rank: ranks[3] }),
+      me({ seq: 7, rank: ranks[2], best_score: 80, nickname: 'n7', tag: 7 }),
+    ];
+    const mine = { nickname: 'n7', tag: 7, score: 80 };
+    const mark = (rows: unknown[]) =>
+      (rows as { section: string; seq: number }[]).map((r) =>
+        r.section === 'around' && r.seq === 7 ? { ...r, is_me: true } : r,
+      );
+    // 앞쪽 동점 집단의 시작이 안 보이므로 첫 행 rank는 자유(3), 이후 90→80에서 rank = seq(7)
+    expect(judgeNamed(res(200, mark(around([3, 3, 7, 7]))), weeks, mine).pass).toBe(true);
+    expect(judgeNamed(res(200, mark(around([3, 3, 6, 6]))), weeks, mine).pass).toBe(false);
+  });
+});

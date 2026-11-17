@@ -20,8 +20,8 @@ export const RANKING_TEXT = {
   noNickname: (score: string) => `${score}점 · 이름을 정하면 랭킹에 보여요`,
 
   // ── 게임 오버 결과 줄 (rankingResult.ts) ──
-  /** 제출 직후·순위를 아직 모르거나 못 읽었을 때. n = 점수 */
-  weekBest: (n: string) => `이번 주 최고 ${n}점`,
+  /** 제출은 성공했지만 서버 이번 주 순위를 아직 모르거나 못 읽었을 때 (주를 단정하지 않는다). n = 점수 */
+  submittedBest: (n: string) => `랭킹에 올렸어요 · 최고 ${n}점`,
   /** n = 점수, rank = 순위 */
   weekBestRank: (n: string, rank: number) => `이번 주 최고 ${n}점 · ${rank}위`,
   /** 이름이 없는 계정: n = 점수 */
