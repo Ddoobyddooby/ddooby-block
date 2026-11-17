@@ -47,4 +47,45 @@ describe('_lib/http', () => {
     expect(await readBodyText(r('가나'), 3)).toBe('too-large');
     expect(await readBodyText(new Request('https://x', { method: 'POST' }), 3)).toBe('');
   });
+
+  // 원격에서 상한을 넘은 본문의 cancel() Promise가 끝나지 않아 413이 오지 않았다 (W3-03 원격 확인).
+  // cancel이 영원히 끝나지 않는 스트림에서도 413이 즉시 돌아와야 한다 (취소를 기다리지 않는다)
+  const neverCancels = (chunks: Uint8Array[], contentLength?: number): Request => {
+    let i = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const chunk = chunks[i++];
+        if (chunk) controller.enqueue(chunk);
+        else controller.close();
+      },
+      cancel: () => new Promise<void>(() => undefined), // 영원히 끝나지 않는다
+    });
+    return new Request('https://x', {
+      method: 'POST',
+      headers: contentLength === undefined ? {} : { 'Content-Length': String(contentLength) },
+      body: stream,
+      duplex: 'half',
+    } as RequestInit);
+  };
+  const within = async <T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'> =>
+    Promise.race([promise, new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), ms))]);
+
+  it('Content-Length 선언이 상한을 넘으면 cancel이 끝나지 않아도 즉시 too-large', async () => {
+    const req = neverCancels([new Uint8Array(5)], 2000);
+    expect(await within(readBodyText(req, 10), 500)).toBe('too-large');
+  });
+
+  it('읽는 중 상한을 넘기면 cancel이 끝나지 않아도 즉시 too-large (선언이 없거나 작게 거짓이어도)', async () => {
+    for (const declared of [undefined, 3]) {
+      const req = neverCancels([new Uint8Array(8), new Uint8Array(8), new Uint8Array(8)], declared);
+      expect(await within(readBodyText(req, 10), 500), String(declared)).toBe('too-large');
+    }
+  });
+
+  it('상한 이내 본문은 그대로 읽는다 (정상 경로 불변)', async () => {
+    const bytes = new TextEncoder().encode('{"a":1}');
+    expect(await within(readBodyText(neverCancels([bytes], bytes.length), 100), 500)).toBe(
+      '{"a":1}',
+    );
+  });
 });

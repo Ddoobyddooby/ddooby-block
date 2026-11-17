@@ -62,13 +62,25 @@ export function earlyResponse(req: Request, cors: Cors): Response | null {
 }
 
 /**
+ * 읽지 않는 본문을 버린다. 취소(cancel)를 **기다리지 않는다**: Edge 런타임에서 상한을 넘긴 요청 본문의 cancel() Promise가
+ * 끝나지 않아 413 응답이 영원히 오지 않는 일이 원격에서 확인됐다 (W3-03 원격 확인, 1,500,001바이트 요청). 오류는 삼킨다
+ */
+function dropBody(source: { cancel(): Promise<void> } | null | undefined): void {
+  try {
+    void source?.cancel().catch(() => undefined);
+  } catch {
+    // 이미 잠겼거나 끝난 스트림
+  }
+}
+
+/**
  * 본문을 maxBytes까지만 읽는다 (읽는 동안 바이트를 세므로 Content-Length가 없거나 거짓이어도 상한을 넘기면 멈춘다).
  * 넘으면 'too-large'. 그렇지 않으면 UTF-8로 읽은 문자열
  */
 export async function readBodyText(req: Request, maxBytes: number): Promise<string | 'too-large'> {
   const declared = Number(req.headers.get('Content-Length'));
   if (Number.isFinite(declared) && declared > maxBytes) {
-    await req.body?.cancel().catch(() => undefined);
+    dropBody(req.body);
     return 'too-large';
   }
   const reader = req.body?.getReader();
@@ -80,7 +92,7 @@ export async function readBodyText(req: Request, maxBytes: number): Promise<stri
     if (done) break;
     total += value.byteLength;
     if (total > maxBytes) {
-      await reader.cancel().catch(() => undefined);
+      dropBody(reader);
       return 'too-large';
     }
     chunks.push(value);
