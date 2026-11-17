@@ -56,6 +56,8 @@ export class Music {
   private readonly leaving = new Set<Entry>();
   /** 뒤에서 읽는 중인 곡 */
   private readonly loading = new Set<TrackName>();
+  /** 잠금 해제를 기다리는 중 (`waitForUnlock`) */
+  private waitingUnlock = false;
 
   private constructor(private readonly game: Phaser.Game) {
     game.events.on('step', (_time: number, delta: number) => this.step(delta));
@@ -146,6 +148,18 @@ export class Music {
       this.syncHeld();
       return;
     }
+    // 꺼지거나 곡이 없는데 멈춰 있다면(일시정지·숨김) 멈춘 소리는 줄일 수 없으니 바로 끝낸다.
+    // 그냥 두면 멈춤이 풀릴 때 꺼진 곡이 다시 이어진다 (나가는 곡 포함 살아 있는 모두)
+    if (target === null && isHeld(this.holds)) {
+      for (const entry of this.entries()) this.release(entry);
+      return;
+    }
+    // 브라우저가 소리를 막는 동안(첫 터치 전)에는 소리 객체를 만들지 않는다. SDK가 잠금 해제 때까지 예약해 두는 재생이
+    // 취소·멈춤·파괴와 어긋나기 때문이다. 원하는 곡만 기억하고, 잠금이 풀릴 때 그때의 켬·멈춤·원하는 곡으로 다시 정한다
+    if (change === 'switch' && this.isLocked()) {
+      this.waitForUnlock();
+      return;
+    }
     if (this.current) {
       this.fadeOut(this.current.entry, fadeMs);
       this.current = null;
@@ -163,10 +177,8 @@ export class Music {
         // 밖에서 파괴되면 목록에서만 뺀다 (이미 파괴됐으므로 다시 destroy하지 않는다)
         const own = entry;
         sound.once('destroy', () => this.forget(own));
-        // false: 브라우저가 소리를 막는 중(manager.locked)이면 Phaser가 첫 터치 때 시작하니 기다린다.
-        // 잠금이 아닌데 false면 (HTML5 Audio 태그 부족 등) 실패이므로 정리한다. 다음 곡 요청 때 다시 시도한다
-        if (sound.play() === false && !this.isLocked())
-          throw new Error('play returned false while not locked');
+        // false는 실패다 (잠금 중에는 위에서 객체를 만들지 않는다. HTML5 Audio 태그 부족 등). 정리하고 다음 곡 요청 때 다시 시도한다
+        if (sound.play() === false) throw new Error('play returned false');
         if (isHeld(this.holds)) sound.pause();
       } catch (error) {
         // 소리가 안 나도 게임은 계속된다. 만든 객체는 남기지 않는다
@@ -178,6 +190,16 @@ export class Music {
 
   private isLocked(): boolean {
     return (this.game.sound as { locked?: boolean }).locked === true;
+  }
+
+  /** 잠금이 풀리는 때(UNLOCKED) 한 번 다시 정한다. 중복해서 걸지 않는다 */
+  private waitForUnlock(): void {
+    if (this.waitingUnlock) return;
+    this.waitingUnlock = true;
+    this.game.sound.once('unlocked', () => {
+      this.waitingUnlock = false;
+      this.apply(SOUND.music.fadeMs);
+    });
   }
 
   /** 지금 곡과 줄어드는 중인 곡 모두 */
@@ -192,6 +214,9 @@ export class Music {
       try {
         if (isHeld(this.holds)) {
           if (sound.isPlaying) sound.pause();
+        } else if (!this.enabled) {
+          // 꺼진 동안 멈춰 있던 소리는 이어 내지 않는다
+          this.release(entry);
         } else if (sound.isPaused) {
           sound.resume();
         }

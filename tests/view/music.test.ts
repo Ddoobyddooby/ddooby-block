@@ -20,6 +20,8 @@ class FakeLoop {
   /** 'false'면 play가 false, 'throw'면 던진다 */
   playResult: 'ok' | 'false' | 'throw' = 'ok';
   private listeners = new Map<string, (() => void)[]>();
+  /** 잠금 중이면 동작을 큐에 쌓고 true (HTML5 Audio의 isLocked) */
+  queueWhenLocked: (action: 'play' | 'pause' | 'stop') => boolean = () => false;
   constructor(
     readonly key: string,
     readonly config: { loop?: boolean; volume?: number },
@@ -27,6 +29,7 @@ class FakeLoop {
     this.volume = config.volume ?? 1;
   }
   play(): boolean {
+    if (this.queueWhenLocked('play')) return false;
     this.playCalls++;
     if (this.playResult === 'throw') throw new Error('play 실패');
     if (this.playResult === 'false') return false;
@@ -35,6 +38,7 @@ class FakeLoop {
     return true;
   }
   pause(): boolean {
+    if (this.queueWhenLocked('pause')) return false;
     this.isPlaying = false;
     this.isPaused = true;
     return true;
@@ -45,6 +49,7 @@ class FakeLoop {
     return true;
   }
   stop(): void {
+    if (this.queueWhenLocked('stop')) return;
     this.isPlaying = false;
     this.isPaused = false;
   }
@@ -67,7 +72,23 @@ class FakeLoop {
 function setup(cached: string[] = ['menu', 'game-soda', 'game-orbit'].map((n) => `music-${n}`)) {
   const handlers = new Map<string, ((...args: number[]) => void)[]>();
   const sounds: FakeLoop[] = [];
-  const manager = { locked: false, nextPlay: 'ok' as 'ok' | 'false' | 'throw' };
+  const unlockHandlers: (() => void)[] = [];
+  /** HTML5 Audio처럼 잠금 중의 play·pause·stop을 큐에 쌓았다가 풀릴 때 실행하는 대역 (파괴된 소리면 던진다) */
+  const queue: { sound: FakeLoop; action: 'play' | 'pause' | 'stop' }[] = [];
+  const manager = {
+    locked: false,
+    nextPlay: 'ok' as 'ok' | 'false' | 'throw',
+    unlock(): void {
+      this.locked = false;
+      while (queue.length > 0) {
+        const { sound, action } = queue.shift()!;
+        if (sound.destroyed)
+          throw new TypeError("Cannot read properties of null (reading 'isLocked')");
+        sound[action]();
+      }
+      for (const fn of unlockHandlers.splice(0)) fn();
+    },
+  };
   const game = {
     events: {
       on: (name: string, fn: (...args: number[]) => void) => {
@@ -79,8 +100,16 @@ function setup(cached: string[] = ['menu', 'game-soda', 'game-orbit'].map((n) =>
       get locked() {
         return manager.locked;
       },
+      once: (name: string, fn: () => void) => {
+        if (name === 'unlocked') unlockHandlers.push(fn);
+      },
       add: (key: string, config: { loop?: boolean; volume?: number }) => {
         const s = new FakeLoop(key, config);
+        s.queueWhenLocked = (action) => {
+          if (!manager.locked) return false;
+          queue.push({ sound: s, action });
+          return true;
+        };
         s.playResult = manager.nextPlay;
         sounds.push(s);
         return s;
@@ -383,16 +412,7 @@ describe('Music: 소리 객체 정리 (리뷰 지적 4)', () => {
     expect(music.state().current).toBeNull();
   });
 
-  it('잠금 중이면(play=false, manager.locked) 대기로 보고 소리를 유지한다', () => {
-    const { music, sounds, manager } = setup();
-    manager.locked = true;
-    manager.nextPlay = 'false';
-    music.play('menu');
-    expect(live(sounds)).toHaveLength(1);
-    expect(music.state().current).toBe('menu');
-  });
-
-  it('잠금이 아닌데 play=false면 실패로 보고 정리한다 (HTML5 태그 부족 등)', () => {
+  it('play=false는 실패로 보고 정리한다 (HTML5 태그 부족 등)', () => {
     const { music, sounds, manager } = setup();
     manager.nextPlay = 'false';
     music.play('menu');
@@ -423,5 +443,140 @@ describe('Music: 소리 객체 정리 (리뷰 지적 4)', () => {
     expect(music.state().current).toBeNull();
     music.play('menu'); // 새로 만든다
     expect(sounds).toHaveLength(2);
+  });
+});
+
+describe('Music: 꺼진 곡 재개 방지 (재리뷰 지적 1)', () => {
+  it('일시정지 → 끄기 → 대기 → 계속: 살아 있는 소리가 없다', () => {
+    const { music, sounds, tick } = setup();
+    music.play('game-soda');
+    tick(1000);
+    music.hold('pause', true);
+    setMusicOn(fakeStore(), music, false);
+    tick(5000);
+    music.hold('pause', false);
+    expect(audible(sounds)).toEqual([]); // 풀린 바로 그 순간에도 소리가 나지 않는다
+    tick(5000);
+    expect(live(sounds)).toEqual([]);
+    expect(audible(sounds)).toEqual([]);
+  });
+
+  it('일시정지 + 숨김 → 끄기 → visible → 계속: 끝까지 조용하다', () => {
+    const { music, sounds, emit, tick } = setup();
+    music.play('game-soda');
+    tick(1000);
+    music.hold('pause', true);
+    emit('hidden');
+    setMusicOn(fakeStore(), music, false);
+    emit('visible');
+    expect(audible(sounds)).toEqual([]);
+    tick(500);
+    music.hold('pause', false);
+    expect(audible(sounds)).toEqual([]);
+    tick(5000);
+    expect(live(sounds)).toEqual([]);
+  });
+
+  it('교차 페이드 중 일시정지 → 끄기 → 계속: 나가던 곡도 다시 나지 않는다', () => {
+    const { music, sounds, tick } = setup();
+    music.play('menu');
+    tick(1000);
+    music.play('game-soda');
+    tick(100);
+    music.hold('pause', true);
+    setMusicOn(fakeStore(), music, false);
+    music.hold('pause', false);
+    expect(audible(sounds)).toEqual([]); // 풀린 바로 그 순간에도 소리가 나지 않는다
+    tick(5000);
+    expect(live(sounds)).toEqual([]);
+  });
+
+  it('늦은 저장값 false를 일시정지 중 반영해도 계속 뒤에 조용하다', () => {
+    const { music, sounds, tick } = setup();
+    music.play('game-soda');
+    tick(1000);
+    music.hold('pause', true);
+    applyLoadedMusic(fakeStore(), music, false);
+    music.hold('pause', false);
+    expect(audible(sounds)).toEqual([]); // 풀린 바로 그 순간에도 소리가 나지 않는다
+    tick(5000);
+    expect(live(sounds)).toEqual([]);
+  });
+
+  it('일반 재생 중 끄기는 짧은 페이드 뒤에 끝난다 (여전히 소리가 줄어든다)', () => {
+    const { music, sounds, tick } = setup();
+    music.play('game-soda');
+    tick(1000);
+    music.setEnabled(false);
+    tick(SOUND.music.quickFadeMs / 2);
+    expect(audible(sounds)).toHaveLength(1);
+    tick(SOUND.music.quickFadeMs);
+    expect(live(sounds)).toEqual([]);
+  });
+});
+
+describe('Music: 잠금 해제 뒤에 곡 만들기 (재리뷰 지적 2)', () => {
+  it('잠겨 있는 동안에는 소리 객체를 만들지 않고, 풀리면 원하는 곡을 튼다', () => {
+    const { music, sounds, manager } = setup();
+    manager.locked = true;
+    music.play('menu');
+    expect(sounds).toHaveLength(0);
+    expect(music.state()).toMatchObject({ desired: 'menu', current: null });
+    manager.unlock();
+    expect(live(sounds)).toHaveLength(1);
+    expect(sounds[0]!.isPlaying).toBe(true);
+    expect(music.state().current).toBe('menu');
+  });
+
+  it('대기 중 끄면 풀려도 아무것도 만들지 않고 예외도 없다', () => {
+    const { music, sounds, manager } = setup();
+    manager.locked = true;
+    music.play('menu');
+    music.setEnabled(false);
+    expect(() => manager.unlock()).not.toThrow();
+    expect(sounds).toHaveLength(0);
+  });
+
+  it('대기 중 일시정지·숨김이면 풀려도 멈춘 채다', () => {
+    const { music, sounds, manager, emit } = setup();
+    manager.locked = true;
+    music.play('menu');
+    music.hold('pause', true);
+    emit('hidden');
+    manager.unlock();
+    expect(audible(sounds)).toEqual([]);
+    emit('visible');
+    expect(audible(sounds)).toEqual([]);
+    music.hold('pause', false);
+    expect(audible(sounds)).toHaveLength(1);
+  });
+
+  it('대기 중 곡이 바뀌면 의도한 곡만 튼다', () => {
+    const { music, sounds, manager } = setup();
+    manager.locked = true;
+    music.play('menu');
+    music.play('game-soda');
+    music.play('game-orbit');
+    manager.unlock();
+    expect(live(sounds).map((s) => s.key)).toEqual(['music-game-orbit']);
+    expect(music.state().current).toBe('game-orbit');
+  });
+
+  it('대기를 여러 번 걸어도 잠금 해제 때 한 번만 평가한다', () => {
+    const { music, sounds, manager } = setup();
+    manager.locked = true;
+    for (let i = 0; i < 5; i++) music.play('menu');
+    manager.unlock();
+    expect(sounds).toHaveLength(1);
+  });
+
+  it('대기 중 외부 destroy할 소리가 없으므로, 풀린 뒤 외부 destroy는 목록에서만 빠진다', () => {
+    const { music, sounds, manager, tick } = setup();
+    manager.locked = true;
+    music.play('menu');
+    manager.unlock();
+    tick(1000);
+    sounds[0]!.destroy();
+    expect(music.state().current).toBeNull();
   });
 });
