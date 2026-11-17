@@ -44,6 +44,8 @@ export class Persistence {
   private mutedTouched = false;
   /** `setTheme`가 한 번이라도 불렸다 (`mutedTouched`와 같은 뜻) */
   private themeTouched = false;
+  /** `setMusic`가 한 번이라도 불렸다 (`mutedTouched`와 같은 뜻) */
+  private musicTouched = false;
   /** run 키를 읽는 데 성공했다. 실패했으면 run 키에는 쓰지도 지우지도 않는다 */
   private runReadable = false;
   private epoch = 0;
@@ -87,6 +89,13 @@ export class Persistence {
   setMuted(muted: boolean): Promise<boolean> {
     this.progress.settings.muted = muted;
     this.mutedTouched = true;
+    return this.enqueue(() => this.writeProgress(), false);
+  }
+
+  /** 배경 음악 켬/끔을 바꾸고 저장한다 (일시정지 창의 음악 버튼). `setMuted`와 같은 규칙 */
+  setMusic(music: boolean): Promise<boolean> {
+    this.progress.settings.music = music;
+    this.musicTouched = true;
     return this.enqueue(() => this.writeProgress(), false);
   }
 
@@ -161,6 +170,7 @@ export class Persistence {
     let storedBest = loaded.bestScore;
     // 읽는 동안 바뀐 값은 읽은 값보다 우선한다
     if (this.mutedTouched) loaded.settings.muted = this.progress.settings.muted;
+    if (this.musicTouched) loaded.settings.music = this.progress.settings.music;
     if (this.themeTouched) loaded.settings.theme = this.progress.settings.theme;
     loaded.bestScore = Math.max(loaded.bestScore, this.progress.bestScore);
     this.progress = loaded;
@@ -194,7 +204,7 @@ export class Persistence {
   /**
    * (큐 안에서) progress를 쓴다. 먼저 읽어 보고 읽을 수 없으면 쓰지 않는다.
    * 쓸 값은 방금 읽은 저장값을 바탕으로 하고, 이번 실행에서 바꾼 것만 덮는다:
-   * 최고 점수는 max, `muted`·`theme`은 `setMuted`·`setTheme`를 불렀을 때만 메모리 값, `music`은 항상 저장값.
+   * 최고 점수는 max, `muted`·`music`·`theme`은 `setMuted`·`setMusic`·`setTheme`를 불렀을 때만 메모리 값.
    * (부팅 읽기가 일시 실패해 메모리가 기본값이어도, 다른 탭이 바꾼 설정도 덮지 않는다.)
    * 읽은 저장값을 메모리에도 맞춘다 (화면·소리 출력은 바꾸지 않는다: 실행 도중 소리가 바뀌지 않게).
    */
@@ -207,7 +217,7 @@ export class Persistence {
       bestScore: Math.max(this.progress.bestScore, stored.bestScore),
       settings: {
         muted: this.mutedTouched ? this.progress.settings.muted : stored.settings.muted,
-        music: stored.settings.music,
+        music: this.musicTouched ? this.progress.settings.music : stored.settings.music,
         theme: this.themeTouched ? this.progress.settings.theme : stored.settings.theme,
       },
     };

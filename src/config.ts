@@ -155,9 +155,10 @@ export const VIEW = {
     buttonH: 104,
     buttonStep: 128,
     buttonTextSize: 44,
-    /** 음소거 버튼: 판 오른쪽 위, 제목과 같은 높이. 판 오른쪽 끝에서 안쪽으로 inset */
+    /** 소리 버튼 줄(음악 ♫ · 음소거 스피커): 제목 아래, 가운데. 원 반지름과 두 원 중심 사이 간격, 줄 아래 간격 */
     muteRadius: 36,
-    muteInset: 72,
+    soundStep: 108,
+    soundGap: 44,
   },
   /** 게임 오버 화면 (scenes/GameOverScene.ts). 일시정지 창과 같은 판 + 버튼 */
   gameOver: {
@@ -325,12 +326,33 @@ export const SOUND = {
     boardClear: { file: 'boardClear', volume: 0.5 },
     gameOver: { file: 'gameOver', volume: 0.4 },
     button: { file: 'button', volume: 0.5 },
+    /** 게임 오버 화면에서 최고 기록을 새로 세웠을 때 (W4-01) */
+    newBest: { file: 'newBest', volume: 0.5 },
+    /** 게임 오버 화면이 뜰 때 (W4-01). 연출 속 `gameOver` 소리와는 showDelayMs만큼 떨어져 있다 */
+    gameOverShow: { file: 'gameOverShow', volume: 0.45 },
   },
+  /** 게임 오버 화면이 뜬 뒤 `newBest`를 내기까지 (ms). `gameOverShow`와 겹치지 않게 한다 */
+  newBestDelayMs: 350,
   formats: ['ogg', 'm4a'],
   /** 줄 제거 소리의 콤보별 재생 속도(음 높이). index = 콤보 - 1, 마지막 값이 상한 */
   clearRateByCombo: [1, 1.12, 1.26, 1.33, 1.5],
   /** 같은 소리를 이 시간(ms) 안에 다시 부르면 건너뛴다 */
   minGapMs: 60,
+  /**
+   * 배경 음악 (W4-01, PLAN 6.4). 파일은 public/audio/music/<이름>.<형식> (formats와 같은 대체), 출처는 public/audio/CREDITS.md.
+   * 메뉴·랭킹은 `menu`, 게임은 한 판의 테마(runTheme)별 곡이다. 곡 이름이 곧 파일 이름이다.
+   */
+  music: {
+    tracks: ['menu', 'game-soda', 'game-butter', 'game-orbit'],
+    menuTrack: 'menu',
+    gameTracks: { soda: 'game-soda', butter: 'game-butter', orbit: 'game-orbit' },
+    /** 곡 소리 크기 (효과음과 겹쳐도 효과음이 묻히지 않게 낮다) */
+    volume: 0.3,
+    /** 곡이 바뀔 때 페이드 (나가는 곡은 줄이며 끝내고 들어오는 곡은 0에서 올린다) */
+    fadeMs: 600,
+    /** 음악 버튼으로 켜고 끌 때 페이드 */
+    quickFadeMs: 200,
+  },
 } as const;
 
 /**

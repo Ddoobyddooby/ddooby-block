@@ -16,6 +16,8 @@ import { submitScore } from '../online';
 import { Hud } from '../view/Hud';
 import { boardLayout, screenLayout, type Layout, type ScreenLayout } from '../view/layout';
 import { Sfx } from '../view/Sfx';
+import { Music } from '../view/Music';
+import { gameTrack } from './musicRules';
 import { TrayView } from '../view/TrayView';
 import { readBest, recordBest, startBest } from './bestScore';
 import { fillState, parseFillParam } from './devFill';
@@ -123,6 +125,11 @@ export class GameScene extends Phaser.Scene {
     const theme = pinRunTheme(this.registry);
     this.cameras.main.setBackgroundColor(theme.colors.background);
     createBlockTextures(this, theme.id);
+    // 배경 음악: 고정한 테마의 게임 곡. 같은 곡이 이어지는 판(다시 하기)은 끊지 않는다. 아직 안 읽혔으면 뒤에서 읽고 읽히는 대로 튼다
+    const music = Music.of(this.game);
+    const track = gameTrack(theme.id);
+    music.play(track);
+    music.load(this, [track]);
     this.backdrop = new Backdrop(this);
     this.screen = screenLayout(this.scale.height, this.scale.width);
     this.layout = boardLayout(this.screen);
@@ -189,6 +196,7 @@ export class GameScene extends Phaser.Scene {
       this.clock.unblock('paused');
       // 음소거를 켰다면 사운드 매니저의 mute가 출력을 막고 있어 들리지 않는다
       this.sfx.resume();
+      Music.of(this.game).hold('pause', false);
     };
     this.events.on(Phaser.Scenes.Events.RESUME, onResume);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -248,6 +256,7 @@ export class GameScene extends Phaser.Scene {
     // 게임이 낸 연출 소리도 같이 멈춘다 ([계속]에서 이어진다). 일시정지 중에는 새 소리가 시작되지 않는다 (재생 루프가 멈춘다).
     // 일시정지 버튼을 누른 소리 같은 다른 소리는 건드리지 않는다
     this.sfx.pause();
+    Music.of(this.game).hold('pause', true);
     this.scene.launch('Pause');
     this.scene.pause();
   }

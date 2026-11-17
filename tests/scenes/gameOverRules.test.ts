@@ -6,6 +6,7 @@ import {
   inputDelayLeft,
   parseOverParam,
   raiseStartBest,
+  gameOverSounds,
 } from '../../src/scenes/gameOverRules';
 
 describe('gameOverButtons', () => {
@@ -157,4 +158,23 @@ describe('게임 오버 수락 뒤에 끝난 부팅 읽기 (storedBest 기준)',
   it('기존 900·최종 300 → false', () => expect(judge(900, 300)).toBe(false));
   it('기존 100·최종 300 → true', () => expect(judge(100, 300)).toBe(true));
   it('기존 300·최종 300 → false', () => expect(judge(300, 300)).toBe(false));
+});
+
+describe('gameOverSounds (W4-01)', () => {
+  it('처음 뜨면 화면 소리, 최고 기록이면 그 뒤에 최고 기록 소리를 낸다', () => {
+    expect(gameOverSounds({ newBest: true }, true, 350)).toEqual([
+      { name: 'gameOverShow', afterMs: 0 },
+      { name: 'newBest', afterMs: 350 },
+    ]);
+  });
+
+  it('최고 기록이 아니면 화면 소리만', () => {
+    expect(gameOverSounds({ newBest: false }, true, 350)).toEqual([
+      { name: 'gameOverShow', afterMs: 0 },
+    ]);
+  });
+
+  it('다시 그릴 때(fresh 아님)는 아무 소리도 내지 않는다', () => {
+    expect(gameOverSounds({ newBest: true }, false, 350)).toEqual([]);
+  });
 });

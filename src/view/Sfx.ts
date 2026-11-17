@@ -33,7 +33,7 @@ interface LiveSound {
 /**
  * 소리를 낸 쪽(씬)이 자기 소리만 멈추고 이어가고 정리할 수 있게, 낸 소리를 기억한다.
  * 그래서 게임 씬의 Sfx를 `pause`/`resume`/`stopAll`해도 다른 Sfx(버튼 소리)는 건드리지 않는다.
- * 음소거는 여기서 다루지 않는다: 사운드 매니저의 mute가 실제 출력을 끄고, `play`의 registry 검사는 새 소리를 아예 만들지 않게 한다.
+ * 음소거: `play`의 registry 검사가 새 소리를 아예 만들지 않게 하고, `resume`이 멈춰 있던 소리를 버린다. 사운드 매니저의 mute는 쓰지 않는다 (배경 음악까지 꺼지므로).
  *
  * 소리 하나의 수명: 우리가 끝내는 경우(자연 종료 complete, 재생 실패, stopAll, pause/resume 중 던진 소리)는 `release`로
  * 목록에서 먼저 빼고 stop·destroy한다. 여러 번 불려도 안전하다. 밖에서 멈추거나 파괴한 경우(stop·destroy 이벤트)는
@@ -90,8 +90,12 @@ export class Sfx {
     for (const sound of [...this.live]) this.guard(sound, () => sound.pause());
   }
 
-  /** [계속]: 멈춘 소리를 이어서 낸다 (음소거면 사운드 매니저가 출력을 막고 있다) */
+  /** [계속]: 멈춘 소리를 이어서 낸다. 그 사이 음소거를 켰다면 이어 내지 않고 버린다 (음소거는 매니저 출력이 아니라 여기서 지킨다) */
   resume(): void {
+    if (readMuted(this.scene.registry)) {
+      this.stopAll();
+      return;
+    }
     for (const sound of [...this.live]) this.guard(sound, () => sound.resume());
   }
 

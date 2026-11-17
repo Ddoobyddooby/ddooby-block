@@ -24,6 +24,8 @@ import {
 } from '../view/theme/themeSetting';
 import { lateThemeAction } from './lateTheme';
 import { openThemePicker } from '../view/ThemePicker';
+import { Music } from '../view/Music';
+import { gameTrack, musicFor } from './musicRules';
 import type { ThemeId } from '../themeIds';
 
 const THEME_LABEL = '테마';
@@ -63,6 +65,10 @@ export class MenuScene extends Phaser.Scene {
     this.buttons = [];
     this.closePicker = null;
     createBlockTextures(this, theme.id);
+    // 배경 음악: 메뉴 곡 (랭킹에서 와도 같은 곡이 이어진다). 이번 테마의 게임 곡은 메뉴가 뜬 뒤 뒤에서 읽는다 (테마를 고르면 메뉴가 다시 떠서 새 곡을 읽는다)
+    const music = Music.of(this.game);
+    music.play(musicFor('Menu'));
+    music.load(this, [musicFor('Menu'), gameTrack(theme.id)]);
     this.backdrop = new Backdrop(this);
     this.logo = new MenuLogo(this);
 

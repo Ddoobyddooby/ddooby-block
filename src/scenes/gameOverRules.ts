@@ -82,3 +82,20 @@ export function inputDelayLeft(unlockAt: number, now: number): number {
 export function raiseStartBest(startBest: number, loadedBest: number): number {
   return Math.max(startBest, loadedBest);
 }
+
+/**
+ * 게임 오버 화면이 처음 뜰 때 낼 효과음 (W4-01). `gameOverShow`는 화면이 뜰 때마다 한 번, `newBest`는 최고 기록을 새로 세웠을 때만 그 뒤에 낸다.
+ * resize로 다시 그릴 때는(fresh = false) 아무것도 내지 않는다. `newBestAfterMs`는 `gameOverShow`와 겹치지 않게 띄우는 간격이다.
+ */
+export function gameOverSounds(
+  data: Pick<GameOverData, 'newBest'>,
+  fresh: boolean,
+  newBestAfterMs: number,
+): { name: 'gameOverShow' | 'newBest'; afterMs: number }[] {
+  if (!fresh) return [];
+  const list: { name: 'gameOverShow' | 'newBest'; afterMs: number }[] = [
+    { name: 'gameOverShow', afterMs: 0 },
+  ];
+  if (data.newBest) list.push({ name: 'newBest', afterMs: newBestAfterMs });
+  return list;
+}

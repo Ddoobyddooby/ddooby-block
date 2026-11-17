@@ -210,9 +210,10 @@ declare const VIEW: {
         readonly buttonH: 104;
         readonly buttonStep: 128;
         readonly buttonTextSize: 44;
-        /** 음소거 버튼: 판 오른쪽 위, 제목과 같은 높이. 판 오른쪽 끝에서 안쪽으로 inset */
+        /** 소리 버튼 줄(음악 ♫ · 음소거 스피커): 제목 아래, 가운데. 원 반지름과 두 원 중심 사이 간격, 줄 아래 간격 */
         readonly muteRadius: 36;
-        readonly muteInset: 72;
+        readonly soundStep: 108;
+        readonly soundGap: 44;
     };
     /** 게임 오버 화면 (scenes/GameOverScene.ts). 일시정지 창과 같은 판 + 버튼 */
     readonly gameOver: {
@@ -436,12 +437,43 @@ declare const SOUND: {
             readonly file: "button";
             readonly volume: 0.5;
         };
+        /** 게임 오버 화면에서 최고 기록을 새로 세웠을 때 (W4-01) */
+        readonly newBest: {
+            readonly file: "newBest";
+            readonly volume: 0.5;
+        };
+        /** 게임 오버 화면이 뜰 때 (W4-01). 연출 속 `gameOver` 소리와는 showDelayMs만큼 떨어져 있다 */
+        readonly gameOverShow: {
+            readonly file: "gameOverShow";
+            readonly volume: 0.45;
+        };
     };
+    /** 게임 오버 화면이 뜬 뒤 `newBest`를 내기까지 (ms). `gameOverShow`와 겹치지 않게 한다 */
+    readonly newBestDelayMs: 350;
     readonly formats: readonly ["ogg", "m4a"];
     /** 줄 제거 소리의 콤보별 재생 속도(음 높이). index = 콤보 - 1, 마지막 값이 상한 */
     readonly clearRateByCombo: readonly [1, 1.12, 1.26, 1.33, 1.5];
     /** 같은 소리를 이 시간(ms) 안에 다시 부르면 건너뛴다 */
     readonly minGapMs: 60;
+    /**
+     * 배경 음악 (W4-01, PLAN 6.4). 파일은 public/audio/music/<이름>.<형식> (formats와 같은 대체), 출처는 public/audio/CREDITS.md.
+     * 메뉴·랭킹은 `menu`, 게임은 한 판의 테마(runTheme)별 곡이다. 곡 이름이 곧 파일 이름이다.
+     */
+    readonly music: {
+        readonly tracks: readonly ["menu", "game-soda", "game-butter", "game-orbit"];
+        readonly menuTrack: "menu";
+        readonly gameTracks: {
+            readonly soda: "game-soda";
+            readonly butter: "game-butter";
+            readonly orbit: "game-orbit";
+        };
+        /** 곡 소리 크기 (효과음과 겹쳐도 효과음이 묻히지 않게 낮다) */
+        readonly volume: 0.3;
+        /** 곡이 바뀔 때 페이드 (나가는 곡은 줄이며 끝내고 들어오는 곡은 0에서 올린다) */
+        readonly fadeMs: 600;
+        /** 음악 버튼으로 켜고 끌 때 페이드 */
+        readonly quickFadeMs: 200;
+    };
 };
 /**
  * 저장 (PLAN 6.2). 키는 block 전용이다 (ddooby-pang 키를 읽지 않는다).

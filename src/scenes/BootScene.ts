@@ -11,6 +11,8 @@ import {
 import { Persistence } from '../storage/persistence';
 import { sfxKey, type SfxName } from '../view/Sfx';
 import { applyLoaded } from './bootLoad';
+import { applyLoadedMusic } from './musicRules';
+import { Music } from '../view/Music';
 import { parseFillParam } from './devFill';
 import { parseOverParam } from './gameOverRules';
 import { hasResumeParam, type GameStartData } from './gameStart';
@@ -103,7 +105,8 @@ export class BootScene extends Phaser.Scene {
       if (started) refreshTexts(this.game);
     });
     const loaded = persistence.load().then((result) => {
-      applyLoaded(this.registry, this.sound, result);
+      applyLoaded(this.registry, result);
+      applyLoadedMusic(this.registry, Music.of(this.game), result.settings.music);
     });
     void Promise.all([loaded, fontsReady]).then(start);
     this.time.delayedCall(SAVE.bootTimeoutMs, start);

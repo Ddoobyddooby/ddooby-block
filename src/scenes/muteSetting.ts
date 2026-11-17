@@ -1,5 +1,5 @@
 // 효과음 음소거 설정. 화면과 소리가 읽는 값은 game.registry에 있고, 바꿀 때 `setMuted`의 persist로 저장소에도 쓴다.
-// Boot가 저장소에서 읽은 값을 `writeMuted`로 채운다.
+// Boot가 저장소에서 읽은 값을 `writeMuted`로 채운다. 배경 음악은 이것과 별개다 (musicRules.ts의 readMusic).
 
 const KEY = 'muted';
 
@@ -18,28 +18,17 @@ export function writeMuted(store: MuteStore, muted: boolean): void {
   store.set(KEY, muted);
 }
 
-/** Phaser 사운드 매니저에서 쓰는 부분. `mute`를 켜면 재생 중이거나 멈춰 있던 소리까지 전부 출력이 꺼진다 */
-export interface SoundOutput {
-  mute: boolean;
-}
-
-/** 저장값을 실제 출력(사운드 매니저)에 맞춘다. 게임을 켤 때(Boot) 부른다 */
-export function applyMuted(store: MuteStore, output: SoundOutput): void {
-  output.mute = readMuted(store);
-}
-
 /**
- * 음소거를 바꾼다: registry 값과 실제 출력을 같이 바꾸고, persist가 있으면 영구 저장도 요청한다. 음소거 버튼은 이것만 부른다.
- * 출력까지 끄므로 일시정지로 멈춘 소리가 [계속]에서 다시 나도 들리지 않는다.
+ * 음소거를 바꾼다: registry 값을 바꾸고, persist가 있으면 영구 저장도 요청한다. 음소거 버튼은 이것만 부른다.
+ * 효과음만 끈다: 사운드 매니저 전체 mute는 쓰지 않는다 (배경 음악은 음악 버튼으로만 켜고 끈다, musicRules.ts).
+ * 새 소리는 `Sfx.play`가 읽어 만들지 않고, 일시정지로 멈춘 소리는 `Sfx.resume`이 읽어 이어 내지 않고 버린다.
  */
 export function setMuted(
   store: MuteStore,
-  output: SoundOutput,
   muted: boolean,
   persist?: (muted: boolean) => void,
 ): void {
   writeMuted(store, muted);
-  applyMuted(store, output);
   // 저장은 실패해도 게임을 막지 않는다 (현재 판의 값은 이미 바뀌었다). persist는 예외를 던지지 않는다
   persist?.(muted);
 }

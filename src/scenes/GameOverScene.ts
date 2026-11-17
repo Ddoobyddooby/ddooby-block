@@ -2,14 +2,16 @@
 // 점수·최고 점수·최고 기록 갱신 여부는 GameScene이 계산해 넘긴다 (gameOverRules.ts). 저장은 이미 끝났다 (게임 오버 때 RunSession이 한다).
 
 import Phaser from 'phaser';
-import { VIEW } from '../config';
+import { SOUND, VIEW } from '../config';
 import { addButton, type PressLock } from '../view/ui/Button';
 import { drawPanel } from '../view/ui/Panel';
+import { Sfx } from '../view/Sfx';
 import { Backdrop } from '../view/theme/backdrop';
 import { textStyle, type TextRole } from '../view/theme/textStyle';
 import { themeOf } from '../view/theme/themeSetting';
 import {
   gameOverButtons,
+  gameOverSounds,
   gameOverTexts,
   inputDelayLeft,
   type GameOverButton,
@@ -97,6 +99,12 @@ export class GameOverScene extends Phaser.Scene {
       this.rankUi = new GameOverRanking(this.ranking, { fetchRanking, currentUserId });
     }
     const buttons = gameOverButtons();
+    // 효과음: 화면이 새로 뜰 때만 (resize로 다시 그릴 때는 내지 않는다). 최고 기록은 화면 소리 뒤에 따로
+    const sfx = new Sfx(this);
+    for (const { name, afterMs } of gameOverSounds(this.data0, this.fresh, SOUND.newBestDelayMs)) {
+      if (afterMs <= 0) sfx.play(name);
+      else this.time.delayedCall(afterMs, () => sfx.play(name));
+    }
 
     // 화면 전체 덮개: 눌러도 아무 일 없고, 아래 게임으로 입력이 가지 않는다
     this.add

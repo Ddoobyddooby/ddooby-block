@@ -6,11 +6,14 @@ import Phaser from 'phaser';
 import { VIEW } from '../config';
 import { addButton, type PressLock } from '../view/ui/Button';
 import { addMuteButton } from '../view/ui/MuteButton';
+import { addMusicButton } from '../view/ui/MusicButton';
+import { Music } from '../view/Music';
 import { drawPanel } from '../view/ui/Panel';
 import { Sfx } from '../view/Sfx';
 import { textStyle } from '../view/theme/textStyle';
 import { themeOf } from '../view/theme/themeSetting';
 import { readMuted, setMuted } from './muteSetting';
+import { readMusic, setMusicOn } from './musicRules';
 import { getPersistence } from './persistenceRegistry';
 import { startRun } from '../online';
 import { skipsRanking } from './gameStart';
@@ -52,7 +55,8 @@ export class PauseScene extends Phaser.Scene {
 
     const buttons = pauseButtons();
     const buttonsH = (buttons.length - 1) * pause.buttonStep + pause.buttonH;
-    const contentH = pause.titleSize + pause.titleGap + buttonsH;
+    const soundH = pause.muteRadius * 2 + pause.soundGap;
+    const contentH = pause.titleSize + pause.titleGap + soundH + buttonsH;
     const top = cy - contentH / 2 - pause.panelPad;
     drawPanel(this, cx, top, top + contentH + pause.panelPad * 2, {
       width: pause.panelW,
@@ -64,23 +68,39 @@ export class PauseScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const sfx = new Sfx(this);
-    // 음소거 버튼: 판 오른쪽 위. 설정은 저장소에도 쓴다 (muteSetting.ts)
+    // 소리 버튼 줄: 제목 아래에 [♫ 음악] [스피커 음소거]. 설정은 저장소에도 쓴다 (musicRules.ts·muteSetting.ts)
+    const soundY = top + pause.panelPad + pause.titleSize + pause.titleGap + pause.muteRadius;
     addMuteButton(
       this,
-      cx + pause.panelW / 2 - pause.muteInset,
-      titleY,
+      cx + pause.soundStep / 2,
+      soundY,
       pause.muteRadius,
       readMuted(this.registry),
       (muted) => {
-        // 저장값과 실제 출력(사운드 매니저)을 같이 바꾼다. 음소거를 켤 때는 소리가 없고, 끌 때만 확인음이 난다
-        setMuted(this.registry, this.sound, muted, (value) => {
+        // 효과음만 끈다 (배경 음악은 옆의 음악 버튼). 음소거를 켤 때는 소리가 없고, 끌 때만 확인음이 난다
+        setMuted(this.registry, muted, (value) => {
           void getPersistence(this.registry)?.setMuted(value);
         });
         if (!muted) sfx.play('button');
       },
     );
+    // 음악 버튼: 음소거 버튼 왼쪽. 저장은 settings.music (musicRules.ts). 효과음 음소거와 따로 켜고 끈다
+    addMusicButton(
+      this,
+      cx - pause.soundStep / 2,
+      soundY,
+      pause.muteRadius,
+      readMusic(this.registry),
+      (on) => {
+        setMusicOn(this.registry, Music.of(this.game), on, (value) => {
+          void getPersistence(this.registry)?.setMusic(value);
+        });
+        if (on) sfx.play('button');
+      },
+    );
 
-    const firstY = top + pause.panelPad + pause.titleSize + pause.titleGap + pause.buttonH / 2;
+    const firstY =
+      top + pause.panelPad + pause.titleSize + pause.titleGap + soundH + pause.buttonH / 2;
     const lock: PressLock = { pressed: false };
     this.lock = lock;
     buttons.forEach((id, i) => {

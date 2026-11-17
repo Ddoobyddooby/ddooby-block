@@ -66,7 +66,7 @@ describe('한 판의 테마 고정 (늦은 부팅 읽기)', () => {
     tray.render(['i3h']);
     expect(requested).toHaveLength(3);
     // 3) 저장 테마(orbit)가 뒤늦게 도착
-    applyLoaded(registry, { mute: false }, ORBIT_LOADED);
+    applyLoaded(registry, ORBIT_LOADED);
     expect(themeOf({ registry }).id).toBe('soda'); // 진행 중인 판(Pause·GameOver 포함)은 그대로
     // 4) 새 트레이: 같은 테마의 키, 모두 만들어져 있다
     tray.render(['i3h', 'dot', 'o3']);
@@ -84,7 +84,7 @@ describe('한 판의 테마 고정 (늦은 부팅 읽기)', () => {
 
   it('읽기가 시작 전에 끝나면 저장 테마로 바로 시작한다 (반영할 것이 남지 않는다)', () => {
     const { registry } = fakeScene();
-    applyLoaded(registry, { mute: false }, ORBIT_LOADED);
+    applyLoaded(registry, ORBIT_LOADED);
     expect(themeOf({ registry }).id).toBe('orbit');
     expect(hasPendingTheme(registry)).toBe(false);
   });
@@ -93,7 +93,7 @@ describe('한 판의 테마 고정 (늦은 부팅 읽기)', () => {
     const { registry } = fakeScene();
     writeTheme(registry, 'soda');
     lockTheme(registry, 'butter'); // 메뉴 카드 / DEV ?theme=butter
-    applyLoaded(registry, { mute: false }, ORBIT_LOADED);
+    applyLoaded(registry, ORBIT_LOADED);
     expect(hasPendingTheme(registry)).toBe(false);
     expect(adoptPreferredTheme(registry)).toBe(false);
     expect(themeOf({ registry }).id).toBe('butter');
@@ -103,7 +103,7 @@ describe('한 판의 테마 고정 (늦은 부팅 읽기)', () => {
     const { registry } = fakeScene();
     writeTheme(registry, 'soda');
     pinRunTheme(registry);
-    applyLoaded(registry, { mute: false }, ORBIT_LOADED);
+    applyLoaded(registry, ORBIT_LOADED);
     // [다시 하기]로 새 판: 메뉴를 거치지 않으므로 같은 테마로 다시 고정된다
     expect(pinRunTheme(registry).id).toBe('soda');
   });

@@ -7,16 +7,15 @@ import {
   writeTheme,
   type ThemeStore,
 } from '../view/theme/themeSetting';
-import { applyMuted, writeMuted, type MuteStore, type SoundOutput } from './muteSetting';
+import { writeMuted, type MuteStore } from './muteSetting';
 
 /**
  * 최고 점수는 이미 더 큰 값이 있으면 그대로 둔다. 음소거는 아직 아무도 정하지 않았을 때만 저장된 값으로 채운다
 
- * (저장소 읽기가 늦어 사용자가 먼저 바꾼 값을 덮지 않는다). 테마는 선호값으로만 적는다 (위). 마지막에 사운드 출력을 registry 값에 맞춘다.
+ * (저장소 읽기가 늦어 사용자가 먼저 바꾼 값을 덮지 않는다). 테마는 선호값으로만 적는다 (위).
  */
 export function applyLoaded(
   store: BestStore & MuteStore & ThemeStore,
-  output: SoundOutput,
   result: Pick<LoadResult, 'bestScore' | 'settings'>,
 ): void {
   writeBest(store, result.bestScore);
@@ -26,5 +25,4 @@ export function applyLoaded(
   // 첫 화면 전(아직 적용된 테마가 없음)이면 바로 적용한다
   writePreferredTheme(store, result.settings.theme);
   if (!hasTheme(store)) writeTheme(store, result.settings.theme);
-  applyMuted(store, output);
 }

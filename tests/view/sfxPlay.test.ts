@@ -1,6 +1,6 @@
 import type Phaser from 'phaser';
 import { describe, expect, it } from 'vitest';
-import { applyMuted, setMuted, writeMuted } from '../../src/scenes/muteSetting';
+import { setMuted } from '../../src/scenes/muteSetting';
 import { Sfx } from '../../src/view/Sfx';
 
 /** 사운드 매니저·소리 대역. 소리 하나가 실제로 들리려면 재생 중이고 매니저 mute가 꺼져 있어야 한다. Phaser처럼 stop·destroy·complete 이벤트를 낸다 */
@@ -92,36 +92,40 @@ function setup() {
 }
 
 describe('Sfx: 일시정지로 멈춘 소리와 음소거', () => {
-  it('멈춘 소리가 있는 상태에서 음소거를 켜고 재개해도 들리지 않는다', () => {
+  it('멈춘 소리가 있는 상태에서 음소거를 켜고 재개하면 이어 내지 않고 버린다 (매니저 mute는 쓰지 않는다)', () => {
     const { scene, registry, manager, sounds, audible } = setup();
     const sfx = new Sfx(scene);
     sfx.play('clear');
     sfx.pause();
-    setMuted(registry, manager, true);
+    setMuted(registry, true);
     sfx.resume();
     expect(sounds).toHaveLength(1);
-    expect(sounds[0]!.playing).toBe(true);
+    expect(sounds[0]!.destroyed).toBe(true);
     expect(audible(sounds[0]!)).toBe(false);
+    // 음악이 같은 매니저를 쓰므로 전체 mute는 건드리지 않는다
+    expect(manager.mute).toBe(false);
+  });
+
+  it('음소거를 켜지 않았다면 재개한 소리는 이어서 들린다', () => {
+    const { scene, sounds, audible } = setup();
+    const sfx = new Sfx(scene);
+    sfx.play('clear');
+    sfx.pause();
+    sfx.resume();
+    expect(audible(sounds[0]!)).toBe(true);
   });
 
   it('음소거를 끄면 그 뒤 새 소리는 들린다', () => {
-    const { scene, registry, manager, sounds, clock, audible } = setup();
+    const { scene, registry, sounds, clock, audible } = setup();
     const sfx = new Sfx(scene);
-    setMuted(registry, manager, true);
+    setMuted(registry, true);
     sfx.play('place');
     expect(sounds).toHaveLength(0);
-    setMuted(registry, manager, false);
+    setMuted(registry, false);
     clock.now += 500;
     sfx.play('place');
     expect(sounds).toHaveLength(1);
     expect(audible(sounds[0]!)).toBe(true);
-  });
-
-  it('게임 시작 때 저장값이 매니저에 반영된다 (applyMuted)', () => {
-    const { registry, manager } = setup();
-    writeMuted(registry, true);
-    applyMuted(registry, manager);
-    expect(manager.mute).toBe(true);
   });
 });
 

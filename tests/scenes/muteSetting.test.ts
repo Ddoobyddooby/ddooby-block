@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  applyMuted,
-  readMuted,
-  setMuted,
-  writeMuted,
-  type MuteStore,
-} from '../../src/scenes/muteSetting';
+import { readMuted, setMuted, writeMuted, type MuteStore } from '../../src/scenes/muteSetting';
 
 function fakeStore(initial?: unknown): MuteStore {
   const map = new Map<string, unknown>();
@@ -40,40 +34,23 @@ describe('readMuted / writeMuted', () => {
   });
 });
 
-describe('applyMuted / setMuted (사운드 매니저 mute와 동기화)', () => {
-  it('applyMuted: 저장된 값을 매니저 mute에 맞춘다', () => {
-    const store = fakeStore(true);
-    const output = { mute: false };
-    applyMuted(store, output);
-    expect(output.mute).toBe(true);
-  });
-
-  it('applyMuted: 기록이 없으면 소리를 켠다 (mute false)', () => {
-    const output = { mute: true };
-    applyMuted(fakeStore(), output);
-    expect(output.mute).toBe(false);
-  });
-
-  it('setMuted: 저장값과 매니저 mute가 같이 바뀐다', () => {
+describe('setMuted (효과음만 끈다)', () => {
+  it('setMuted: registry 값이 바뀐다', () => {
     const store = fakeStore();
-    const output = { mute: false };
-    setMuted(store, output, true);
+    setMuted(store, true);
     expect(readMuted(store)).toBe(true);
-    expect(output.mute).toBe(true);
-    setMuted(store, output, false);
+    setMuted(store, false);
     expect(readMuted(store)).toBe(false);
-    expect(output.mute).toBe(false);
   });
 
-  it('setMuted: persist가 있으면 바뀐 값으로 한 번 부른다 (영구 저장 요청)', () => {
+  it('setMuted: persist가 있으면 바뀐 값으로 한 번씩 부른다 (영구 저장 요청)', () => {
     const store = fakeStore();
-    const output = { mute: false };
     const saved: boolean[] = [];
-    setMuted(store, output, true, (muted) => saved.push(muted));
-    setMuted(store, output, false, (muted) => saved.push(muted));
+    setMuted(store, true, (muted) => saved.push(muted));
+    setMuted(store, false, (muted) => saved.push(muted));
     expect(saved).toEqual([true, false]);
-    // persist 없이도 그대로 동작한다 (기존 호출부)
-    setMuted(store, output, true);
-    expect(output.mute).toBe(true);
+    // persist 없이도 그대로 동작한다
+    setMuted(store, true);
+    expect(readMuted(store)).toBe(true);
   });
 });

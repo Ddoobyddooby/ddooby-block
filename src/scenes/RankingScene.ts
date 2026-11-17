@@ -5,6 +5,8 @@
 // ddooby-pang의 RankingScene에서 주간 점수 부분만 복사해 맞췄다 (탭·스토리 별·음악 제외, 다시 그리기·첫 손가락 하나만 따르는 스크롤·DEV 확인용 추가).
 
 import Phaser from 'phaser';
+import { Music } from '../view/Music';
+import { musicFor } from './musicRules';
 import { RANKING } from '../config';
 import { fetchRanking } from '../online';
 import {
@@ -58,6 +60,8 @@ export class RankingScene extends Phaser.Scene {
     this.closed = false;
     const theme = themeOf(this);
     this.cameras.main.setBackgroundColor(theme.colors.background);
+    // 배경 음악: 메뉴에서 왔으면 같은 곡이 이어진다
+    Music.of(this.game).play(musicFor('Ranking'));
     this.backdrop = new Backdrop(this);
     this.screen = { phase: 'loading', visible: false };
     this.weekText = '';
