@@ -37,6 +37,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `npm run server:shared` / `server:shared:check` | 닉네임 규칙(`src/online/nicknameRules.ts`·`bannedWords.ts`)을 서버 함수용 파일로 묶는다 / 묶어 둔 파일이 원본과 같은지만 본다(다르면 1). 규칙을 고치면 `server:shared`를 돌리고 같이 커밋한다 | W3-02 |
 | `npm run functions:check` | Edge Function 타입 검사 (`deno check`) | W3-02 |
 | `npm run supabase:check -- --scores [--parity]` | 점수 제출 원격 시험. `--scores`는 정상·재제출·조작·간격·버전·남의 run·이른 제출·동시 제출 등 약 60개(판마다 실제 시간을 기다려 몇 분), `--parity`는 서버가 발급한 seed로 200판을 서버에서 다시 계산해 점수가 같은지 본다(run 200개가 남는다) | W3-03 |
+| `npm run supabase:check -- --ranking` | 주간 랭킹 원격 시험: 비로그인 조회, 이름 있는/없는 시험 사용자의 목록·내 줄, 공동 순위, 클라이언트 직접 쓰기 차단(약 20개). 시험 사용자와 닉네임이 공개 목록에 남는다 | W3-04 |
 | `npm run supabase:check` | Supabase 권한 시험. `.env.local`(또는 `-- <env 경로>`)의 URL·publishable key로 익명 사용자 둘과 비로그인을 만들어 쓰기가 막히는지 본다. 모두 PASS면 0, FAIL·시험 불가가 있으면 1, 설정이 없거나 키가 publishable이 아니면 2. 실행마다 익명 계정 2개가 남는다 | W3-01 |
 | `npm run sim` | 자동 플레이 봇으로 seed 1~1000을 돌려 평균 점수·배치 수·보정 발생률을 찍는다. 가중치·점수를 고친 뒤 밸런스를 잴 때 | W4-02 (예정) |
 | `npm run android:sync` | 웹 빌드 후 `android/` 앱에 복사 (`cap sync`). Android Studio에서 ▶ 하기 전에 실행 | W4-03 (예정) |
@@ -65,6 +66,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 | `?fill=<이름>` | (개발 모드) 보드를 미리 채운 상태로 시작. 이름은 `line1`, `line2`, `line3`, `combo3`, `clear`. 맨 왼쪽 조각을 놓을 자리는 4절 W2-04 표 참고. 이 판은 저장·랭킹 대상이 아니다 | W2-04 |
 | `?resume` | (개발 모드) 저장된 판이 있으면 그 판을 이어서 시작한다. 메뉴의 [이어하기]를 누른 것과 같다 | W2-05 |
 | `?ranking` | (W3-03부터 쓰지 않는다) 닉네임 창은 점수 제출이 성공한 뒤에 저절로 뜬다 | W3-02 |
+| `?rankingFake=<이름>` | (개발 모드) 서버 없이 랭킹 화면 모양만 본다: `top`·`far`(51위 밖)·`around`·`long`·`noname`·`empty`·`norecord`·`anon`·`offline`·`error` | W3-04 |
 | `?ranking=fake` | (개발 모드) 서버 없이 입력 창만 본다. 이름으로 결과를 정한다: `서버오류`·`연결끊김`·`권한없음`·`이미있음`·`무응답`(10초 뒤 닫힘), 그 밖은 성공 `#0427` | W3-02 |
 | `?over` | (개발 모드) 게임 없이 게임 오버 화면만 띄운다. `?over`는 최고 기록을 넘은 화면, `?over=low`는 못 넘은 화면. 예시 점수이고 저장되지 않는다 | W2-06 |
 
@@ -225,6 +227,14 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - 키 없이 `?ranking` → 창이 뜨지 않고 게임은 정상
 - 프로덕션: `npm run build` 뒤 `grep -r ranking dist/assets` → 아무것도 안 나온다
 - 함수 배포(바꿨을 때만): `supabase functions deploy set-nickname --project-ref <ref>` (`--no-verify-jwt`를 붙이지 않는다)
+
+### W3-04 주간 랭킹
+
+- `npm test` → 파일 79개, 1542개 통과
+- 서버 없이: `npm run dev` → `?rankingFake=far`로 열고 메뉴 [주간 랭킹] → 50위 뒤 `⋯`와 내 위아래 5명, 하단 내 줄이 보인다. `noname`·`empty`·`offline`도 바꿔 본다
+- 실제 서버: 메뉴 [주간 랭킹] → 기간 "11월 16일(월) ~ 11월 22일(일)"처럼 이번 주가 보인다. 한 판을 끝내면 게임 오버에 "이번 주 최고 N점 · N위"(이름이 없으면 "이름을 정하면 순위가 보여요"와 닉네임 창)
+- 오프라인(Network → Offline) → [주간 랭킹] → "인터넷에 연결되면 랭킹을 볼 수 있어요" → 온라인으로 바꾸고 [다시 시도]
+- 원격 시험: `npm run supabase:check -- --ranking` → 모두 PASS
 
 ### W3-03 점수 제출·서버 리플레이
 
@@ -434,3 +444,12 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 - **기다리는 동안 화면이 바뀐다**: 서버 응답을 기다리는 2.5초 사이에 버튼이 다시 눌리거나 화면이 다시 그려질 수 있다. 요청마다 번호를 붙이고, 기존 판은 새 판으로 실제 넘어갈 때만 버린다 → `src/scenes/newRun.ts`·`screenActions.ts`·`restartGate.ts`
 - **시험이 거짓말하지 않게**: 원격 시험은 "실패했다"만 보지 않고 정확한 응답 코드를 본다. 네트워크가 끊겨 판정하지 못한 항목은 통과가 아니라 "시험 불가"로 센다 → `scripts/supabase-check/scoresJudge.ts`
 - 참고: [PostgreSQL SELECT FOR UPDATE](https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE), [PostgREST 트랜잭션](https://docs.postgrest.org/en/stable/references/transactions.html), [Supabase Edge Functions](https://supabase.com/docs/guides/functions), [멱등성 (MDN)](https://developer.mozilla.org/ko/docs/Glossary/Idempotent)
+
+### W3-04 주간 랭킹
+
+- **순위 매기기 (window 함수)**: `rank()`는 같은 점수에 같은 순위를 주고 다음 순위를 건너뛴다(1, 2, 2, 4). `dense_rank()`는 건너뛰지 않는다(1, 2, 2, 3). 화면에 보이는 순위와 줄을 세우는 순번(`row_number()`)을 따로 둔다 → `supabase/migrations/20261118100000_w3_04_weekly_ranking.sql`
+- **"이번 주"는 서버가 정한다**: 휴대폰 날짜가 틀려도 랭킹 주가 바뀌면 안 된다. 서버 시각을 한국 시간 ISO 주로 바꿔 응답에 같이 싣고, 앱은 그 값만 믿는다 → `gameOverRanking.ts`
+- **필요한 것만 내보내기**: 함수는 닉네임·태그·점수·순위와 "내 줄인가"만 돌려주고 사용자 ID는 빼다. 표 권한까지 좁히는 일은 따로 남아 있다
+- **먼저 구독하고 나중에 시작**: 결과를 기다리는 객체를 만들기 전에 화면이 그 결과를 듣지 않으면, 결과가 와도 화면이 모른다. 객체를 먼저 만들고 듣기를 연결한 뒤 일을 시작한다
+- **늦은 응답 버리기**: [새로고침]을 여러 번 누르면 응답이 순서대로 오지 않을 수 있다. 요청마다 번호를 붙여 마지막 요청의 응답만 화면에 쓴다 → `scenes/rankingController.ts`
+- 참고: [PostgreSQL window 함수](https://www.postgresql.org/docs/current/functions-window.html), [ISO 8601 주 (Wikipedia)](https://ko.wikipedia.org/wiki/ISO_8601), [Supabase RPC](https://supabase.com/docs/reference/javascript/rpc)
