@@ -29,3 +29,8 @@ android/local.properties
 
 # Codex 탭 결과 (WORKFLOW 8.5)
 .codex-out/
+
+# 글꼴 원본 (받는 방법은 assets/fonts-src/README.md)
+assets/fonts-src/*.ttf
+assets/fonts-src/*.otf
+assets/fonts-src/*.woff2

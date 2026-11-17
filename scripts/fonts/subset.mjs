@@ -7,7 +7,7 @@
 // `--check`: 파일은 만들지 않고, 지금 소스의 글자 집합이 마지막 서브셋(public/fonts/subset-chars.txt)과 같은지만 본다 (다르면 종료 코드 1).
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
@@ -89,6 +89,15 @@ if (process.argv.includes('--check')) {
   process.exit(0);
 }
 
+// 원본이 없으면 안내하고 끝낸다 (서브셋 확인(--check)은 원본 없이 위에서 이미 끝났다)
+const missing = FONTS.filter((f) => !existsSync(join(FONT_SRC, f.src)));
+if (missing.length > 0) {
+  console.error(`글꼴 원본이 없습니다: ${missing.map((f) => f.src).join(', ')}`);
+  console.error(
+    '원본은 저장소에 없습니다. assets/fonts-src/README.md의 주소에서 받아 assets/fonts-src/에 두고 다시 실행하세요.',
+  );
+  process.exit(1);
+}
 mkdirSync(OUT_DIR, { recursive: true });
 const tmp = join(tmpdir(), `ddooby-fonts-${process.pid}`);
 mkdirSync(tmp, { recursive: true });
