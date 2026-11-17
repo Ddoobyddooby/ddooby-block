@@ -8,6 +8,12 @@ declare module 'node:fs' {
   export function mkdirSync(path: string, options: { recursive: true }): string | undefined;
   /** W3-03 서버 번들 대조 시험이 임시 입력 파일을 만든다 */
   export function mkdtempSync(prefix: string): string;
+  /** W4-02 sim이 실행마다 만든 번들 폴더를 지운다 */
+  export function rmSync(path: string, options: { recursive: true; force: true }): void;
+}
+
+declare module 'node:url' {
+  export function pathToFileURL(path: string): { href: string };
 }
 
 declare module 'node:os' {
@@ -43,7 +49,10 @@ declare module 'node:child_process' {
 declare module 'node:process' {
   const process: {
     argv: string[];
+    version: string;
+    exitCode?: number;
     stdout: { write(text: string): boolean };
+    stderr: { write(text: string): boolean };
   };
   export default process;
 }

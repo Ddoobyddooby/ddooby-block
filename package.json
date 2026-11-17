@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "sim": "node --disable-warning=ExperimentalWarning scripts/sim/cli.ts",
     "fonts:subset": "node scripts/fonts/subset.mjs",
     "fonts:check": "node scripts/fonts/subset.mjs --check",
     "supabase:check": "node --disable-warning=ExperimentalWarning scripts/supabase-check/rls-check.ts",
