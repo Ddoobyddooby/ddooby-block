@@ -1,0 +1,53 @@
+# main에 push하면 검사(lint·test) 후 웹 빌드를 GitHub Pages에 배포한다 (PLAN 7.4).
+# 주소: https://ddoobyddooby.github.io/ddooby-block/ (Vite base './' 라서 경로 설정이 따로 필요 없다: tests/config/viteBase.test.ts)
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 배포가 겹치지 않게 하나씩. 진행 중인 배포는 끊지 않는다
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      # Edge Function용 묶음(supabase/functions/_shared/)이 src와 같은지 (PLAN2 5.8·6.3)
+      - run: npm run server:shared:check
+      # 글꼴 부분 집합이 원본·문자 목록과 같은지 (W3-05)
+      - run: npm run fonts:check
+      - run: npm test
+      # 온라인 기능 키 (저장소 Variables, PLAN2 6.1). 없으면 빈 값으로 빌드되고 온라인 기능만 꺼진다
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
