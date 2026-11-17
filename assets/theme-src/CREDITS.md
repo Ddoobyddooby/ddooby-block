@@ -12,3 +12,11 @@
 ## 글꼴
 
 원본은 `assets/fonts-src/`, 서브셋은 `public/fonts/` (라이선스 원문 함께). 서브셋 방법은 `npm run fonts:subset`(scripts/fonts/subset.mjs).
+
+## 앱 아이콘 (W4-03)
+
+`assets/app-icon/`(Android 아이콘 원본)과 `public/favicon.png`.
+
+> Codex(OpenAI) 제작, 2026-11-17. 사용자가 선택한 "밤의 오비트" SVG 시안에서 청록·연보라·분홍 블록 세 개와 타원 궤도·노란 점·보라색 반짝임을 보존하고, Android adaptive icon용 투명 전경과 짙은 보라 광원 배경으로 분리·배치했다. 정사각형 합성 아이콘과 64px favicon을 파생 제작했다. SVG 도형 직접 가공 및 Sharp/librsvg PNG 렌더링. **이미지 생성 모델 미사용.** 아이콘에 글자·폰트·외부 게임 에셋 없음.
+
+(`.codex-out/icon-src/README.md`의 "CREDITS용 기록"을 그대로 옮겼다.)
