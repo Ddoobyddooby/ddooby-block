@@ -7,7 +7,7 @@ import { createBlockTextures } from '../view/blockTexture';
 import { addButton, type PressLock } from '../view/ui/Button';
 import { startRun } from '../online';
 import { skipsRanking } from './gameStart';
-import { menuButtons, type MenuButton } from './menuRules';
+import { menuButtons, menuButtonYs, type MenuButton } from './menuRules';
 import { cancelNewGame, isPreparing } from './newRun';
 import { handleMenuButton } from './screenActions';
 import { getPersistence } from './persistenceRegistry';
@@ -98,7 +98,7 @@ export class MenuScene extends Phaser.Scene {
       });
   }
 
-  /** 로고와 버튼을 화면 크기에 맞춰 가로 가운데에 (다시) 그린다. [새 게임]은 이어하기 유무와 상관없이 같은 자리다 */
+  /** 로고와 버튼을 화면 크기에 맞춰 가로 가운데에 (다시) 그린다. 이어하기가 있으면 버튼 묶음 전체가 한 칸 아래에서 시작한다 (menuButtonYs) */
   private layout(): void {
     const { menu } = VIEW;
     for (const button of this.buttons) button.destroy();
@@ -110,8 +110,7 @@ export class MenuScene extends Phaser.Scene {
     this.logo.draw(x, height * menu.titleY);
 
     const ids = menuButtons(getPersistence(this.registry)?.resumable() != null);
-    // [새 게임]은 이어하기 유무와 상관없이 제자리고, 이어하기는 그 위, 주간 랭킹은 그 아래다
-    const newIndex = ids.indexOf('new');
+    // 맨 위 버튼은 menu.buttonY에서 시작하고 한 칸씩 내려간다. 이어하기가 있으면 이어하기가 그 자리를 차지하고 [새 게임]·[주간 랭킹]·[테마]가 한 칸씩 내려간다
     const spec = (label: string, primary: boolean) => ({
       label,
       width: menu.buttonW,
@@ -119,20 +118,19 @@ export class MenuScene extends Phaser.Scene {
       fontSize: menu.buttonTextSize,
       primary,
     });
+    const ys = menuButtonYs(ids.length + 1, height, menu); // 마지막은 [테마]
     ids.forEach((id, i) => {
-      const y = height * menu.buttonY + (i - newIndex) * menu.buttonStep;
       // 주 버튼(강조색): 이어하기가 있으면 이어하기, 없으면 새 게임
       this.buttons.push(
-        addButton(this, x, y, spec(LABELS[id], i === 0), () => this.go(id), this.lock),
+        addButton(this, x, ys[i]!, spec(LABELS[id], i === 0), () => this.go(id), this.lock),
       );
     });
     // [테마]는 맨 아래. 화면을 떠나지 않으므로 누른 뒤 잠금을 풀어 둔다
-    const themeY = height * menu.buttonY + (ids.length - newIndex) * menu.buttonStep;
     this.buttons.push(
       addButton(
         this,
         x,
-        themeY,
+        ys[ids.length]!,
         spec(THEME_LABEL, false),
         () => {
           this.lock.pressed = false;

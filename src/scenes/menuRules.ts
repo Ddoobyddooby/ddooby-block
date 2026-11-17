@@ -9,3 +9,21 @@ export type MenuButton = 'resume' | 'new' | 'ranking';
 export function menuButtons(hasResume: boolean): MenuButton[] {
   return hasResume ? ['resume', 'new', 'ranking'] : ['new', 'ranking'];
 }
+
+/**
+ * 메뉴 버튼(테마 버튼 포함)의 가운데 y. 맨 위 버튼이 `buttonY`에서 시작해 `buttonStep`씩 내려간다.
+ * 이어하기가 있으면 버튼이 하나 늘어 [새 게임]이 한 칸 아래로 밀린다 (이어하기가 원래 [새 게임] 자리에서 시작): 로고 둘째 줄과 겹치지 않게
+ */
+export function menuButtonYs(
+  count: number,
+  height: number,
+  menu: { buttonY: number; buttonStep: number },
+): number[] {
+  return Array.from({ length: count }, (_, i) => height * menu.buttonY + i * menu.buttonStep);
+}
+
+/** 로고 아래끝 y (둘째 줄 밑줄 기준). 첫 줄 가운데 y1과 두 줄의 글자 크기를 받는다 (view/theme/logo.ts의 배치와 같은 식) */
+export function logoBottomY(y1: number, [s1, s2]: readonly [number, number]): number {
+  const y2 = y1 + (s1 / 2 + s2 / 2) * 0.88;
+  return y2 + s2 * 0.62;
+}

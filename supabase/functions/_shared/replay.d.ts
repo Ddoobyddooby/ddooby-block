@@ -174,7 +174,7 @@ declare const VIEW: {
         readonly buttonTextSize: 40;
         /** 로고 위의 장식(블록 세 개 등)이 로고 첫 줄 가운데보다 얼마나 위인지 (px) */
         readonly motifDy: -190;
-        /** [이어하기]는 [새 게임] 위로 이만큼 (px) 떨어진다. [새 게임]은 이어하기 유무와 상관없이 제자리다 */
+        /** 버튼 사이 간격 (px). 맨 위 버튼이 buttonY에서 시작해 이만큼씩 내려간다 (이어하기가 있으면 [새 게임]이 한 칸 내려간다) */
         readonly buttonStep: 148;
     };
     /** HUD (view/Hud.ts). 위치는 화면 구역의 hud 안, y는 hud 위쪽 기준 (px) */
