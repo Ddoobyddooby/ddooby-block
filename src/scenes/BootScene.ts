@@ -15,6 +15,9 @@ import { parseFillParam } from './devFill';
 import { parseOverParam } from './gameOverRules';
 import { hasResumeParam, type GameStartData } from './gameStart';
 import { putPersistence } from './persistenceRegistry';
+import { loadFonts, refreshTexts } from '../view/theme/fonts';
+import { devTheme } from '../view/theme/themes';
+import { writeTheme } from '../view/theme/themeSetting';
 import { parseSeedParam } from './seed';
 
 /** 앱(Android)은 Capacitor Preferences, 웹은 localStorage (PLAN 6.2) */
@@ -34,7 +37,7 @@ function requestPersist(): void {
 }
 
 /**
- * 첫 씬. 효과음을 미리 읽고, 저장소(최고 점수·음소거·진행 중인 판)를 읽은 뒤 `?seed=N`이나 DEV `?fill=`이 있으면
+ * 첫 씬. 효과음을 미리 읽고, 저장소(최고 점수·음소거·테마·진행 중인 판)와 글꼴을 읽은 뒤 `?seed=N`이나 DEV `?fill=`이 있으면
  * 바로 게임, 없으면 메뉴로 간다. 소리 파일을 못 읽어도, 저장소 읽기가 실패하거나 늦어도 게임은 진행된다.
  */
 export class BootScene extends Phaser.Scene {
@@ -57,6 +60,12 @@ export class BootScene extends Phaser.Scene {
     requestPersist();
     // 익명 계정 (W3-02). 기다리지 않는다: 키가 없거나 오프라인·실패면 온라인 기능만 꺼지고 게임은 그대로다
     void ensureAccount();
+
+    // DEV `?theme=<id>`: 저장하지 않고 이 실행에만 적용한다. 저장값 반영(applyLoaded)은 이미 정해진 테마를 덮지 않는다 (프로덕션 빌드에서는 이 분기가 지워진다)
+    if (import.meta.env.DEV) {
+      const dev = devTheme(window.location.search, true);
+      if (dev !== null) writeTheme(this.registry, dev);
+    }
 
     const direct =
       parseSeedParam(window.location.search) !== null ||
@@ -85,10 +94,15 @@ export class BootScene extends Phaser.Scene {
 
     // 저장소를 읽는다 (load는 실패해도 거부되지 않는다). 늦으면 기다리지 않고 넘어가고, 읽기가 끝나면 그때 반영한다.
     // 그 사이의 쓰기는 읽기 뒤로 줄을 서므로 기존 기록을 기본값으로 덮지 않는다
-    void persistence.load().then((result) => {
-      applyLoaded(this.registry, this.sound, result);
-      start();
+    // 글꼴 읽기도 같이 기다린다 (글꼴이 있어야 첫 화면의 글자가 처음부터 맞게 그려진다). 늦거나 실패해도 같은 제한 시간 뒤에 시스템 글꼴로 시작하고,
+    // 글꼴이 늦게 도착하면 이미 그린 글자를 다시 그린다 (refreshTexts)
+    const fontsReady = loadFonts().then(() => {
+      if (started) refreshTexts(this.game);
     });
+    const loaded = persistence.load().then((result) => {
+      applyLoaded(this.registry, this.sound, result);
+    });
+    void Promise.all([loaded, fontsReady]).then(start);
     this.time.delayedCall(SAVE.bootTimeoutMs, start);
   }
 }

@@ -5,7 +5,7 @@
 // ddooby-pang의 RankingScene에서 주간 점수 부분만 복사해 맞췄다 (탭·스토리 별·음악 제외, 다시 그리기·첫 손가락 하나만 따르는 스크롤·DEV 확인용 추가).
 
 import Phaser from 'phaser';
-import { RANKING, VIEW } from '../config';
+import { RANKING } from '../config';
 import { fetchRanking } from '../online';
 import {
   footerText,
@@ -24,7 +24,9 @@ import { submitNickname } from './nicknameFlow';
 import { whenSubmissionsSettle } from './pendingSubmission';
 import { fakeRankingResult, parseFakeRankingList } from './rankingDev';
 import { RankingController, type RankingScreen } from './rankingController';
-import { cssColor } from './text';
+import { Backdrop } from '../view/theme/backdrop';
+import { textStyle, type TextRole } from '../view/theme/textStyle';
+import { themeOf } from '../view/theme/themeSetting';
 
 export class RankingScene extends Phaser.Scene {
   private controller: RankingController | null = null;
@@ -42,6 +44,7 @@ export class RankingScene extends Phaser.Scene {
   private scroll = 0;
   private readonly gesture = new ScrollGesture(RANKING.dragThreshold);
   private prompt: NicknamePrompt | null = null;
+  private backdrop!: Backdrop;
   private refreshLock: PressLock = { pressed: false };
   private backLock: PressLock = { pressed: false };
   private nameLock: PressLock = { pressed: false };
@@ -52,7 +55,9 @@ export class RankingScene extends Phaser.Scene {
 
   create(): void {
     this.closed = false;
-    this.cameras.main.setBackgroundColor(VIEW.colors.background);
+    const theme = themeOf(this);
+    this.cameras.main.setBackgroundColor(theme.colors.background);
+    this.backdrop = new Backdrop(this);
     this.screen = { phase: 'loading', visible: false };
     this.weekText = '';
     this.parts = [];
@@ -148,7 +153,9 @@ export class RankingScene extends Phaser.Scene {
   private draw(): void {
     if (this.closed) return;
     this.destroyParts();
-    const { colors, fontFamily } = VIEW;
+    this.backdrop.draw();
+    const theme = themeOf(this);
+    const { colors } = theme;
     const R = RANKING;
     const width = this.scale.width;
     const height = Math.max(this.scale.height, 1);
@@ -157,17 +164,10 @@ export class RankingScene extends Phaser.Scene {
     this.listTop = R.list.top;
     this.listHeight = Math.max(0, height - R.list.bottomReserve - R.list.top);
 
-    const text = (y: number, value: string, size: number, color: number, bold: boolean) =>
-      this.add
-        .text(cx, y, value, {
-          fontFamily,
-          fontSize: size,
-          fontStyle: bold ? 'bold' : 'normal',
-          color: cssColor(color),
-        })
-        .setOrigin(0.5);
-    this.parts.push(text(R.titleY, RANKING_TEXT.title, R.titleSize, colors.text, true));
-    this.parts.push(text(R.weekY, this.weekText, R.weekSize, colors.textDim, false));
+    const text = (y: number, value: string, size: number, color: number, role: TextRole) =>
+      this.add.text(cx, y, value, textStyle(theme, role, size, color)).setOrigin(0.5);
+    this.parts.push(text(R.titleY, RANKING_TEXT.title, R.titleSize, colors.ink, 'heading'));
+    this.parts.push(text(R.weekY, this.weekText, R.weekSize, colors.muted, 'body'));
 
     const listBox = this.add.container(0, this.listTop);
     this.listBox = listBox;
@@ -201,21 +201,19 @@ export class RankingScene extends Phaser.Scene {
     const b = R.button;
     const by = height - b.bottomY;
     const view = screen.phase === 'view' ? screen.view : null;
-    const spec = (label: string, fill: number, textColor: number) => ({
+    const spec = (label: string, primary: boolean) => ({
       label,
       width: b.width,
       height: b.height,
-      radius: b.radius,
       fontSize: b.fontSize,
-      fill,
-      textColor,
+      primary,
     });
     this.parts.push(
       addButton(
         this,
         cx - b.dx,
         by,
-        spec(refreshLabel(view), colors.button, colors.buttonText),
+        spec(refreshLabel(view), true),
         () => {
           this.refreshLock.pressed = false; // 여러 번 누를 수 있는 버튼
           this.controller?.reload();
@@ -226,7 +224,7 @@ export class RankingScene extends Phaser.Scene {
         this,
         cx + b.dx,
         by,
-        spec(RANKING_TEXT.back, colors.uiFill, colors.text),
+        spec(RANKING_TEXT.back, false),
         () => this.scene.start('Menu'),
         this.backLock,
       ),
@@ -234,14 +232,12 @@ export class RankingScene extends Phaser.Scene {
   }
 
   private showMessage(box: Phaser.GameObjects.Container, value: string, cx: number): void {
-    const { colors, fontFamily } = VIEW;
+    const theme = themeOf(this);
     const R = RANKING;
     box.add(
       this.add
         .text(cx, this.listTop + this.listHeight / 2, value, {
-          fontFamily,
-          fontSize: R.message.size,
-          color: cssColor(colors.textDim),
+          ...textStyle(theme, 'body', R.message.size, theme.colors.muted),
           align: 'center',
           wordWrap: { width: R.message.wrapWidth, useAdvancedWrap: true },
         })
@@ -272,7 +268,7 @@ export class RankingScene extends Phaser.Scene {
   /** 순번이 이어지지 않는 곳: 가운데 점 세 개 (글자 ⋯ 대신 그려서 글꼴과 상관없이 같게 보인다) */
   private drawGap(box: Phaser.GameObjects.Container, cx: number, cy: number): void {
     const d = RANKING.gapDot;
-    const g = this.add.graphics().fillStyle(VIEW.colors.textDim, 1);
+    const g = this.add.graphics().fillStyle(themeOf(this).colors.muted, 1);
     for (let k = -1; k <= 1; k++) g.fillCircle(cx + k * d.spacing, cy, d.r);
     box.add(g);
   }
@@ -284,32 +280,40 @@ export class RankingScene extends Phaser.Scene {
     x0: number,
     top: number,
   ): void {
-    const { colors, fontFamily } = VIEW;
+    const theme = themeOf(this);
+    const { colors } = theme;
     const R = RANKING;
     const L = R.list;
     const W = R.row;
     const cy = top + L.rowH / 2;
     const bg = this.add.graphics();
-    if (line.isMe) bg.fillStyle(R.colors.meFill, 1).lineStyle(W.meStroke, colors.button, 1);
-    else bg.fillStyle(colors.uiFill, R.colors.rowAlpha);
+    if (line.isMe) bg.fillStyle(colors.meFill, 1).lineStyle(W.meStroke, colors.accent, 1);
+    else bg.fillStyle(colors.panel, R.rowAlpha);
     bg.fillRoundedRect(x0, top, L.width, L.rowH, W.radius);
     if (line.isMe) bg.strokeRoundedRect(x0, top, L.width, L.rowH, W.radius);
     box.add(bg);
 
-    const make = (x: number, size: number, color: number, value: string, originX: number) =>
+    const make = (
+      x: number,
+      size: number,
+      color: number,
+      value: string,
+      originX: number,
+      numeric = false,
+    ) =>
       this.add
-        .text(x, cy, value, {
-          fontFamily,
-          fontSize: size,
-          fontStyle: line.isMe ? 'bold' : 'normal',
-          color: cssColor(color),
-        })
+        .text(
+          x,
+          cy,
+          value,
+          textStyle(theme, numeric ? 'number' : line.isMe ? 'heading' : 'body', size, color),
+        )
         .setOrigin(originX, 0.5);
-    const medalColor = line.medal === null ? colors.textDim : R.colors.medal[line.medal - 1];
-    const rank = make(x0 + W.rankRight, W.fontSize, medalColor ?? colors.textDim, line.rank, 1);
-    const name = make(x0 + W.nameLeft, W.fontSize, colors.text, line.nickname, 0);
-    const tag = make(0, W.tagFontSize, colors.textDim, line.tag, 0);
-    const score = make(x0 + W.scoreRight, W.fontSize, colors.text, line.score, 1);
+    const medalColor = line.medal === null ? colors.muted : colors.medal[line.medal - 1];
+    const rank = make(x0 + W.rankRight, W.fontSize, medalColor ?? colors.muted, line.rank, 1, true);
+    const name = make(x0 + W.nameLeft, W.fontSize, colors.ink, line.nickname, 0);
+    const tag = make(0, W.tagFontSize, colors.muted, line.tag, 0);
+    const score = make(x0 + W.scoreRight, W.fontSize, colors.ink, line.score, 1, true);
     const available = score.x - score.width - W.minGap - name.x;
     const needed = name.width + W.tagGap + tag.width;
     const k = needed > available ? Math.max(0.5, available / needed) : 1;
@@ -326,7 +330,8 @@ export class RankingScene extends Phaser.Scene {
     x0: number,
     height: number,
   ): void {
-    const { colors, fontFamily } = VIEW;
+    const theme = themeOf(this);
+    const { colors } = theme;
     const R = RANKING;
     const L = R.list;
     const F = R.footer;
@@ -334,8 +339,8 @@ export class RankingScene extends Phaser.Scene {
     const cy = height - F.bottomY;
     const bg = this.add.graphics();
     const me = footer.kind === 'me';
-    if (me) bg.fillStyle(R.colors.meFill, 1).lineStyle(W.meStroke, colors.button, 1);
-    else bg.fillStyle(colors.uiFill, R.colors.rowAlpha);
+    if (me) bg.fillStyle(colors.meFill, 1).lineStyle(W.meStroke, colors.accent, 1);
+    else bg.fillStyle(colors.panel, R.rowAlpha);
     bg.fillRoundedRect(x0, cy - F.height / 2, L.width, F.height, W.radius);
     if (me) bg.strokeRoundedRect(x0, cy - F.height / 2, L.width, F.height, W.radius);
     box.add(bg);
@@ -344,10 +349,12 @@ export class RankingScene extends Phaser.Scene {
     box.add(
       this.add
         .text(x0 + 24, cy, t.left, {
-          fontFamily,
-          fontStyle: me ? 'bold' : 'normal',
-          fontSize: footer.kind === 'noNickname' ? F.subFontSize : F.fontSize,
-          color: cssColor(colors.text),
+          ...textStyle(
+            theme,
+            me ? 'heading' : 'body',
+            footer.kind === 'noNickname' ? F.subFontSize : F.fontSize,
+            colors.ink,
+          ),
           wordWrap: { width: F.textWrap, useAdvancedWrap: true },
         })
         .setOrigin(0, 0.5),
@@ -355,12 +362,7 @@ export class RankingScene extends Phaser.Scene {
     if (t.right) {
       box.add(
         this.add
-          .text(x0 + W.scoreRight, cy, t.right, {
-            fontFamily,
-            fontStyle: 'bold',
-            fontSize: F.fontSize,
-            color: cssColor(colors.text),
-          })
+          .text(x0 + W.scoreRight, cy, t.right, textStyle(theme, 'number', F.fontSize, colors.ink))
           .setOrigin(1, 0.5),
       );
     }
@@ -375,10 +377,8 @@ export class RankingScene extends Phaser.Scene {
             label: RANKING_TEXT.setName,
             width: b.width,
             height: b.height,
-            radius: b.radius,
             fontSize: b.fontSize,
-            fill: colors.button,
-            textColor: colors.buttonText,
+            primary: true,
           },
           () => {
             this.nameLock.pressed = false;
@@ -396,6 +396,7 @@ export class RankingScene extends Phaser.Scene {
     if (this.closed || this.prompt) return;
     this.prompt = new NicknamePrompt({
       canvas: this.game.canvas,
+      theme: themeOf(this),
       submit: submitNickname,
       onClose: (outcome) => {
         this.prompt = null;

@@ -13,6 +13,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "fonts:subset": "node scripts/fonts/subset.mjs",
+    "fonts:check": "node scripts/fonts/subset.mjs --check",
     "supabase:check": "node --disable-warning=ExperimentalWarning scripts/supabase-check/rls-check.ts",
     "server:shared": "node --disable-warning=ExperimentalWarning scripts/server-shared/build.ts",
     "server:shared:check": "node --disable-warning=ExperimentalWarning scripts/server-shared/build.ts --check",

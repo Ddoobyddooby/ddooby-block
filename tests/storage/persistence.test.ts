@@ -15,7 +15,7 @@ function input(seed: number, count: number, elapsedMs = 100000): RunInput {
 }
 
 function progressJson(bestScore: number, muted = false): string {
-  return JSON.stringify({ version: 1, bestScore, settings: { muted, music: true } });
+  return JSON.stringify({ version: 1, bestScore, settings: { muted, music: true, theme: 'soda' } });
 }
 
 function storedBest(store: MemoryStore): number {
@@ -37,7 +37,7 @@ describe('부팅 읽기 (load)', () => {
     store.data.set(RUN, serializeRun(input(4, 10, 3300)));
     const result = await new Persistence(store).load();
     expect(result.bestScore).toBe(700);
-    expect(result.settings).toEqual({ muted: true, music: true });
+    expect(result.settings).toEqual({ muted: true, music: true, theme: 'soda' });
     expect(result.readable).toBe(true);
     expect(result.resume?.state.score).toBe(483);
     expect(result.resume?.saved.elapsedMs).toBe(3300);
@@ -50,7 +50,7 @@ describe('부팅 읽기 (load)', () => {
     expect(result).toEqual({
       bestScore: 0,
       storedBest: 0,
-      settings: { muted: false, music: true },
+      settings: { muted: false, music: true, theme: 'soda' },
       resume: null,
       readable: true,
     });
@@ -354,7 +354,11 @@ describe('최고 점수와 음소거', () => {
     expect(result.bestScore).toBe(700);
     expect(result.settings.muted).toBe(true);
     const saved = parseSave(store.data.get(PROGRESS) ?? null);
-    expect(saved).toEqual({ version: 1, bestScore: 700, settings: { muted: true, music: true } });
+    expect(saved).toEqual({
+      version: 1,
+      bestScore: 700,
+      settings: { muted: true, music: true, theme: 'soda' },
+    });
   });
 
   it('음소거 저장 실패는 false로 알리되 메모리 값은 바뀐다 (게임은 계속된다)', async () => {
@@ -542,7 +546,7 @@ describe('첫 progress 읽기가 일시 실패했다가 복구될 때 (리뷰 �
   const SAVED = JSON.stringify({
     version: 1,
     bestScore: 900,
-    settings: { muted: true, music: false },
+    settings: { muted: true, music: false, theme: 'soda' },
   });
   async function flaky() {
     const store = new MemoryStore();
@@ -560,7 +564,7 @@ describe('첫 progress 읽기가 일시 실패했다가 복구될 때 (리뷰 �
     expect(parseSave(store.data.get(PROGRESS) ?? null)).toEqual({
       version: 1,
       bestScore: 1000,
-      settings: { muted: true, music: false },
+      settings: { muted: true, music: false, theme: 'soda' },
     });
   });
 
@@ -570,7 +574,7 @@ describe('첫 progress 읽기가 일시 실패했다가 복구될 때 (리뷰 �
     expect(parseSave(store.data.get(PROGRESS) ?? null)).toEqual({
       version: 1,
       bestScore: 900,
-      settings: { muted: false, music: false },
+      settings: { muted: false, music: false, theme: 'soda' },
     });
   });
 
@@ -580,7 +584,7 @@ describe('첫 progress 읽기가 일시 실패했다가 복구될 때 (리뷰 �
     await p.finishRun(p.beginRun(), null, 1000);
     const saved = parseSave(store.data.get(PROGRESS) ?? null);
     expect(saved.bestScore).toBe(2000);
-    expect(saved.settings).toEqual({ muted: false, music: true });
+    expect(saved.settings).toEqual({ muted: false, music: true, theme: 'soda' });
   });
 
   it('읽기가 계속 실패하면 지금처럼 쓰지 않는다', async () => {

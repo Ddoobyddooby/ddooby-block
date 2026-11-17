@@ -1,34 +1,45 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSave, parseSave } from '../../src/storage/progress';
 
-const DEFAULT = { version: 1, bestScore: 0, settings: { muted: false, music: true } };
+const DEFAULT = {
+  version: 1,
+  bestScore: 0,
+  settings: { muted: false, music: true, theme: 'soda' },
+};
 
 describe('parseSave', () => {
   it('정상 데이터는 그대로', () => {
     const json = JSON.stringify({
       version: 1,
       bestScore: 1234,
-      settings: { muted: true, music: false },
+      settings: { muted: true, music: false, theme: 'soda' },
     });
     expect(parseSave(json)).toEqual({
       version: 1,
       bestScore: 1234,
-      settings: { muted: true, music: false },
+      settings: { muted: true, music: false, theme: 'soda' },
     });
   });
 
   it('설정이 일부 빠지면 그 부분만 기본값 (muted=false를 빠진 값으로 보지 않는다)', () => {
     expect(
       parseSave(JSON.stringify({ version: 1, bestScore: 50, settings: { muted: false } })),
-    ).toEqual({ version: 1, bestScore: 50, settings: { muted: false, music: true } });
+    ).toEqual({
+      version: 1,
+      bestScore: 50,
+      settings: { muted: false, music: true, theme: 'soda' },
+    });
     expect(parseSave(JSON.stringify({ version: 1, bestScore: 50 })).settings).toEqual({
       muted: false,
       music: true,
+      theme: 'soda',
     });
-    expect(parseSave(JSON.stringify({ version: 1, settings: { music: false } }))).toEqual({
+    expect(
+      parseSave(JSON.stringify({ version: 1, settings: { music: false, theme: 'soda' } })),
+    ).toEqual({
       version: 1,
       bestScore: 0,
-      settings: { muted: false, music: false },
+      settings: { muted: false, music: false, theme: 'soda' },
     });
   });
 
@@ -64,15 +75,17 @@ describe('parseSave', () => {
     const settings = (value: string) =>
       parseSave(`{"version":1,"settings":{"muted":${value},"music":${value}}}`).settings;
     for (const bad of ['"false"', '"true"', '0', '1', 'null', '[]', '{}']) {
-      expect(settings(bad)).toEqual({ muted: false, music: true });
+      expect(settings(bad)).toEqual({ muted: false, music: true, theme: 'soda' });
     }
     expect(parseSave('{"version":1,"settings":"x"}').settings).toEqual({
       muted: false,
       music: true,
+      theme: 'soda',
     });
     expect(parseSave('{"version":1,"settings":[true]}').settings).toEqual({
       muted: false,
       music: true,
+      theme: 'soda',
     });
   });
 
@@ -83,7 +96,7 @@ describe('parseSave', () => {
     expect(parsed).toEqual({
       version: 1,
       bestScore: 7,
-      settings: { muted: false, music: true },
+      settings: { muted: false, music: true, theme: 'soda' },
     });
     expect(({} as Record<string, unknown>).bestScore).toBeUndefined();
   });
@@ -93,5 +106,52 @@ describe('parseSave', () => {
     a.bestScore = 5;
     a.settings.muted = true;
     expect(defaultSave()).toEqual(DEFAULT);
+  });
+});
+
+describe('parseSave: 테마 (W4-05)', () => {
+  const theme = (value: string | null): unknown =>
+    parseSave(
+      value === null
+        ? '{"version":1,"settings":{}}'
+        : `{"version":1,"settings":{"theme":${value}}}`,
+    ).settings.theme;
+
+  it('정상 테마 ID는 그대로 읽는다', () => {
+    expect(theme('"butter"')).toBe('butter');
+    expect(theme('"orbit"')).toBe('orbit');
+    expect(theme('"soda"')).toBe('soda');
+  });
+
+  it('없으면 기본 테마(소다 가든)다: 테마가 생기기 전에 저장한 데이터도 읽힌다', () => {
+    expect(theme(null)).toBe('soda');
+    expect(
+      parseSave(
+        JSON.stringify({ version: 1, bestScore: 5, settings: { muted: true, music: false } }),
+      ).settings,
+    ).toEqual({ muted: true, music: false, theme: 'soda' });
+    expect(parseSave('{"version":1}').settings.theme).toBe('soda');
+  });
+
+  it('모르는 값·다른 형식은 기본 테마다 (예전 이름·대소문자·숫자·null·객체)', () => {
+    for (const bad of [
+      '"navy"',
+      '"Butter"',
+      '""',
+      '0',
+      '1',
+      'null',
+      'true',
+      '[]',
+      '{}',
+      '["orbit"]',
+    ]) {
+      expect(theme(bad)).toBe('soda');
+    }
+  });
+
+  it('다른 설정이 깨져도 테마는 따로 읽는다', () => {
+    const settings = parseSave('{"version":1,"settings":{"muted":"x","theme":"orbit"}}').settings;
+    expect(settings).toEqual({ muted: false, music: true, theme: 'orbit' });
   });
 });

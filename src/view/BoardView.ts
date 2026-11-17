@@ -3,7 +3,15 @@
 import type Phaser from 'phaser';
 import { ANIM, VIEW } from '../config';
 import type { Board, GameEvent, Pos } from '../core/types';
-import { blockTextureKey, TEXTURE } from './blockTexture';
+import {
+  blockTextureKey,
+  emptyCellKey,
+  ghostTextureKey,
+  parseBlockKey,
+  TEXTURE,
+} from './blockTexture';
+import { themeOf } from './theme/themeSetting';
+import type { Theme } from './theme/themes';
 import { cellCenter, type Layout } from './layout';
 import { stopTweensOf, tweenAsync } from './tween';
 
@@ -32,6 +40,8 @@ export class BoardView {
   private readonly ghosts: Phaser.GameObjects.Image[] = [];
   /** 채워진 칸. index = r × cols + c, 빈 칸은 null */
   private blocks: (Block | null)[];
+  /** 이 보드가 그리는 테마 (씬이 시작할 때 정해진다. 테마는 메뉴에서만 바뀐다) */
+  private readonly theme: Theme;
   /** 지우는 연출이 끝나지 않은 그림 (보드에서는 이미 빠졌다) */
   private readonly fading = new Set<Block>();
 
@@ -40,16 +50,19 @@ export class BoardView {
     private layout: Layout,
   ) {
     const { rows, cols } = layout;
+    this.theme = themeOf(scene);
     this.blocks = new Array<Block | null>(rows * cols).fill(null);
     this.panel = scene.add.graphics().setDepth(VIEW.depth.panel);
     for (let i = 0; i < rows * cols; i++) {
-      this.emptyCells.push(scene.add.image(0, 0, TEXTURE.emptyCell).setDepth(VIEW.depth.cell));
+      this.emptyCells.push(
+        scene.add.image(0, 0, emptyCellKey(this.theme.id)).setDepth(VIEW.depth.cell),
+      );
       this.lineCells.push(
         scene.add
           .image(0, 0, TEXTURE.lineHighlight)
           .setDepth(VIEW.depth.lineHighlight)
-          .setTint(VIEW.colors.lineHighlight)
-          .setAlpha(VIEW.lineHighlightAlpha)
+          .setTint(this.theme.colors.line)
+          .setAlpha(this.theme.colors.lineAlpha)
           .setVisible(false),
       );
     }
@@ -61,14 +74,20 @@ export class BoardView {
     this.layout = layout;
     const pad = VIEW.boardPad;
     this.panel.clear();
-    this.panel.fillStyle(VIEW.colors.panel, 1);
-    this.panel.fillRoundedRect(
+    const { colors } = this.theme;
+    const box = [
       layout.x - pad,
       layout.y - pad,
       layout.width + pad * 2,
       layout.height + pad * 2,
-      VIEW.boardRadius,
-    );
+    ] as const;
+    // 아래 그림자 → 받침 → 테두리 (시안 board)
+    this.panel.fillStyle(colors.shadow, 0.24);
+    this.panel.fillRoundedRect(box[0], box[1] + 8, box[2], box[3], VIEW.boardRadius);
+    this.panel.fillStyle(colors.board, 1);
+    this.panel.fillRoundedRect(...box, VIEW.boardRadius);
+    this.panel.lineStyle(2.5, colors.boardEdge, 1);
+    this.panel.strokeRoundedRect(...box, VIEW.boardRadius);
     for (let i = 0; i < this.emptyCells.length; i++) {
       const pos = this.posOf(i);
       this.moveTo(this.emptyCells[i], pos);
@@ -137,15 +156,16 @@ export class BoardView {
 
   /** 고스트(놓일 칸)와 채워질 줄 표시 */
   showPreview(preview: Preview, color: number): void {
-    const tint = VIEW.colors.blocks[color] ?? VIEW.colors.lineHighlight;
+    const key = ghostTextureKey(this.theme.id, color);
     preview.cells.forEach((pos, i) => {
       let ghost = this.ghosts[i];
       if (!ghost) {
-        ghost = this.scene.add.image(0, 0, TEXTURE.ghost).setDepth(VIEW.depth.ghost);
+        ghost = this.scene.add.image(0, 0, key).setDepth(VIEW.depth.ghost);
         this.ghosts.push(ghost);
       }
       this.moveTo(ghost, pos);
-      ghost.setTint(tint).setAlpha(VIEW.ghostAlpha).setVisible(true);
+      // 고스트 텍스처는 색 그룹마다 따로 있다 (같은 칸 그림을 색만 입히면 밝은 보드에서 묻힌다)
+      ghost.setTexture(key).setAlpha(this.theme.ghost.alpha).setVisible(true);
     });
     for (let i = preview.cells.length; i < this.ghosts.length; i++) {
       this.ghosts[i]?.setVisible(false);
@@ -171,10 +191,9 @@ export class BoardView {
     for (const child of this.scene.children.list) {
       const image = child as Phaser.GameObjects.Image;
       if (image.type !== 'Image' || !image.visible || image.alpha <= 0) continue;
-      const color = VIEW.colors.blocks.findIndex(
-        (_, g) => image.texture.key === blockTextureKey(g),
-      );
-      if (color < 0) continue;
+      const parsed = parseBlockKey(image.texture.key);
+      if (parsed === null || parsed.theme !== this.theme.id) continue;
+      const color = parsed.color;
       const c = Math.floor((image.x - layout.x) / layout.cell);
       const r = Math.floor((image.y - layout.y) / layout.cell);
       if (r < 0 || r >= layout.rows || c < 0 || c >= layout.cols) continue;
@@ -197,7 +216,9 @@ export class BoardView {
   private addBlock(pos: Pos, color: number): Block {
     const index = this.indexOf(pos);
     this.blocks[index]?.image.destroy();
-    const image = this.scene.add.image(0, 0, blockTextureKey(color)).setDepth(VIEW.depth.block);
+    const image = this.scene.add
+      .image(0, 0, blockTextureKey(this.theme.id, color))
+      .setDepth(VIEW.depth.block);
     this.moveTo(image, pos);
     const block: Block = { image, color, pos };
     this.blocks[index] = block;

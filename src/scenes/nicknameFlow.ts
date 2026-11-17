@@ -11,6 +11,7 @@ import {
   type SubmitOutcome,
 } from '../online';
 import { NicknamePrompt } from '../view/NicknamePrompt';
+import type { Theme } from '../view/theme/themes';
 import type { NicknameResult } from '../view/nicknamePromptState';
 import { shouldCheckProfile, shouldOpenPrompt } from './nicknameGate';
 
@@ -32,6 +33,7 @@ export class NicknameFlow {
   /** onSaved: 이름이 서버에 저장됐다(이미 정해져 있던 경우 포함). 창이 닫힐 때 한 번 부른다. destroy로 지운 창에서는 부르지 않는다 */
   constructor(
     private readonly canvas: HTMLElement,
+    private readonly theme: Theme,
     private readonly onSaved?: () => void,
   ) {}
 
@@ -83,6 +85,7 @@ export class NicknameFlow {
     this.state = 'open';
     this.prompt = new NicknamePrompt({
       canvas: this.canvas,
+      theme: this.theme,
       submit,
       onClose: (outcome) => {
         this.prompt = null;

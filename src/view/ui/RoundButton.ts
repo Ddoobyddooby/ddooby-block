@@ -3,6 +3,7 @@
 
 import Phaser from 'phaser';
 import { VIEW } from '../../config';
+import { themeOf } from '../theme/themeSetting';
 import { Sfx } from '../Sfx';
 
 /** 원 안에 아이콘을 그린다 (원점 = 버튼 가운데) */
@@ -24,15 +25,15 @@ export function addRoundButton(
   /** true면 누를 때 버튼 소리를 내지 않는다 (음소거 버튼은 누른 결과에 따라 직접 낸다) */
   silent = false,
 ): RoundButton {
-  const { colors } = VIEW;
+  const { colors } = themeOf(scene);
   const g = scene.add.graphics();
   const draw = (drawIcon: DrawIcon): void => {
     g.clear()
-      .fillStyle(colors.uiFill, 1)
+      .fillStyle(colors.panel, 1)
       .fillCircle(0, 0, radius)
-      .lineStyle(4, colors.uiEdge, 1)
+      .lineStyle(3, colors.edge, 1)
       .strokeCircle(0, 0, radius);
-    drawIcon(g, colors.text);
+    drawIcon(g, colors.ink);
   };
   draw(icon);
   const container = scene.add

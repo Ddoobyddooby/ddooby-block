@@ -5,6 +5,9 @@ import Phaser from 'phaser';
 import { VIEW } from '../config';
 import { addButton, type PressLock } from '../view/ui/Button';
 import { drawPanel } from '../view/ui/Panel';
+import { Backdrop } from '../view/theme/backdrop';
+import { textStyle, type TextRole } from '../view/theme/textStyle';
+import { themeOf } from '../view/theme/themeSetting';
 import {
   gameOverButtons,
   gameOverTexts,
@@ -23,7 +26,6 @@ import { handleGameOverButton } from './screenActions';
 import { showPreparing } from './preparingLabel';
 import { GameOverRanking } from './gameOverRanking';
 import type { RankingTracker } from './rankingResult';
-import { cssColor } from './text';
 
 const LABELS: Record<GameOverButton, string> = {
   retry: '다시 하기',
@@ -73,7 +75,14 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   create(): void {
-    const { colors, fontFamily, gameOver: g } = VIEW;
+    const { gameOver: g } = VIEW;
+    const theme = themeOf(this);
+    const { colors } = theme;
+    // DEV `?over`처럼 아래에 게임 화면이 없으면 배경을 직접 깐다 (게임 위에 뜰 때는 게임의 배경이 비친다)
+    if (!this.scene.isActive('Game') && !this.scene.isPaused('Game')) {
+      this.cameras.main.setBackgroundColor(colors.background);
+      new Backdrop(this);
+    }
     const { width, height } = this.scale;
     const cx = width / 2;
     const texts = gameOverTexts(this.data0);
@@ -100,27 +109,21 @@ export class GameOverScene extends Phaser.Scene {
       text: string;
       size: number;
       color: number;
-      bold: boolean;
+      role: TextRole;
       gap: number;
       ranking?: true;
     }[] = [
-      { text: texts.title, size: g.titleSize, color: colors.text, bold: true, gap: g.titleGap },
-      {
-        text: texts.scoreLabel,
-        size: g.scoreLabelSize,
-        color: colors.textDim,
-        bold: false,
-        gap: 0,
-      },
-      { text: texts.score, size: g.scoreSize, color: colors.text, bold: true, gap: g.scoreGap },
-      { text: texts.best, size: g.bestSize, color: colors.textDim, bold: false, gap: g.textGap },
+      { text: texts.title, size: g.titleSize, color: colors.ink, role: 'heading', gap: g.titleGap },
+      { text: texts.scoreLabel, size: g.scoreLabelSize, color: colors.muted, role: 'body', gap: 0 },
+      { text: texts.score, size: g.scoreSize, color: colors.ink, role: 'number', gap: g.scoreGap },
+      { text: texts.best, size: g.bestSize, color: colors.muted, role: 'body', gap: g.textGap },
     ];
     if (texts.newBest !== null) {
       textRows.push({
         text: texts.newBest,
         size: g.newBestSize,
         color: colors.combo,
-        bold: true,
+        role: 'heading',
         gap: g.textGap,
       });
     }
@@ -128,8 +131,8 @@ export class GameOverScene extends Phaser.Scene {
       textRows.push({
         text: this.rankUi?.line() ?? '',
         size: g.rankingSize,
-        color: colors.textDim,
-        bold: false,
+        color: colors.muted,
+        role: 'body',
         gap: g.textGap,
         ranking: true,
       });
@@ -147,12 +150,7 @@ export class GameOverScene extends Phaser.Scene {
     let rankingText: Phaser.GameObjects.Text | null = null;
     for (const row of textRows) {
       const text = this.add
-        .text(cx, y + row.size / 2, row.text, {
-          fontFamily,
-          fontSize: row.size,
-          fontStyle: row.bold ? 'bold' : 'normal',
-          color: cssColor(row.color),
-        })
+        .text(cx, y + row.size / 2, row.text, textStyle(theme, row.role, row.size, row.color))
         .setOrigin(0.5);
       if (row.ranking) rankingText = text;
       y += row.size + row.gap;
@@ -180,10 +178,8 @@ export class GameOverScene extends Phaser.Scene {
           label: LABELS[id],
           width: g.buttonW,
           height: g.buttonH,
-          radius: g.buttonRadius,
           fontSize: g.buttonTextSize,
-          fill: primary ? colors.button : colors.uiFill,
-          textColor: primary ? colors.buttonText : colors.text,
+          primary,
         },
         () => this.go(id),
         lock,
@@ -212,11 +208,11 @@ export class GameOverScene extends Phaser.Scene {
     if (this.fresh && !this.redrawing) {
       this.endNickname();
       if (import.meta.env.DEV && parseFakeRanking(window.location.search, true)) {
-        this.nickname = new NicknameFlow(this.game.canvas);
+        this.nickname = new NicknameFlow(this.game.canvas, theme);
         this.nickname.beginFake(fakeSubmit);
       } else if (this.rankUi !== null) {
         // 이름을 정하면(이미 정해져 있던 경우 포함) 순위를 다시 조회한다
-        const flow = new NicknameFlow(this.game.canvas, () => this.rankUi?.refreshRank());
+        const flow = new NicknameFlow(this.game.canvas, theme, () => this.rankUi?.refreshRank());
         this.nickname = flow;
         // 닉네임 묻기와 순위 조회는 제출이 끝난 **뒤에** 시작한다 (병렬 금지, pang R19)
         this.rankUi.begin((outcome) => flow.afterSubmit(outcome));

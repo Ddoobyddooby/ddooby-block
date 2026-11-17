@@ -8,6 +8,8 @@ import { addButton, type PressLock } from '../view/ui/Button';
 import { addMuteButton } from '../view/ui/MuteButton';
 import { drawPanel } from '../view/ui/Panel';
 import { Sfx } from '../view/Sfx';
+import { textStyle } from '../view/theme/textStyle';
+import { themeOf } from '../view/theme/themeSetting';
 import { readMuted, setMuted } from './muteSetting';
 import { getPersistence } from './persistenceRegistry';
 import { startRun } from '../online';
@@ -17,7 +19,6 @@ import { RestartGate } from './restartGate';
 import { handlePauseButton } from './screenActions';
 import { showPreparing } from './preparingLabel';
 import { pauseButtons, RETRY_EVENT, type PauseButton } from './pauseRules';
-import { cssColor } from './text';
 
 const LABELS: Record<PauseButton, string> = {
   resume: '계속',
@@ -36,7 +37,9 @@ export class PauseScene extends Phaser.Scene {
 
   create(): void {
     this.gate.started();
-    const { colors, fontFamily, pause } = VIEW;
+    const { pause } = VIEW;
+    const theme = themeOf(this);
+    const { colors } = theme;
     const { width, height } = this.scale;
     const cx = width / 2;
     const cy = height / 2;
@@ -57,12 +60,7 @@ export class PauseScene extends Phaser.Scene {
     });
     const titleY = top + pause.panelPad + pause.titleSize / 2;
     this.add
-      .text(cx, titleY, '일시정지', {
-        fontFamily,
-        fontSize: pause.titleSize,
-        fontStyle: 'bold',
-        color: cssColor(colors.text),
-      })
+      .text(cx, titleY, '일시정지', textStyle(theme, 'heading', pause.titleSize, colors.ink))
       .setOrigin(0.5);
 
     const sfx = new Sfx(this);
@@ -95,10 +93,8 @@ export class PauseScene extends Phaser.Scene {
           label: LABELS[id],
           width: pause.buttonW,
           height: pause.buttonH,
-          radius: pause.buttonRadius,
           fontSize: pause.buttonTextSize,
-          fill: primary ? colors.button : colors.uiFill,
-          textColor: primary ? colors.buttonText : colors.text,
+          primary,
         },
         () => this.go(id),
         lock,

@@ -81,51 +81,21 @@ export const VIEW = {
   },
   /** Phaser가 따로 추적하는 터치 수. 드래그는 그중 처음 누른 하나만 쓴다 (PLAN 6.1) */
   touchPointers: 3,
-  /** 시스템 글꼴 (Jua는 뒤 태스크에서 넣는다) */
-  fontFamily: 'system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif',
-  /** 색 (0xRRGGBB). blocks는 색 그룹 0~6 순서 (core/pieces.ts) */
-  colors: {
-    background: 0x141a2e,
-    /** 보드 판 */
-    panel: 0x1e2742,
-    emptyCell: 0x2a3558,
-    /** 점, 직선, 사각형, L 소형, L 대형, T, S/Z */
-    blocks: [0xe8ecf4, 0x33b1ff, 0xffd43b, 0x42d67a, 0xff8a3d, 0xb07cff, 0xff5c6c],
-    /** 채워질 줄 표시 */
-    lineHighlight: 0xffffff,
-    text: 0xf4f6fb,
-    textDim: 0x9aa6c7,
-    button: 0x33b1ff,
-    buttonText: 0x0d1326,
-    /** 게임 오버·일시정지 때 화면을 덮는 색 */
-    overlay: 0x0a0e1c,
-    /** 콤보 글자 */
-    combo: 0xffd43b,
-    /** 둥근 버튼·팝업 판의 바탕과 테두리 */
-    uiFill: 0x2a3558,
-    uiEdge: 0x4a5a8c,
-  },
-  /** 블록 텍스처 (view/blockTexture.ts). 비율은 텍스처 한 변 대비 */
+  /**
+   * 색·글꼴·블록 모양 수치는 테마가 정한다 (view/theme/themes.ts). 여기에는 테마 공통 수치만 둔다.
+   * 블록 텍스처 (view/blockTexture.ts). 비율은 텍스처 한 변 대비
+   */
   block: {
     /** 텍스처 한 변 (px). 보드 칸(80)보다 커서 줄여 그린다 */
     textureSize: 96,
     /** 칸 사이 틈 (한쪽) */
     gap: 0.04,
-    radius: 0.18,
-    /** 위쪽 밝은 띠·아래쪽 어두운 띠의 높이 */
-    band: 0.16,
-    /** 밝은 띠는 흰색을, 어두운 띠는 검정을 이만큼 섞는다 (0~1) */
-    light: 0.38,
-    dark: 0.28,
     /** 고스트 테두리 두께 */
     ghostStroke: 0.07,
   },
   /** 보드 판이 칸 바깥으로 나오는 폭 (px) */
   boardPad: 14,
   boardRadius: 22,
-  ghostAlpha: 0.6,
-  ghostFillAlpha: 0.5,
-  lineHighlightAlpha: 0.22,
   /** 연출의 시작·끝 크기 (원래 크기 대비) */
   placeFromScale: 0.72,
   clearToScale: 0.2,
@@ -140,16 +110,18 @@ export const VIEW = {
     tray: 5,
     drag: 10,
     overlay: 20,
+    /** 배경 장식은 모든 것의 아래 */
+    backdrop: -10,
   },
   menu: {
-    /** 화면 높이 대비 세로 위치 */
-    titleY: 0.32,
+    /** 화면 높이 대비 세로 위치: 로고 첫 줄 가운데, 버튼 가운데 */
+    titleY: 0.31,
     buttonY: 0.56,
-    titleSize: 84,
-    buttonW: 400,
-    buttonH: 120,
-    buttonRadius: 28,
-    buttonTextSize: 48,
+    buttonW: 500,
+    buttonH: 114,
+    buttonTextSize: 40,
+    /** 로고 위의 장식(블록 세 개 등)이 로고 첫 줄 가운데보다 얼마나 위인지 (px) */
+    motifDy: -190,
     /** [이어하기]는 [새 게임] 위로 이만큼 (px) 떨어진다. [새 게임]은 이어하기 유무와 상관없이 제자리다 */
     buttonStep: 148,
   },
@@ -182,7 +154,6 @@ export const VIEW = {
     buttonW: 400,
     buttonH: 104,
     buttonStep: 128,
-    buttonRadius: 28,
     buttonTextSize: 44,
     /** 음소거 버튼: 판 오른쪽 위, 제목과 같은 높이. 판 오른쪽 끝에서 안쪽으로 inset */
     muteRadius: 36,
@@ -211,7 +182,6 @@ export const VIEW = {
     buttonW: 440,
     buttonH: 104,
     buttonStep: 128,
-    buttonRadius: 28,
     buttonTextSize: 44,
     /** 마지막 연출·게임 오버 소리를 보여 준 뒤 이 시간(ms) 지나서 화면이 뜬다 */
     showDelayMs: 700,
@@ -249,8 +219,8 @@ export const RANKING = {
     minGap: 14,
     meStroke: 4,
   },
-  /** 1~3위 순위 숫자: 금·은·동 (0xRRGGBB). 내 줄 바탕 */
-  colors: { medal: [0xffd43b, 0xc0c8d8, 0xff8a3d], meFill: 0x24457a, rowAlpha: 0.9 },
+  /** 줄 바탕 투명도. 1~3위 순위 숫자 색과 내 줄 바탕은 테마가 정한다 */
+  rowAlpha: 0.9,
   gapDot: { r: 5, spacing: 22 },
   /** 안내 문구 (연결 불가·오류·빈 주·불러오는 중) */
   message: { size: 36, wrapWidth: 560 },
@@ -261,10 +231,10 @@ export const RANKING = {
     fontSize: 32,
     subFontSize: 26,
     textWrap: 330,
-    button: { width: 230, height: 76, radius: 24, fontSize: 30 },
+    button: { width: 230, height: 76, fontSize: 30 },
   },
   /** 아래 버튼 두 개 (터치 영역 44 CSS px 이상 = 게임 좌표 약 82) */
-  button: { bottomY: 100, width: 300, height: 96, radius: 28, fontSize: 40, dx: 170 },
+  button: { bottomY: 100, width: 300, height: 96, fontSize: 40, dx: 170 },
   /** 손가락이 이만큼(px) 넘게 움직이면 끌기(스크롤), 아니면 누르기 */
   dragThreshold: 12,
 } as const;
@@ -299,8 +269,6 @@ export const FX = {
     /** 조각 크기 (텍스처 한 변 대비 배율) */
     scaleMin: 0.12,
     scaleMax: 0.26,
-    /** 칸 색에 흰색을 섞는 정도 (0~1) */
-    whiteMix: 0.35,
     texture: 24,
   },
   popup: {
@@ -322,9 +290,6 @@ export const FX = {
     riseY: 56,
     /** 처음 크기 (원래 크기 대비) */
     fromScale: 0.4,
-    lineColor: 0xffffff,
-    boardClearColor: 0xffd43b,
-    strokeColor: 0x0d1326,
   },
   /** 흔들림 단계. 단계 = (줄 수 - 1) + (콤보 - 1). 0이면 흔들지 않고, 표보다 크면 마지막 값 (view/fx/shake.ts) */
   shake: {

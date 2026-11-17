@@ -2,8 +2,8 @@
 // 캔버스가 화면에 그려진 크기·위치를 따라가며 배치하고(폭 720 기준 배율), 창이 닫히면 DOM을 모두 지운다.
 // 판정(길이·글자·금칙어)과 서버 호출은 주입받는 submit이 한다. 이 파일은 Phaser·src/online을 모른다.
 
-import { VIEW } from '../config';
-import { cssColor } from '../scenes/text';
+import { cssColor } from './theme/textStyle';
+import type { Theme } from './theme/themes';
 import {
   applyResult,
   chooseLater,
@@ -24,6 +24,8 @@ import { NICKNAME_TEXT, type NicknamePromptText } from './nicknameText';
 export interface NicknamePromptOptions {
   /** 게임 캔버스 (scene.game.canvas). 이 위에 겹쳐 배치한다 */
   canvas: HTMLElement;
+  /** 색·글꼴을 따올 테마 (화면과 같은 것) */
+  theme: Theme;
   submit: (name: string) => Promise<NicknameResult>;
   /** 안내까지 보여 준 뒤 닫힐 때 한 번만 부른다 (destroy()로 없앨 때는 부르지 않는다) */
   onClose: (result: PromptOutcome) => void;
@@ -41,7 +43,7 @@ const STYLE = {
   title: { fontSize: 44 },
   input: { fontSize: 44, height: 96, radius: 48, border: 5 },
   notice: { fontSize: 26 },
-  message: { fontSize: 32, height: 48, error: 0xff5c6c },
+  message: { fontSize: 32, height: 48 },
   button: { fontSize: 44, height: 92, gap: 20 },
   /** iOS Safari는 16px 미만 입력칸에 초점을 주면 화면을 확대한다 */
   minInputPx: 16,
@@ -108,10 +110,12 @@ export class NicknamePrompt {
 
   private build(): void {
     const t = this.text;
-    const { colors, fontFamily } = VIEW;
+    const { colors, fonts } = this.opts.theme;
+    const fontFamily = fonts.ui;
+    const o = colors.overlay;
     const root = document.createElement('div');
     root.setAttribute('data-nickname-prompt', '');
-    root.style.cssText = `position:fixed;inset:0;z-index:${STYLE.zIndex};background:rgba(10,14,28,0.72);touch-action:none;`;
+    root.style.cssText = `position:fixed;inset:0;z-index:${STYLE.zIndex};background:rgba(${(o >> 16) & 0xff},${(o >> 8) & 0xff},${o & 0xff},0.72);touch-action:none;`;
     // 뒤 화면 버튼이 눌리지 않게 막는다. 막을 눌러도 닫히지 않는다 (실수로 이름 입력을 놓치지 않게)
     for (const type of BLOCKED_EVENTS) root.addEventListener(type, (e) => e.stopPropagation());
 
@@ -122,9 +126,9 @@ export class NicknamePrompt {
       'position:absolute',
       'box-sizing:border-box',
       `background:${cssColor(colors.panel)}`,
-      `border:solid ${cssColor(colors.uiEdge)}`,
+      `border:solid ${cssColor(colors.edge)}`,
       `font-family:${fontFamily}`,
-      `color:${cssColor(colors.text)}`,
+      `color:${cssColor(colors.ink)}`,
       'display:flex',
       'flex-direction:column',
       'align-items:stretch',
@@ -145,7 +149,7 @@ export class NicknamePrompt {
     input.spellcheck = false;
     input.enterKeyHint = 'done';
     input.setAttribute('aria-label', t.title);
-    input.style.cssText = `box-sizing:border-box;width:100%;text-align:center;outline:none;font-family:inherit;color:${cssColor(colors.text)};background:${cssColor(colors.background)};border:solid ${cssColor(colors.uiEdge)};`;
+    input.style.cssText = `box-sizing:border-box;width:100%;text-align:center;outline:none;font-family:inherit;color:${cssColor(colors.ink)};background:${cssColor(colors.background)};border:solid ${cssColor(colors.edge)};`;
     input.addEventListener('keydown', (e) => {
       if (shouldSubmitOnEnter(e)) {
         e.preventDefault();
@@ -158,7 +162,7 @@ export class NicknamePrompt {
 
     const notice = document.createElement('div');
     notice.textContent = t.notice;
-    notice.style.cssText = `color:${cssColor(colors.textDim)};word-break:keep-all;text-wrap:balance;`;
+    notice.style.cssText = `color:${cssColor(colors.muted)};word-break:keep-all;text-wrap:balance;`;
     this.noticeEl = notice;
 
     const message = document.createElement('div');
@@ -170,10 +174,10 @@ export class NicknamePrompt {
     buttons.style.cssText = 'display:flex;';
     const confirm = this.makeButton(
       t.confirm,
-      cssColor(colors.button),
-      cssColor(colors.buttonText),
+      cssColor(colors.accent),
+      cssColor(colors.accentText),
     );
-    const later = this.makeButton(t.later, cssColor(colors.uiFill), cssColor(colors.text));
+    const later = this.makeButton(t.later, cssColor(colors.panel), cssColor(colors.ink));
     confirm.addEventListener('click', () => this.submit());
     later.addEventListener('click', () => this.later());
     buttons.append(confirm, later);
@@ -194,7 +198,7 @@ export class NicknamePrompt {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = label;
-    b.style.cssText = `flex:1;font-family:inherit;font-weight:700;color:${color};background:${bg};border:solid ${cssColor(VIEW.colors.uiEdge)};cursor:pointer;-webkit-tap-highlight-color:transparent;`;
+    b.style.cssText = `flex:1;font-family:inherit;font-weight:700;color:${color};background:${bg};border:solid ${cssColor(this.opts.theme.colors.edge)};cursor:pointer;-webkit-tap-highlight-color:transparent;`;
     return b;
   }
 
@@ -242,7 +246,9 @@ export class NicknamePrompt {
     const m = this.state.message;
     this.messageEl.textContent = m ? m.text : '';
     this.messageEl.style.color =
-      m?.kind === 'error' ? cssColor(STYLE.message.error) : cssColor(VIEW.colors.text);
+      m?.kind === 'error'
+        ? cssColor(this.opts.theme.colors.error)
+        : cssColor(this.opts.theme.colors.ink);
     this.confirmBtn.style.opacity = locked ? '0.6' : '1';
     this.laterBtn.style.opacity = locked ? '0.6' : '1';
   }

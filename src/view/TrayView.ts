@@ -2,10 +2,11 @@
 // 트레이에서는 Container를 VIEW.trayScale로 줄이고, 드래그 중에는 1로 키운다.
 
 import type Phaser from 'phaser';
-import { ANIM, FX, VIEW } from '../config';
+import { ANIM, FX, TRAY, VIEW } from '../config';
 import { getPiece } from '../core/pieces';
 import type { PieceDef, PieceId } from '../core/types';
 import { blockTextureKey } from './blockTexture';
+import { themeOf } from './theme/themeSetting';
 import { trayPieceRect, type Point } from './drag';
 import { boardLayout, type ScreenLayout } from './layout';
 import { stopTweensOf, tweenAsync } from './tween';
@@ -19,15 +20,45 @@ interface Slot {
 
 export class TrayView {
   private slots: (Slot | null)[] = [];
+  /** 트레이 받침: 패널색 둥근 판 + 슬롯 사이 가는 선과 슬롯 아래 점 (시안 game) */
+  private readonly panel: Phaser.GameObjects.Graphics;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private screen: ScreenLayout,
-  ) {}
+  ) {
+    this.panel = scene.add.graphics().setDepth(VIEW.depth.panel);
+    this.drawPanel();
+  }
+
+  private drawPanel(): void {
+    const { colors } = themeOf(this.scene);
+    const { tray } = this.screen;
+    const margin = 26;
+    const x = tray.x + margin;
+    const w = tray.w - margin * 2;
+    const g = this.panel.clear();
+    g.fillStyle(colors.panel, 1).fillRoundedRect(x, tray.y, w, tray.h, 50);
+    g.lineStyle(2.5, colors.edge, 1).strokeRoundedRect(x, tray.y, w, tray.h, 50);
+    const slotW = tray.w / TRAY.size;
+    g.lineStyle(2, colors.edge, 0.6);
+    for (let i = 1; i < TRAY.size; i++) {
+      const lx = tray.x + i * slotW;
+      g.beginPath()
+        .moveTo(lx, tray.y + tray.h * 0.2)
+        .lineTo(lx, tray.y + tray.h * 0.8)
+        .strokePath();
+    }
+    g.fillStyle(colors.edge, 1);
+    for (let i = 0; i < TRAY.size; i++) {
+      g.fillCircle(tray.x + (i + 0.5) * slotW, tray.y + tray.h * 0.85, 4);
+    }
+  }
 
   /** 화면 크기가 바뀌었을 때: 조각을 새 슬롯 위치에 바로 둔다 (되돌아가는 중이던 조각도) */
   setLayout(screen: ScreenLayout): void {
     this.screen = screen;
+    this.drawPanel();
     this.slots.forEach((slot, index) => {
       if (slot) this.placeHome(index, slot);
     });
@@ -124,7 +155,11 @@ export class TrayView {
     const images = piece.cells.map(({ r, c }) =>
       this.scene.make
         .image(
-          { x: (c + 0.5) * cell, y: (r + 0.5) * cell, key: blockTextureKey(piece.color) },
+          {
+            x: (c + 0.5) * cell,
+            y: (r + 0.5) * cell,
+            key: blockTextureKey(themeOf(this.scene).id, piece.color),
+          },
           false,
         )
         .setScale(scale),

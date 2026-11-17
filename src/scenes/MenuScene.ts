@@ -1,8 +1,9 @@
-// 메뉴 (PLAN 6.3). [이어하기](저장된 판이 있을 때만) · [새 게임] · [주간 랭킹] (W3-04).
+// 메뉴 (PLAN 6.3). [이어하기](저장된 판이 있을 때만) · [새 게임] · [주간 랭킹] (W3-04) · [테마] (W4-05).
 // 메뉴가 뜰 때마다 저장소의 최신 상태를 본다. 부팅 읽기가 늦어 메뉴가 먼저 떴다면, 읽기가 끝난 뒤 다시 그린다.
 
 import Phaser from 'phaser';
 import { GAME, VIEW } from '../config';
+import { createBlockTextures } from '../view/blockTexture';
 import { addButton, type PressLock } from '../view/ui/Button';
 import { startRun } from '../online';
 import { skipsRanking } from './gameStart';
@@ -11,8 +12,14 @@ import { cancelNewGame, isPreparing } from './newRun';
 import { handleMenuButton } from './screenActions';
 import { getPersistence } from './persistenceRegistry';
 import { showPreparing } from './preparingLabel';
-import { cssColor } from './text';
 import { RANKING_TEXT } from '../view/rankingText';
+import { Backdrop } from '../view/theme/backdrop';
+import { MenuLogo } from '../view/theme/logo';
+import { readThemeId, setTheme, themeOf } from '../view/theme/themeSetting';
+import { openThemePicker } from '../view/ThemePicker';
+import type { ThemeId } from '../themeIds';
+
+const THEME_LABEL = '테마';
 
 const LABELS: Record<MenuButton, string> = {
   resume: '이어하기',
@@ -21,7 +28,10 @@ const LABELS: Record<MenuButton, string> = {
 };
 
 export class MenuScene extends Phaser.Scene {
-  private title!: Phaser.GameObjects.Text;
+  private logo!: MenuLogo;
+  private backdrop!: Backdrop;
+  /** 테마 카드 창이 떠 있으면 그것을 닫는 함수 */
+  private closePicker: (() => void) | null = null;
   private buttons: Phaser.GameObjects.Container[] = [];
   /** 씬이 끝남. 늦게 끝난 저장소 읽기가 끝난 메뉴를 건드리지 않게 한다 */
   private closed = false;
@@ -36,26 +46,22 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
-    const { menu, colors, fontFamily } = VIEW;
-    this.cameras.main.setBackgroundColor(colors.background);
+    const theme = themeOf(this);
+    this.cameras.main.setBackgroundColor(theme.colors.background);
     this.closed = false;
     this.lock = { pressed: false };
     this.buttons = [];
-
-    this.title = this.add
-      .text(0, 0, 'Ddooby Block', {
-        fontFamily,
-        fontSize: menu.titleSize,
-        fontStyle: 'bold',
-        color: cssColor(colors.text),
-      })
-      .setOrigin(0.5);
+    this.closePicker = null;
+    createBlockTextures(this, theme.id);
+    this.backdrop = new Backdrop(this);
+    this.logo = new MenuLogo(this);
 
     this.layout();
-    this.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.closed = true;
-      this.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+      this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
+      this.logo.destroy();
       cancelNewGame('Menu');
     });
     if (isPreparing()) showPreparing(this);
@@ -65,46 +71,82 @@ export class MenuScene extends Phaser.Scene {
     void getPersistence(this.registry)
       ?.load()
       .then(() => {
-        if (!this.closed) this.layout();
+        if (this.closed) return;
+        // 저장된 테마가 늦게 반영됐다면 (부팅 읽기가 제한 시간을 넘김) 새 테마로 메뉴를 다시 만든다
+        if (readThemeId(this.registry) !== theme.id) this.scene.restart();
+        else this.layout();
       });
   }
 
-  /** 제목과 버튼을 화면 크기에 맞춰 가로 가운데에 (다시) 그린다. [새 게임]은 이어하기 유무와 상관없이 같은 자리다 */
+  /** 로고와 버튼을 화면 크기에 맞춰 가로 가운데에 (다시) 그린다. [새 게임]은 이어하기 유무와 상관없이 같은 자리다 */
   private layout(): void {
-    const { menu, colors } = VIEW;
+    const { menu } = VIEW;
     for (const button of this.buttons) button.destroy();
     this.buttons = [];
 
     const x = this.scale.width / 2;
     const height = Math.max(this.scale.height, GAME.height);
-    this.title.setPosition(x, height * menu.titleY);
+    this.backdrop.draw();
+    this.logo.draw(x, height * menu.titleY);
 
     const ids = menuButtons(getPersistence(this.registry)?.resumable() != null);
     // [새 게임]은 이어하기 유무와 상관없이 제자리고, 이어하기는 그 위, 주간 랭킹은 그 아래다
     const newIndex = ids.indexOf('new');
+    const spec = (label: string, primary: boolean) => ({
+      label,
+      width: menu.buttonW,
+      height: menu.buttonH,
+      fontSize: menu.buttonTextSize,
+      primary,
+    });
     ids.forEach((id, i) => {
       const y = height * menu.buttonY + (i - newIndex) * menu.buttonStep;
-      // 주 버튼(파랑): 이어하기가 있으면 이어하기, 없으면 새 게임
-      const primary = i === 0;
+      // 주 버튼(강조색): 이어하기가 있으면 이어하기, 없으면 새 게임
       this.buttons.push(
-        addButton(
-          this,
-          x,
-          y,
-          {
-            label: LABELS[id],
-            width: menu.buttonW,
-            height: menu.buttonH,
-            radius: menu.buttonRadius,
-            fontSize: menu.buttonTextSize,
-            fill: primary ? colors.button : colors.uiFill,
-            textColor: primary ? colors.buttonText : colors.text,
-          },
-          () => this.go(id),
-          this.lock,
-        ),
+        addButton(this, x, y, spec(LABELS[id], i === 0), () => this.go(id), this.lock),
       );
     });
+    // [테마]는 맨 아래. 화면을 떠나지 않으므로 누른 뒤 잠금을 풀어 둔다
+    const themeY = height * menu.buttonY + (ids.length - newIndex) * menu.buttonStep;
+    this.buttons.push(
+      addButton(
+        this,
+        x,
+        themeY,
+        spec(THEME_LABEL, false),
+        () => {
+          this.lock.pressed = false;
+          this.openPicker();
+        },
+        this.lock,
+      ),
+    );
+  }
+
+  private openPicker(): void {
+    if (this.closed || this.closePicker) return;
+    this.closePicker = openThemePicker(
+      this,
+      (id) => this.pickTheme(id),
+      () => {
+        this.closePicker = null;
+      },
+    );
+  }
+
+  /** 테마를 바꾸고 저장한 뒤 메뉴를 새 테마로 다시 만든다 (테마는 메뉴에서만 바꾼다) */
+  private pickTheme(id: ThemeId): void {
+    this.closePicker = null;
+    setTheme(this.registry, id, (value) => {
+      void getPersistence(this.registry)?.setTheme(value);
+    });
+    this.scene.restart();
+  }
+
+  /** 화면 크기가 바뀌면 열려 있는 테마 창은 닫고 다시 그린다 (창 위치가 어긋나지 않게) */
+  private onResize(): void {
+    this.closePicker?.();
+    this.layout();
   }
 
   private go(button: MenuButton): void {

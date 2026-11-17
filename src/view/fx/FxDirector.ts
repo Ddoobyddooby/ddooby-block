@@ -9,8 +9,9 @@
 import Phaser from 'phaser';
 import { ANIM, FX, VIEW } from '../../config';
 import type { Pos } from '../../core/types';
-import { cssColor } from '../../scenes/text';
 import { mixColor, TEXTURE } from '../blockTexture';
+import { cssColor, textStyle } from '../theme/textStyle';
+import { themeOf } from '../theme/themeSetting';
 import { cellCenter, type Layout } from '../layout';
 import type { Sfx } from '../Sfx';
 import { stopTweensOf, tweenAsync } from '../tween';
@@ -69,7 +70,8 @@ export class FxDirector {
     popupTexts({ lines, combo }).forEach((popup, i, all) => {
       const { popup: cfg } = FX;
       const size = popup.kind === 'line' ? cfg.lineSize : cfg.comboSize;
-      const color = popup.kind === 'line' ? cfg.lineColor : VIEW.colors.combo;
+      // 보드 위에 뜨는 글자라 배경색이 아니라 블록 색(노랑)·흰색을 쓴다. 바깥선은 테마의 짙은 색
+      const color = popup.kind === 'line' ? 0xffffff : themeOf(this.scene).colors.blocks[0];
       const y =
         this.layout.y + this.layout.height * cfg.lineY + (i - (all.length - 1) / 2) * cfg.stackGap;
       this.popup(popup.text, size, color, y, i * cfg.stagger);
@@ -80,8 +82,9 @@ export class FxDirector {
   burstCell(pos: Pos, color: number, order: number): void {
     const { particles: cfg } = FX;
     const { x, y } = cellCenter(this.layout, pos);
-    const base = VIEW.colors.blocks[color] ?? VIEW.colors.lineHighlight;
-    const tint = mixColor(base, 0xffffff, cfg.whiteMix);
+    const theme = themeOf(this.scene);
+    const base = theme.colors.blocks[color] ?? 0xffffff;
+    const tint = mixColor(base, theme.spark.target, theme.spark.amount);
     for (let i = 0; i < cfg.perCell; i++) {
       const angle = Math.random() * Math.PI * 2;
       const dist = Phaser.Math.FloatBetween(cfg.distMin, cfg.distMax);
@@ -116,7 +119,7 @@ export class FxDirector {
     this.popup(
       '전체 비우기!',
       cfg.boardClearSize,
-      cfg.boardClearColor,
+      themeOf(this.scene).colors.blocks[0],
       layout.y + layout.height * cfg.boardClearY,
       0,
     );
@@ -149,11 +152,8 @@ export class FxDirector {
     const x = this.layout.x + this.layout.width / 2;
     const label = this.scene.add
       .text(x, y, text, {
-        fontFamily: VIEW.fontFamily,
-        fontSize: size,
-        fontStyle: 'bold',
-        color: cssColor(color),
-        stroke: cssColor(cfg.strokeColor),
+        ...textStyle(themeOf(this.scene), 'heading', size, color),
+        stroke: cssColor(themeOf(this.scene).colors.popupStroke),
         strokeThickness: cfg.strokeWidth,
       })
       .setOrigin(0.5)

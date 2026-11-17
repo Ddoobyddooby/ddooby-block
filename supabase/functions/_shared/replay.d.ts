@@ -133,51 +133,21 @@ declare const VIEW: {
     };
     /** Phaser가 따로 추적하는 터치 수. 드래그는 그중 처음 누른 하나만 쓴다 (PLAN 6.1) */
     readonly touchPointers: 3;
-    /** 시스템 글꼴 (Jua는 뒤 태스크에서 넣는다) */
-    readonly fontFamily: "system-ui, -apple-system, \"Apple SD Gothic Neo\", \"Noto Sans KR\", sans-serif";
-    /** 색 (0xRRGGBB). blocks는 색 그룹 0~6 순서 (core/pieces.ts) */
-    readonly colors: {
-        readonly background: 1317422;
-        /** 보드 판 */
-        readonly panel: 1976130;
-        readonly emptyCell: 2766168;
-        /** 점, 직선, 사각형, L 소형, L 대형, T, S/Z */
-        readonly blocks: readonly [15265012, 3387903, 16766011, 4380282, 16747069, 11566335, 16735340];
-        /** 채워질 줄 표시 */
-        readonly lineHighlight: 16777215;
-        readonly text: 16054011;
-        readonly textDim: 10135239;
-        readonly button: 3387903;
-        readonly buttonText: 856870;
-        /** 게임 오버·일시정지 때 화면을 덮는 색 */
-        readonly overlay: 658972;
-        /** 콤보 글자 */
-        readonly combo: 16766011;
-        /** 둥근 버튼·팝업 판의 바탕과 테두리 */
-        readonly uiFill: 2766168;
-        readonly uiEdge: 4872844;
-    };
-    /** 블록 텍스처 (view/blockTexture.ts). 비율은 텍스처 한 변 대비 */
+    /**
+     * 색·글꼴·블록 모양 수치는 테마가 정한다 (view/theme/themes.ts). 여기에는 테마 공통 수치만 둔다.
+     * 블록 텍스처 (view/blockTexture.ts). 비율은 텍스처 한 변 대비
+     */
     readonly block: {
         /** 텍스처 한 변 (px). 보드 칸(80)보다 커서 줄여 그린다 */
         readonly textureSize: 96;
         /** 칸 사이 틈 (한쪽) */
         readonly gap: 0.04;
-        readonly radius: 0.18;
-        /** 위쪽 밝은 띠·아래쪽 어두운 띠의 높이 */
-        readonly band: 0.16;
-        /** 밝은 띠는 흰색을, 어두운 띠는 검정을 이만큼 섞는다 (0~1) */
-        readonly light: 0.38;
-        readonly dark: 0.28;
         /** 고스트 테두리 두께 */
         readonly ghostStroke: 0.07;
     };
     /** 보드 판이 칸 바깥으로 나오는 폭 (px) */
     readonly boardPad: 14;
     readonly boardRadius: 22;
-    readonly ghostAlpha: 0.6;
-    readonly ghostFillAlpha: 0.5;
-    readonly lineHighlightAlpha: 0.22;
     /** 연출의 시작·끝 크기 (원래 크기 대비) */
     readonly placeFromScale: 0.72;
     readonly clearToScale: 0.2;
@@ -192,16 +162,18 @@ declare const VIEW: {
         readonly tray: 5;
         readonly drag: 10;
         readonly overlay: 20;
+        /** 배경 장식은 모든 것의 아래 */
+        readonly backdrop: -10;
     };
     readonly menu: {
-        /** 화면 높이 대비 세로 위치 */
-        readonly titleY: 0.32;
+        /** 화면 높이 대비 세로 위치: 로고 첫 줄 가운데, 버튼 가운데 */
+        readonly titleY: 0.31;
         readonly buttonY: 0.56;
-        readonly titleSize: 84;
-        readonly buttonW: 400;
-        readonly buttonH: 120;
-        readonly buttonRadius: 28;
-        readonly buttonTextSize: 48;
+        readonly buttonW: 500;
+        readonly buttonH: 114;
+        readonly buttonTextSize: 40;
+        /** 로고 위의 장식(블록 세 개 등)이 로고 첫 줄 가운데보다 얼마나 위인지 (px) */
+        readonly motifDy: -190;
         /** [이어하기]는 [새 게임] 위로 이만큼 (px) 떨어진다. [새 게임]은 이어하기 유무와 상관없이 제자리다 */
         readonly buttonStep: 148;
     };
@@ -237,7 +209,6 @@ declare const VIEW: {
         readonly buttonW: 400;
         readonly buttonH: 104;
         readonly buttonStep: 128;
-        readonly buttonRadius: 28;
         readonly buttonTextSize: 44;
         /** 음소거 버튼: 판 오른쪽 위, 제목과 같은 높이. 판 오른쪽 끝에서 안쪽으로 inset */
         readonly muteRadius: 36;
@@ -266,7 +237,6 @@ declare const VIEW: {
         readonly buttonW: 440;
         readonly buttonH: 104;
         readonly buttonStep: 128;
-        readonly buttonRadius: 28;
         readonly buttonTextSize: 44;
         /** 마지막 연출·게임 오버 소리를 보여 준 뒤 이 시간(ms) 지나서 화면이 뜬다 */
         readonly showDelayMs: 700;
@@ -315,12 +285,8 @@ declare const RANKING: {
         readonly minGap: 14;
         readonly meStroke: 4;
     };
-    /** 1~3위 순위 숫자: 금·은·동 (0xRRGGBB). 내 줄 바탕 */
-    readonly colors: {
-        readonly medal: readonly [16766011, 12634328, 16747069];
-        readonly meFill: 2377082;
-        readonly rowAlpha: 0.9;
-    };
+    /** 줄 바탕 투명도. 1~3위 순위 숫자 색과 내 줄 바탕은 테마가 정한다 */
+    readonly rowAlpha: 0.9;
     readonly gapDot: {
         readonly r: 5;
         readonly spacing: 22;
@@ -340,7 +306,6 @@ declare const RANKING: {
         readonly button: {
             readonly width: 230;
             readonly height: 76;
-            readonly radius: 24;
             readonly fontSize: 30;
         };
     };
@@ -349,7 +314,6 @@ declare const RANKING: {
         readonly bottomY: 100;
         readonly width: 300;
         readonly height: 96;
-        readonly radius: 28;
         readonly fontSize: 40;
         readonly dx: 170;
     };
@@ -385,8 +349,6 @@ declare const FX: {
         /** 조각 크기 (텍스처 한 변 대비 배율) */
         readonly scaleMin: 0.12;
         readonly scaleMax: 0.26;
-        /** 칸 색에 흰색을 섞는 정도 (0~1) */
-        readonly whiteMix: 0.35;
         readonly texture: 24;
     };
     readonly popup: {
@@ -408,9 +370,6 @@ declare const FX: {
         readonly riseY: 56;
         /** 처음 크기 (원래 크기 대비) */
         readonly fromScale: 0.4;
-        readonly lineColor: 16777215;
-        readonly boardClearColor: 16766011;
-        readonly strokeColor: 856870;
     };
     /** 흔들림 단계. 단계 = (줄 수 - 1) + (콤보 - 1). 0이면 흔들지 않고, 표보다 크면 마지막 값 (view/fx/shake.ts) */
     readonly shake: {

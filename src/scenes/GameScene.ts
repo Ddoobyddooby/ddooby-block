@@ -5,6 +5,8 @@ import { REPLAY, SAVE, VIEW } from '../config';
 import { createGame, previewPlacement } from '../core/engine';
 import type { GameEvent, GameState, PlaceAction, Pos } from '../core/types';
 import { createBlockTextures } from '../view/blockTexture';
+import { Backdrop } from '../view/theme/backdrop';
+import { themeOf } from '../view/theme/themeSetting';
 import { diffBoard } from '../view/boardCheck';
 import { BoardView } from '../view/BoardView';
 import { DragController, type PointerLike } from '../view/DragController';
@@ -39,6 +41,7 @@ export class GameScene extends Phaser.Scene {
   private playing = false;
   private screen!: ScreenLayout;
   private layout!: Layout;
+  private backdrop!: Backdrop;
   private boardView!: BoardView;
   private trayView!: TrayView;
   private dragController!: DragController;
@@ -116,8 +119,10 @@ export class GameScene extends Phaser.Scene {
     // startBest가 이어한 판의 점수로 화면용 최고 점수를 올리기 전에 기억한다
     this.bestAtStart = readBest(this.game.registry);
     this.watchLateBest();
-    this.cameras.main.setBackgroundColor(VIEW.colors.background);
-    createBlockTextures(this);
+    const theme = themeOf(this);
+    this.cameras.main.setBackgroundColor(theme.colors.background);
+    createBlockTextures(this, theme.id);
+    this.backdrop = new Backdrop(this);
     this.screen = screenLayout(this.scale.height, this.scale.width);
     this.layout = boardLayout(this.screen);
     this.hud = new Hud(this, this.screen, () => this.pause(), {
@@ -219,6 +224,7 @@ export class GameScene extends Phaser.Scene {
     this.dragController.cancel();
     this.screen = screenLayout(this.scale.height, this.scale.width);
     this.layout = boardLayout(this.screen);
+    this.backdrop.draw();
     this.boardView.setLayout(this.layout);
     this.trayView.setLayout(this.screen);
     this.hud.setLayout(this.screen);
