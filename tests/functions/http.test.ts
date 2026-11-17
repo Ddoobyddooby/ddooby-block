@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ALLOWED_ORIGINS as NICKNAME_ORIGINS } from '../../supabase/functions/set-nickname/handler';
 import {
   ALLOWED_ORIGINS,

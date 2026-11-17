@@ -15,7 +15,6 @@
 // 시험이 원격에 남기는 것: 실행마다 익명 계정 2개(A·B)가 새로 생긴다. 권한이 올바르면 어떤 행도 남지 않지만
 // 권한이 잘못 열려 있으면 쓰기 시험이 실제 행을 만들거나 바꿀 수 있다 (supabase/README.md "권한 시험").
 import { readFileSync } from 'node:fs';
-import { Agent as HttpsAgent, request as httpsRequest } from 'node:https';
 import { parseEnv } from 'node:util';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
@@ -28,13 +27,13 @@ import {
   judgeProfile,
   judgeProfileReadError,
   readProfile,
-  REQUIRED_REQUEST_HEADERS,
   judgeRace,
   judgeSet,
   judgeSuccessCors,
   judgeUnauthorized,
   type FnRes,
 } from './nicknameJudge.ts';
+import { callFunction } from './callFunction.ts';
 import { runScores, type CallInit, type FnName, type ScoresIo } from './scores.ts';
 import {
   type CheckEnv,
@@ -90,74 +89,6 @@ const ALLOWED_ORIGIN = 'http://localhost:5181';
 const OTHER_ALLOWED_ORIGIN = 'https://ddoobyddooby.github.io';
 /** 허용 목록에 없는 출처 */
 const DENIED_ORIGIN = 'https://evil.example';
-const FN_TIMEOUT_MS = 15_000;
-
-async function callFunction(
-  env: CheckEnv,
-  init: CallInit,
-  fn: 'set-nickname' | FnName = 'set-nickname',
-): Promise<FnRes> {
-  const headers: Record<string, string> = { apikey: env.key, 'Content-Type': 'application/json' };
-  if (init.origin !== null) headers.Origin = init.origin;
-  if (init.token !== null) headers.Authorization = `Bearer ${init.token}`;
-  if (init.method === 'OPTIONS') {
-    // 브라우저의 preflight 모양: 이어서 보낼 메서드와 헤더를 알린다
-    headers['Access-Control-Request-Method'] = 'POST';
-    headers['Access-Control-Request-Headers'] = REQUIRED_REQUEST_HEADERS.join(', ');
-  }
-  const payload =
-    init.rawBody !== undefined
-      ? init.rawBody
-      : init.body === undefined
-        ? undefined
-        : JSON.stringify(init.body);
-  if (payload !== undefined)
-    headers['Content-Length'] = String(new TextEncoder().encode(payload).length);
-  // 요청마다 새 연결을 쓴다 (keep-alive 끔). Node 내장 fetch는 연결을 재사용하는데, 원격 게이트웨이가 재사용한 연결에서
-  // 응답 없이 멈추는 일이 드물게(원격 시험에서 25번 중 1번꼴) 있어 순서 안에서만 "시험 불가(status 0)"가 났다 (W3-03 원격 확인).
-  // 새 연결로는 25/25 정상이었다. 판정은 그대로다: 여전히 응답이 없으면 status 0 → 시험 불가
-  return new Promise<FnRes>((resolve) => {
-    const fail = (): void => resolve({ status: 0, body: null, header: () => null }); // 연결 실패·시간 초과 → 시험 불가
-    try {
-      const url = new URL(`${env.url}/functions/v1/${fn}`);
-      const req = httpsRequest(
-        {
-          hostname: url.hostname,
-          path: url.pathname,
-          method: init.method,
-          agent: new HttpsAgent({ keepAlive: false }),
-          headers: { ...headers, Connection: 'close' },
-          timeout: FN_TIMEOUT_MS,
-        },
-        (res) => {
-          let text = '';
-          res.setEncoding('utf8');
-          res.on('data', (chunk: string) => (text += chunk));
-          res.on('end', () => {
-            let body: unknown = null;
-            try {
-              body = JSON.parse(text);
-            } catch {
-              // JSON이 아닌 본문
-            }
-            const value = (name: string): string | null => {
-              const v = res.headers[name.toLowerCase()];
-              return Array.isArray(v) ? v.join(', ') : (v ?? null);
-            };
-            resolve({ status: res.statusCode ?? 0, body, header: value });
-          });
-          res.on('error', fail);
-        },
-      );
-      req.on('timeout', () => req.destroy());
-      req.on('error', fail);
-      req.end(payload);
-    } catch {
-      fail();
-    }
-  });
-}
-
 /** profiles 재조회 판정. 조회 오류는 "행 없음"·"값 다름"이 아니라 FAIL·시험 불가로 보낸다 */
 async function profileOutcome(
   client: SupabaseClient,
