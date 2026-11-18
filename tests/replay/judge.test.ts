@@ -236,18 +236,18 @@ describe('verifyContent: 봇 로그 200개', () => {
     }
   });
 
-  it('고정 fixture seed 1601은 8배치·293점으로 ok, seed 579는 게임이 안 끝나 not-over', () => {
-    const [fx579, fx1601] = FIXTURES;
-    expect(fx579?.seed).toBe(579);
-    expect(fx1601?.seed).toBe(1601);
-    const sub = (fx: NonNullable<typeof fx579>, score: number): Submission => ({
+  it('고정 fixture seed 67은 8배치·280점으로 ok, seed 68은 게임이 안 끝나 not-over', () => {
+    const [fx68, fx67] = FIXTURES;
+    expect(fx68?.seed).toBe(68);
+    expect(fx67?.seed).toBe(67);
+    const sub = (fx: NonNullable<typeof fx68>, score: number): Submission => ({
       seed: fx.seed,
       version: 1,
       clientScore: score,
       placements: withTimes(fx.log.map(([trayIndex, row, col]) => ({ trayIndex, row, col }))),
     });
-    expect(verifyContent(sub(fx1601!, 293), { seed: 1601 })).toEqual({ ok: true, score: 293 });
-    expect(verifyContent(sub(fx579!, 3282), { seed: 579 })).toEqual({
+    expect(verifyContent(sub(fx67!, 280), { seed: 67 })).toEqual({ ok: true, score: 280 });
+    expect(verifyContent(sub(fx68!, 3281), { seed: 68 })).toEqual({
       ok: false,
       code: 'not-over',
     });

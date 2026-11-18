@@ -2,7 +2,7 @@
 
 import type { PieceId } from './core/types';
 
-export const RULES_VERSION = 1;
+export const RULES_VERSION = 2;
 
 export const GAME = { width: 720, height: 1280 } as const;
 
@@ -43,6 +43,14 @@ export const PIECE_WEIGHTS: Record<PieceId, number> = {
   sv: 3,
   zh: 3,
   zv: 3,
+  l4a: 3,
+  l4b: 3,
+  l4c: 3,
+  l4d: 3,
+  j4a: 3,
+  j4b: 3,
+  j4c: 3,
+  j4d: 3,
 };
 
 export const SCORE = {

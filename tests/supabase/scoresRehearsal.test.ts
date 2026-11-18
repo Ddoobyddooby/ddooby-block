@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
+import { RULES_VERSION } from '../../src/config';
 import type { FnRes } from '../../scripts/supabase-check/nicknameJudge';
 import { formatTable, exitCodeOf, type Row } from '../../scripts/supabase-check/report';
 import { runScores, type ScoresClients, type ScoresIo } from '../../scripts/supabase-check/scores';
@@ -90,6 +91,7 @@ function fakeClient(db: FakeRunsDb, userId: string | null): FakeRest {
 
 function setup(over: { sloppyServer?: boolean } = {}) {
   const db = new FakeRunsDb();
+  db.rulesVersion = RULES_VERSION; // 규칙 버전은 서버 번들과 같게 (가짜 DB 기본값 1에 묶지 않는다)
   let seedCounter = 1_000;
   const startDeps = db.startDeps(() => (seedCounter = (seedCounter * 1103515245 + 12345) >>> 0));
   const io: ScoresIo = {

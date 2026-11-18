@@ -13,8 +13,8 @@ import {
 } from '../../src/storage/run';
 import { anyMove, playGreedy } from '../helpers/bot';
 
-// seed 4, 그리디 봇 10수: 줄 제거 3번·새 트레이 3번·콤보 3까지 가는 판 (보드 비움·게임 오버는 없다)
-const SEED = 4;
+// seed 16, 그리디 봇 10수: 줄 제거 3번·새 트레이 3번·콤보 3까지 가는 판 (보드 비움·게임 오버는 없다)
+const SEED = 16;
 const MOVES = 10;
 const ELAPSED = 3300;
 
@@ -71,25 +71,24 @@ describe('10번 배치 → 저장 → 새로 읽기 → 복원 (SPEC 11절 7번)
     expect(restored?.score).toBe(483);
     expect(restored?.combo).toBe(3);
     expect(restored?.missStreak).toBe(0);
-    expect(restored?.rngState).toBe(503953280);
+    expect(restored?.rngState).toBe(503953292);
     expect(restored?.over).toBe(false);
-    expect(restored?.tray).toEqual(['l5b', 'tu', null]);
+    expect(restored?.tray).toEqual(['j4b', 'l3b', null]);
     // 보드에 남은 칸: [인덱스, 색] 9개
     const filled = restored?.board.cells
       .map((color, index) => [index, color] as const)
       .filter(([, color]) => color !== null);
     expect(filled).toEqual([
-      [10, 6],
-      [11, 6],
-      [12, 3],
-      [14, 2],
-      [15, 2],
-      [17, 6],
-      [18, 6],
-      [22, 1],
-      [23, 1],
+      [2, 3],
+      [3, 3],
+      [5, 1],
+      [19, 2],
+      [20, 2],
+      [21, 1],
+      [22, 6],
+      [27, 2],
+      [28, 2],
     ]);
-
     expect(saved?.seed).toBe(SEED);
     expect(saved?.runId).toBeNull();
     expect(saved?.elapsedMs).toBe(ELAPSED);
@@ -248,7 +247,7 @@ describe('parseRun 경계 (예외 없이 null)', () => {
 
   it('JSON 문자열의 1e309(읽으면 Infinity)는 seed·t·elapsedMs 어디서든 null', () => {
     const base = validJson();
-    expect(parseRun(base.replace('"seed":4', '"seed":1e309'))).toBeNull();
+    expect(parseRun(base.replace(`"seed":${SEED}`, '"seed":1e309'))).toBeNull();
     expect(parseRun(base.replace('"t":1000', '"t":1e309'))).toBeNull();
     expect(parseRun(base.replace('"elapsedMs":3300', '"elapsedMs":1e309'))).toBeNull();
     expect(parseRun(base)).not.toBeNull();
@@ -340,10 +339,10 @@ describe('restoreRun', () => {
   });
 
   it('게임 오버에 닿은 로그는 복원되고, 그 뒤에 배치를 더하면 null (over)', () => {
-    const over = playGreedy(10, 3000);
+    const over = playGreedy(294, 3000);
     expect(over.state.over).toBe(true);
     const json = serializeRun({
-      seed: 10,
+      seed: 294,
       runId: null,
       placements: over.placements,
       elapsedMs: 99999,
@@ -407,9 +406,9 @@ describe('inspectRun (부팅 때 판정)', () => {
   });
 
   it('끝난 판은 over로 알리고 최고 점수 복구에 쓸 상태를 준다 (이어하기 대상이 아니다)', () => {
-    const over = playGreedy(10, 3000);
+    const over = playGreedy(294, 3000);
     const json = serializeRun({
-      seed: 10,
+      seed: 294,
       runId: null,
       placements: over.placements,
       elapsedMs: 99999,
@@ -417,7 +416,7 @@ describe('inspectRun (부팅 때 판정)', () => {
     });
     const result = inspectRun(json);
     expect(result.kind).toBe('over');
-    if (result.kind === 'over') expect(result.state.score).toBe(302);
+    if (result.kind === 'over') expect(result.state.score).toBe(305);
   });
 
   it('snapshot.over만 true이고 로그는 끝나지 않았으면 이어할 수 있다 (로그가 기준)', () => {

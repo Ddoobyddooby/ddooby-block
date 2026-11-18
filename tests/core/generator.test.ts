@@ -49,12 +49,20 @@ const TABLE: readonly (readonly [id: string, weight: number])[] = [
   ['sv', 3],
   ['zh', 3],
   ['zv', 3],
+  ['l4a', 3],
+  ['l4b', 3],
+  ['l4c', 3],
+  ['l4d', 3],
+  ['j4a', 3],
+  ['j4b', 3],
+  ['j4c', 3],
+  ['j4d', 3],
 ];
 const IDS: readonly string[] = TABLE.map(([id]) => id);
 
 const REF_TRAY_SIZE = 3;
 const REF_MAX_ATTEMPTS = 10;
-const REF_TOTAL_WEIGHT = 109;
+const REF_TOTAL_WEIGHT = 133;
 
 /**
  * 추첨 정수 → ID 표. ID를 가중치만큼 늘어놓는다 (`[dot, dot, dot, dot, i2h, …]`).
@@ -167,10 +175,10 @@ function placeableIds(board: Board): string[] {
 }
 
 describe('기준 구현의 전제', () => {
-  it('손으로 적은 표: 29종, 가중치 합 109', () => {
-    expect(TABLE).toHaveLength(29);
+  it('손으로 적은 표: 37종, 가중치 합 133', () => {
+    expect(TABLE).toHaveLength(37);
     expect(ALL_LOOKUP).toHaveLength(REF_TOTAL_WEIGHT);
-    expect(new Set(IDS).size).toBe(29);
+    expect(new Set(IDS).size).toBe(37);
   });
 
   it('보드마다 손으로 적은 "놓을 수 있는 조각"이 실제 canPlaceAnywhere와 같다', () => {
@@ -279,7 +287,7 @@ describe('generateTray', () => {
       const expected: string[] = [];
       let s = start;
       for (let i = 0; i < 3; i++) {
-        const [roll, nextState] = nextInt(s, 109);
+        const [roll, nextState] = nextInt(s, 133);
         s = nextState;
         expected.push(at(ALL_LOOKUP, roll));
       }
@@ -338,7 +346,7 @@ describe('generateTray', () => {
         expect(before).not.toContain('dot');
         let s = createRng(seed);
         for (let i = 0; i < 30; i++) {
-          const [roll, nextState] = nextInt(s, 109);
+          const [roll, nextState] = nextInt(s, 133);
           s = nextState;
           expect(at(ALL_LOOKUP, roll)).not.toBe('dot');
         }

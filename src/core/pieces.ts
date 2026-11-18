@@ -18,7 +18,7 @@ function def(id: PieceId, color: number, shape: string): PieceDef {
 }
 
 /**
- * 29종. 모든 모양은 bounding box가 (0,0)에서 시작하고, 색 그룹은 그룹마다 고정이다 (SPEC 3.1).
+ * 37종. 모든 모양은 bounding box가 (0,0)에서 시작하고, 색 그룹은 그룹마다 고정이다 (SPEC 3.1).
  * 배열 순서는 PLAN 4.2 표 순서로 고정한다. 순서는 가중치 추첨 결과에 영향을 주므로
  * 순서를 바꾸거나 조각을 넣고 빼면 RULES_VERSION을 올린다.
  * 실행 중에 바뀌지 않도록 배열·조각·cells·칸을 모두 얼린다.
@@ -60,6 +60,15 @@ export const PIECES: readonly PieceDef[] = Object.freeze([
   def('sv', 6, '#./##/.#'),
   def('zh', 6, '##./.##'),
   def('zv', 6, '.#/##/#.'),
+  // L 4칸 (3, L 소형과 같은 색): 2×3 바운딩. L 4방향 + 거울상 J 4방향 (RULES_VERSION 2에서 추가)
+  def('l4a', 3, '#./#./##'),
+  def('l4b', 3, '###/#..'),
+  def('l4c', 3, '##/.#/.#'),
+  def('l4d', 3, '..#/###'),
+  def('j4a', 3, '.#/.#/##'),
+  def('j4b', 3, '#../###'),
+  def('j4c', 3, '##/#./#.'),
+  def('j4d', 3, '###/..#'),
 ]);
 
 const BY_ID: ReadonlyMap<PieceId, PieceDef> = new Map(PIECES.map((piece) => [piece.id, piece]));

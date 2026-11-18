@@ -53,8 +53,8 @@ function world(): World {
     },
   };
   const session = new RunSession({
-    seed: 4,
-    state: createGame(4),
+    seed: 16,
+    state: createGame(16),
     runId: RUN.runId,
     clock,
     store: runStore,
@@ -63,7 +63,7 @@ function world(): World {
     maxPlacements: SAVE.maxRunPlacements,
   });
   // 몇 수 둔 판. 일시정지는 시계를 멈춘다 (GameScene.pause와 같다)
-  const moves = playGreedy(4, 3).placements;
+  const moves = playGreedy(16, 3).placements;
   for (const m of moves) {
     time.now += 300;
     session.tryPlace({ trayIndex: m.trayIndex, row: m.row, col: m.col });
@@ -263,8 +263,8 @@ describe('RunSession: 게임 오버 종료와 사용자 포기 구분', () => {
   it('abandon은 저장소가 없어도 판을 버린 판으로 만든다', () => {
     const time = { now: 0 };
     const session = new RunSession({
-      seed: 4,
-      state: createGame(4),
+      seed: 16,
+      state: createGame(16),
       runId: RUN.runId,
       clock: new PlayClock(() => time.now, 0),
       store: null,

@@ -173,7 +173,7 @@ describe('서버 번들 대조: 같은 프로세스', () => {
     expect(jsonOf([...b.games].reverse())).toBe(jsonOf((a as CoreOut).games));
   });
 
-  it('고정 fixture의 리터럴 기대값이 src와 번들 양쪽에 그대로 적용된다 (seed 1601: 8배치·293점·게임 오버, seed 579: 3282점·게임 안 끝남)', async () => {
+  it('고정 fixture의 리터럴 기대값이 src와 번들 양쪽에 그대로 적용된다 (seed 67: 8배치·280점·게임 오버, seed 68: 3281점·게임 안 끝남)', async () => {
     const out = (await compute(asApi(bundle), input)) as CoreOut;
     for (const fx of FIXTURES) {
       for (const result of [ref, out]) {
@@ -256,12 +256,12 @@ describe('실제 submit-score handler + 번들 (가짜 DB·고정 시각)', () =
     expect(nodeOut).toHaveLength(202);
     const all = games();
     nodeOut.forEach((r, i) => {
-      const gameOver = i < 200 || i === 201; // 마지막에서 두 번째(fixture 579)는 끝나지 않은 판
+      const gameOver = i < 200 || i === 201; // 마지막에서 두 번째(fixture 68)는 끝나지 않은 판
       if (!gameOver) {
-        expect(r.ok, `fixture 579`).toEqual({ status: 400, body: { ok: false, code: 'not-over' } });
+        expect(r.ok, `fixture 68`).toEqual({ status: 400, body: { ok: false, code: 'not-over' } });
         return;
       }
-      const score = i < 200 ? all[i]!.state.score : 293;
+      const score = i < 200 ? all[i]!.state.score : 280;
       expect(r.ok.status, `seed ${r.seed}`).toBe(200);
       expect(r.ok.body).toEqual({
         ok: true,

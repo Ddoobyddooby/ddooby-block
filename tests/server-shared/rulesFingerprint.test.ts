@@ -8,6 +8,7 @@ import { rulesFingerprint } from '../helpers/rulesFingerprint';
 // 이 지문은 개발·배포 실수를 막는 장치다. 통신 계약은 int RULES_VERSION이고, 버전 번호를 고의로 재사용하는 운영까지 막지는 못한다.
 const APPROVED: Record<number, string> = {
   1: '0355cefba2a21e34abe70444bd07585fe1e4d82fd78f75c76b5fb7a896fde807',
+  2: '58dc911a993680f482b79426013da3e9a3dcc793b9267afeca3357f5944057b4',
 };
 
 describe('규칙 지문', () => {

@@ -79,7 +79,7 @@ type PlaceResult = {
     ok: false;
     reason: 'over' | 'emptySlot' | 'blocked';
 };
-export declare const RULES_VERSION = 1;
+export declare const RULES_VERSION = 2;
 declare const GAME: {
     readonly width: 720;
     readonly height: 1280;
@@ -552,7 +552,7 @@ declare function weightedPick(weights: readonly number[], rng: RngState): [index
  */
 export declare function generateTray(board: Board, rng: RngState): [tray: PieceId[], rng: RngState];
 /**
- * 29종. 모든 모양은 bounding box가 (0,0)에서 시작하고, 색 그룹은 그룹마다 고정이다 (SPEC 3.1).
+ * 37종. 모든 모양은 bounding box가 (0,0)에서 시작하고, 색 그룹은 그룹마다 고정이다 (SPEC 3.1).
  * 배열 순서는 PLAN 4.2 표 순서로 고정한다. 순서는 가중치 추첨 결과에 영향을 주므로
  * 순서를 바꾸거나 조각을 넣고 빼면 RULES_VERSION을 올린다.
  * 실행 중에 바뀌지 않도록 배열·조각·cells·칸을 모두 얼린다.

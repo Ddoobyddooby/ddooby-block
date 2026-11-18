@@ -122,10 +122,10 @@ describe('probeTray (생성기 추첨 따라 하기)', () => {
     expect(() => probeTray(createBoard(8), createRng(7), ['dot', 'dot', 'dot'])).toThrow(/probe/);
   });
 
-  it('정상 보정(seed 8, 리뷰 재현): 실제 [dot, i4v, l3a]를 통과', () => {
+  it('정상 보정(seed 8, 리뷰 재현): 실제 [dot, o2, l3d]를 통과', () => {
     const { rng, tray, after } = real(oneHole(), 8);
     // 독립 기대값: 리뷰가 계산한 실제 생성기 출력
-    expect(tray).toEqual(['dot', 'i4v', 'l3a']);
+    expect(tray).toEqual(['dot', 'o2', 'l3d']);
     expect(probeTray(oneHole(), rng, tray, after)).toEqual({
       attempts: GENERATOR.maxRerolls,
       corrected: true,
@@ -134,13 +134,13 @@ describe('probeTray (생성기 추첨 따라 하기)', () => {
 
   it('보정을 건너뛴 트레이(마지막 실패 추첨 그대로)는 거부', () => {
     const { rng } = real(oneHole(), 8);
-    expect(() => probeTray(oneHole(), rng, ['l3a', 'i4v', 'l3a'])).toThrow(/probe/);
+    expect(() => probeTray(oneHole(), rng, ['l3c', 'o2', 'l3d'])).toThrow(/probe/);
   });
 
   it('잘못된 슬롯에 보정한 트레이와 다른 교체 조각은 거부', () => {
     const { rng, tray, after } = real(oneHole(), 8);
     const slot = tray.indexOf('dot');
-    const failed = ['l3a', 'i4v', 'l3a'];
+    const failed = ['l3c', 'o2', 'l3d'];
     // 다른 슬롯에 dot
     const wrongSlot = [...failed];
     wrongSlot[(slot + 1) % 3] = 'dot';

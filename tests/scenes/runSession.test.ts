@@ -69,7 +69,7 @@ interface Setup {
 
 function setup(options: Setup = {}) {
   const time = fakeTime();
-  const seed = options.seed ?? 4;
+  const seed = options.seed ?? 16;
   const clock = new PlayClock(time.now, options.startMs ?? 0);
   const rec = recorder();
   const session = new RunSession({
@@ -98,11 +98,11 @@ describe('배치 수락과 로그 (t = 수락 순간의 시계 값)', () => {
   it('수락하면 정수 t로 로그에 쌓고, 상태가 바로 바뀐다 (연출을 기다리지 않는다)', () => {
     const { time, session } = setup();
     time.advance(1000);
-    const first = moves(4, 3);
+    const first = moves(16, 3);
     const outcome = session.tryPlace(first[0] as PlaceAction);
     expect(outcome.ok).toBe(true);
     expect(session.placements).toEqual([{ ...(first[0] as PlaceAction), t: 1000 }]);
-    expect(session.state).not.toEqual(createGame(4));
+    expect(session.state).not.toEqual(createGame(16));
     time.advance(333);
     session.tryPlace(first[1] as PlaceAction);
     expect(session.placements.map((p) => p.t)).toEqual([1000, 1333]);
@@ -111,13 +111,13 @@ describe('배치 수락과 로그 (t = 수락 순간의 시계 값)', () => {
 
   it('정상 흐름(간격 250ms)으로 쌓은 로그는 replay·checkIntervals를 통과하고 시계가 거꾸로 가지 않는다', () => {
     const { time, session } = setup();
-    for (const move of moves(4, 10)) {
+    for (const move of moves(16, 10)) {
       time.advance(250);
       expect(session.tryPlace(move).ok).toBe(true);
     }
     expect(session.placements).toHaveLength(10);
     expect(checkIntervals(session.placements, REPLAY.minIntervalMs)).toBe(true);
-    const replayed = replay(4, session.placements);
+    const replayed = replay(16, session.placements);
     expect(replayed.ok).toBe(true);
     if (replayed.ok) expect(replayed.state).toEqual(session.state);
   });
@@ -126,7 +126,7 @@ describe('배치 수락과 로그 (t = 수락 순간의 시계 값)', () => {
 describe('200ms 간격 (결정 1)', () => {
   it('마지막 수락 뒤 199ms면 집기·놓기 모두 거부, 200ms면 수락', () => {
     const { time, session } = setup();
-    const [a, b] = moves(4, 2) as [PlaceAction, PlaceAction];
+    const [a, b] = moves(16, 2) as [PlaceAction, PlaceAction];
     time.advance(1000);
     expect(session.tryPlace(a).ok).toBe(true);
     expect(session.cooling()).toBe(true); // 같은 순간
@@ -146,7 +146,7 @@ describe('200ms 간격 (결정 1)', () => {
 
   it('거부된 시도는 로그·상태·저장·마지막 t 어느 것도 바꾸지 않는다 (같은 시도를 늦게 다시 하면 수락)', () => {
     const { time, session, rec } = setup();
-    const [a, b] = moves(4, 2) as [PlaceAction, PlaceAction];
+    const [a, b] = moves(16, 2) as [PlaceAction, PlaceAction];
     time.advance(1000);
     session.tryPlace(a);
     const stateAfterA = session.state;
@@ -164,7 +164,7 @@ describe('200ms 간격 (결정 1)', () => {
   it('첫 배치에는 하한이 없다 (t=0도 수락)', () => {
     const { session } = setup();
     expect(session.cooling()).toBe(false);
-    expect((session.tryPlace(moves(4, 1)[0] as PlaceAction) as { t: number }).t).toBe(0);
+    expect((session.tryPlace(moves(16, 1)[0] as PlaceAction) as { t: number }).t).toBe(0);
   });
 
   it('엔진이 거부하는 배치(막힌 칸·빈 슬롯)는 로그·상태를 바꾸지 않는다', () => {
@@ -177,16 +177,16 @@ describe('200ms 간격 (결정 1)', () => {
       reason: 'emptySlot',
     });
     expect(session.placements).toHaveLength(0);
-    expect(session.state).toEqual(createGame(4));
+    expect(session.state).toEqual(createGame(16));
     expect(rec.calls).toEqual([]);
   });
 });
 
 describe('이어한 판의 시계', () => {
   function resumed(elapsedMs: number) {
-    const played = playGreedy(4, 10);
+    const played = playGreedy(16, 10);
     const json = serializeRun({
-      seed: 4,
+      seed: 16,
       runId: null,
       placements: played.placements,
       elapsedMs,
@@ -219,7 +219,7 @@ describe('이어한 판의 시계', () => {
       (saved.placements[9] as Placement).t,
     );
     expect(checkIntervals(session.placements, 200)).toBe(true);
-    expect(replay(4, session.placements).ok).toBe(true);
+    expect(replay(16, session.placements).ok).toBe(true);
   });
 
   it('저장 elapsed = 마지막 t + 150이면 +49는 거부, +50은 수락 (언제나 200ms를 더 기다리게 하지 않는다)', () => {
@@ -245,14 +245,14 @@ describe('이어한 판의 시계', () => {
     session.tryPlace(anyMove(session.state));
     const saved = rec.calls[0]?.snapshot;
     expect(saved?.placements).toHaveLength(11);
-    expect(saved?.seed).toBe(4);
+    expect(saved?.seed).toBe(16);
   });
 });
 
 describe('일시정지·숨김 (시계와 입력)', () => {
   it('일시정지 중에는 시계가 멈추고 배치를 받지 않는다 (재개해도 쉰 시간은 간격에 더해지지 않는다)', () => {
     const { time, clock, session } = setup();
-    const [a, b] = moves(4, 2) as [PlaceAction, PlaceAction];
+    const [a, b] = moves(16, 2) as [PlaceAction, PlaceAction];
     time.advance(1000);
     session.tryPlace(a);
     time.advance(100);
@@ -270,7 +270,7 @@ describe('일시정지·숨김 (시계와 입력)', () => {
 
   it('화면이 숨겨진 동안에는 배치를 받지 않고, 보이면 받는다', () => {
     const { time, clock, session } = setup();
-    const a = moves(4, 1)[0] as PlaceAction;
+    const a = moves(16, 1)[0] as PlaceAction;
     clock.block('hidden');
     time.advance(500);
     expect(session.tryPlace(a)).toEqual({ ok: false, reason: 'inactive' });
@@ -282,7 +282,7 @@ describe('일시정지·숨김 (시계와 입력)', () => {
   it('checkpoint는 지금까지의 플레이 시간을 저장하고, 쉰 시간은 포함하지 않는다. 마지막 t보다 작아지지 않는다', () => {
     const { time, clock, session, rec } = setup();
     time.advance(1000);
-    session.tryPlace(moves(4, 1)[0] as PlaceAction);
+    session.tryPlace(moves(16, 1)[0] as PlaceAction);
     time.advance(300);
     clock.block('paused');
     session.checkpoint();
@@ -309,7 +309,7 @@ describe('아직 한 수도 안 둔 판', () => {
 describe('저장 시점과 내용 (성공 직후, 로그·상태·시각이 한 묶음)', () => {
   it('배치마다 즉시 저장하고, 저장된 로그와 상태가 같은 시점의 것이다', () => {
     const { time, session, rec } = setup();
-    const list = moves(4, 10);
+    const list = moves(16, 10);
     list.forEach((move, i) => {
       time.advance(250);
       session.tryPlace(move);
@@ -318,7 +318,7 @@ describe('저장 시점과 내용 (성공 직후, 로그·상태·시각이 한 
       const snapshot = call?.snapshot as RunSnapshot;
       expect(rec.lengths[i]).toBe(i + 1);
       // 저장된 상태는 그 로그를 replay한 결과와 같다 (어긋나지 않는다)
-      const replayed = replay(4, snapshot.placements.slice(0, i + 1));
+      const replayed = replay(16, snapshot.placements.slice(0, i + 1));
       expect(replayed.ok).toBe(true);
       if (replayed.ok) expect(snapshot.state).toEqual(replayed.state);
       expect(snapshot.elapsedMs).toBeGreaterThanOrEqual((snapshot.placements[i] as Placement).t);
@@ -331,7 +331,7 @@ describe('저장 시점과 내용 (성공 직후, 로그·상태·시각이 한 
     const persistence = new Persistence(kv);
     await persistence.load();
     const { time, session } = setup({ store: persistence });
-    for (const move of moves(4, 10)) {
+    for (const move of moves(16, 10)) {
       time.advance(250);
       session.tryPlace(move);
     }
@@ -344,8 +344,8 @@ describe('저장 시점과 내용 (성공 직후, 로그·상태·시각이 한 
 
 describe('게임 오버 (결정 2)', () => {
   function playToEnd() {
-    const rig = setup({ seed: 10 });
-    const list = moves(10, 3000);
+    const rig = setup({ seed: 294 });
+    const list = moves(294, 3000);
     list.forEach((move) => {
       rig.time.advance(250);
       rig.session.tryPlace(move);
@@ -359,7 +359,7 @@ describe('게임 오버 (결정 2)', () => {
     expect(count).toBe(14);
     const finishes = rec.calls.filter((c) => c.kind === 'finish');
     expect(finishes).toHaveLength(1);
-    expect(finishes[0]?.score).toBe(302);
+    expect(finishes[0]?.score).toBe(305);
     expect(finishes[0]?.snapshot?.placements).toHaveLength(14);
     expect(finishes[0]?.snapshot?.state.over).toBe(true);
     // 마지막 호출이 finish이고 그 뒤에 저장이 더 없다
@@ -382,7 +382,7 @@ describe('게임 오버 (결정 2)', () => {
 describe('저장하지 않는 판 (?fill= → replayable false)', () => {
   it('배치·checkpoint·abandon·게임 오버 어디서도 저장소를 건드리지 않는다 (beginRun도 안 한다)', () => {
     const { time, session, rec, clock } = setup({ replayable: false });
-    for (const move of moves(4, 6)) {
+    for (const move of moves(16, 6)) {
       time.advance(250);
       expect(session.tryPlace(move).ok).toBe(true);
     }
@@ -394,8 +394,8 @@ describe('저장하지 않는 판 (?fill= → replayable false)', () => {
   });
 
   it('끝까지 가도 최고 점수·run에 반영하지 않는다 (finishRun 없음)', () => {
-    const { time, session, rec } = setup({ seed: 10, replayable: false });
-    for (const move of moves(10, 3000)) {
+    const { time, session, rec } = setup({ seed: 294, replayable: false });
+    for (const move of moves(294, 3000)) {
       time.advance(250);
       session.tryPlace(move);
     }
@@ -407,17 +407,17 @@ describe('저장하지 않는 판 (?fill= → replayable false)', () => {
     const kv = new MemoryStore();
     kv.data.set(SAVE.key, JSON.stringify({ version: 1, bestScore: 900, settings: {} }));
     const run = serializeRun({
-      seed: 4,
+      seed: 16,
       runId: null,
-      placements: playGreedy(4, 10).placements,
+      placements: playGreedy(16, 10).placements,
       elapsedMs: 3300,
-      state: playGreedy(4, 10).state,
+      state: playGreedy(16, 10).state,
     });
     kv.data.set(SAVE.runKey, run);
     const persistence = new Persistence(kv);
     await persistence.load();
-    const { time, session, clock } = setup({ seed: 10, replayable: false, store: persistence });
-    for (const move of moves(10, 3000)) {
+    const { time, session, clock } = setup({ seed: 294, replayable: false, store: persistence });
+    for (const move of moves(294, 3000)) {
       time.advance(250);
       session.tryPlace(move);
     }
@@ -435,19 +435,19 @@ describe('다시 하기·기록 한도', () => {
   it('abandon은 run을 한 번 지우고 이 판의 저장을 멈춘다', () => {
     const { time, session, rec } = setup();
     time.advance(250);
-    session.tryPlace(moves(4, 1)[0] as PlaceAction);
+    session.tryPlace(moves(16, 1)[0] as PlaceAction);
     session.abandon();
     session.abandon();
     session.checkpoint();
     expect(rec.calls.map((c) => c.kind)).toEqual(['save', 'discard']);
     time.advance(250);
-    session.tryPlace(moves(4, 2)[1] as PlaceAction); // 늦게 온 입력도 저장하지 않는다
+    session.tryPlace(moves(16, 2)[1] as PlaceAction); // 늦게 온 입력도 저장하지 않는다
     expect(rec.calls.map((c) => c.kind)).toEqual(['save', 'discard']);
   });
 
   it('기록이 한도를 넘으면 그 판은 계속되지만 저장을 멈추고 저장돼 있던 run을 지운다', () => {
     const { time, session, rec } = setup({ maxPlacements: 3 });
-    const list = moves(4, 6);
+    const list = moves(16, 6);
     list.forEach((move) => {
       time.advance(250);
       expect(session.tryPlace(move).ok).toBe(true); // 판은 계속된다
@@ -460,7 +460,7 @@ describe('다시 하기·기록 한도', () => {
 
   it('한도에서 정확히 N개까지는 저장된다 (N은 통과, N+1에서 멈춤)', () => {
     const { time, session, rec } = setup({ maxPlacements: 4 });
-    for (const move of moves(4, 5)) {
+    for (const move of moves(16, 5)) {
       time.advance(250);
       session.tryPlace(move);
     }
@@ -468,21 +468,21 @@ describe('다시 하기·기록 한도', () => {
   });
 
   it('한도를 넘은 판이 끝나면 기록 없이 최고 점수·삭제만 요청한다', () => {
-    const { time, session, rec } = setup({ seed: 10, maxPlacements: 3 });
-    for (const move of moves(10, 3000)) {
+    const { time, session, rec } = setup({ seed: 294, maxPlacements: 3 });
+    for (const move of moves(294, 3000)) {
       time.advance(250);
       session.tryPlace(move);
     }
     expect(session.state.over).toBe(true);
     const finish = rec.calls.find((c) => c.kind === 'finish');
-    expect(finish).toEqual({ kind: 'finish', snapshot: null, score: 302 });
+    expect(finish).toEqual({ kind: 'finish', snapshot: null, score: 305 });
   });
 });
 
 describe('저장소 없음', () => {
   it('store가 null이어도 판은 정상 진행된다', () => {
     const { time, session } = setup({ store: null });
-    for (const move of moves(4, 5)) {
+    for (const move of moves(16, 5)) {
       time.advance(250);
       expect(session.tryPlace(move).ok).toBe(true);
     }
@@ -503,7 +503,7 @@ describe('rankedSubmission: 게임 오버 때의 점수 제출 내용 (W3-03)', 
     maxPlacements?: number;
     seed?: number;
   }) {
-    const seed = options.seed ?? 4;
+    const seed = options.seed ?? 16;
     const time = fakeTime();
     const clock = new PlayClock(time.now, 0);
     const rec = recorder();
@@ -531,11 +531,11 @@ describe('rankedSubmission: 게임 오버 때의 점수 제출 내용 (W3-03)', 
     const { session } = playToOver({});
     const sub = session.rankedSubmission();
     expect(sub?.runId).toBe(RUN);
-    expect(sub?.payload.seed).toBe(4);
+    expect(sub?.payload.seed).toBe(16);
     expect(sub?.payload.clientScore).toBe(session.state.score);
     expect(sub?.payload.placements).toEqual(session.placements);
     // 서버와 같은 판정(리플레이)이 이 제출을 통과한다
-    const r = replay(4, sub?.payload.placements ?? []);
+    const r = replay(16, sub?.payload.placements ?? []);
     expect(r.ok && r.state.score).toBe(session.state.score);
     expect(checkIntervals(sub?.payload.placements ?? [], REPLAY.minIntervalMs)).toBe(true);
 
@@ -557,8 +557,8 @@ describe('rankedSubmission: 게임 오버 때의 점수 제출 내용 (W3-03)', 
   it('저장소가 없거나 저장이 실패해도 제출 내용은 만들어진다 (제출은 저장의 성공을 전제로 하지 않는다)', () => {
     const time = fakeTime();
     const session = new RunSession({
-      seed: 4,
-      state: createGame(4),
+      seed: 16,
+      state: createGame(16),
       runId: RUN,
       clock: new PlayClock(time.now, 0),
       store: null,
@@ -574,11 +574,11 @@ describe('rankedSubmission: 게임 오버 때의 점수 제출 내용 (W3-03)', 
   });
 
   it('이어한 판은 저장된 runId·seed·로그 전체로 제출한다', () => {
-    const first = playGreedy(4, 3);
+    const first = playGreedy(16, 3);
     const time = fakeTime();
     const clock = new PlayClock(time.now, 5000);
     const session = new RunSession({
-      seed: 4,
+      seed: 16,
       state: first.state,
       placements: first.placements,
       runId: RUN,

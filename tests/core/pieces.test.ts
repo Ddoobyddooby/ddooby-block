@@ -50,6 +50,15 @@ const EXPECTED: readonly {
   { id: 'sv', shape: '#./##/.#', count: 4, color: 6, weight: 3 },
   { id: 'zh', shape: '##./.##', count: 4, color: 6, weight: 3 },
   { id: 'zv', shape: '.#/##/#.', count: 4, color: 6, weight: 3 },
+  // L 4칸 (3, L 소형과 같은 색): L 4방향 + 거울상 J 4방향, 2×3 바운딩
+  { id: 'l4a', shape: '#./#./##', count: 4, color: 3, weight: 3 },
+  { id: 'l4b', shape: '###/#..', count: 4, color: 3, weight: 3 },
+  { id: 'l4c', shape: '##/.#/.#', count: 4, color: 3, weight: 3 },
+  { id: 'l4d', shape: '..#/###', count: 4, color: 3, weight: 3 },
+  { id: 'j4a', shape: '.#/.#/##', count: 4, color: 3, weight: 3 },
+  { id: 'j4b', shape: '#../###', count: 4, color: 3, weight: 3 },
+  { id: 'j4c', shape: '##/#./#.', count: 4, color: 3, weight: 3 },
+  { id: 'j4d', shape: '###/..#', count: 4, color: 3, weight: 3 },
 ];
 
 /** cells를 그림 문자열로 다시 그린다. r = 줄, c = 줄 안의 위치 */
@@ -100,13 +109,13 @@ function piece(id: string): PieceDef {
 }
 
 describe('core/pieces PIECES', () => {
-  it('29개', () => {
-    expect(PIECES).toHaveLength(29);
-    expect(EXPECTED).toHaveLength(29);
+  it('37개', () => {
+    expect(PIECES).toHaveLength(37);
+    expect(EXPECTED).toHaveLength(37);
   });
 
   it('ID 중복 없음', () => {
-    expect(new Set(PIECES.map((p) => p.id)).size).toBe(29);
+    expect(new Set(PIECES.map((p) => p.id)).size).toBe(37);
   });
 
   it('ID 순서가 PLAN 4.2 표 순서와 같다 (가중치 추첨 결과에 영향)', () => {
@@ -140,6 +149,14 @@ describe('core/pieces PIECES', () => {
       'sv',
       'zh',
       'zv',
+      'l4a',
+      'l4b',
+      'l4c',
+      'l4d',
+      'j4a',
+      'j4b',
+      'j4c',
+      'j4d',
     ]);
   });
 
@@ -153,7 +170,7 @@ describe('core/pieces PIECES', () => {
     expect(counts(0)).toEqual([1]); // 점
     expect(counts(1)).toEqual([2, 2, 3, 3, 4, 4, 5, 5]); // 직선 2~5, 가로·세로
     expect(counts(2)).toEqual([4, 6, 6, 9]); // 2x2, 2x3, 3x2, 3x3
-    expect(counts(3)).toEqual([3, 3, 3, 3]); // L 소형 4방향
+    expect(counts(3)).toEqual([3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4]); // L 소형 4방향 + L·J 4칸 8방향
     expect(counts(4)).toEqual([5, 5, 5, 5]); // L 대형 4방향
     expect(counts(5)).toEqual([4, 4, 4, 4]); // T 4방향
     expect(counts(6)).toEqual([4, 4, 4, 4]); // S/Z
@@ -297,8 +314,8 @@ describe('config PIECE_WEIGHTS', () => {
     expect(PIECE_WEIGHTS[id]).toBe(weight);
   });
 
-  it('합계 109', () => {
-    // 4 + (6+6)*2 + 4*2 + 2*2 + (6+3+3+1) + 5*4 + 2*4 + 4*4 + 3*4
-    expect(Object.values(PIECE_WEIGHTS).reduce((sum, w) => sum + w, 0)).toBe(109);
+  it('합계 133', () => {
+    // 4 + (6+6)*2 + 4*2 + 2*2 + (6+3+3+1) + 5*4 + 2*4 + 4*4 + 3*4 + 3*8
+    expect(Object.values(PIECE_WEIGHTS).reduce((sum, w) => sum + w, 0)).toBe(133);
   });
 });

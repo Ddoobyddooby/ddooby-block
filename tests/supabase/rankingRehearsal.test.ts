@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
+import { RULES_VERSION } from '../../src/config';
 import type { FnRes } from '../../scripts/supabase-check/nicknameJudge';
 import { exitCodeOf, type Row } from '../../scripts/supabase-check/report';
 import {
@@ -22,6 +23,7 @@ type Rec = Record<string, unknown>;
 
 function setup(over: { leakUserId?: boolean; anonSeesMe?: boolean } = {}) {
   const db = new FakeRunsDb();
+  db.rulesVersion = RULES_VERSION; // 규칙 버전은 서버 번들과 같게 (가짜 DB 기본값 1에 묶지 않는다)
   db.users = { tokenR: 'user-r', tokenN: 'user-n', tokenZ: 'user-z' };
   const profiles = new Map<string, { nickname: string; tag: number }>();
   let seedCounter = 2_000;

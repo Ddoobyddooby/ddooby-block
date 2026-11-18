@@ -320,8 +320,8 @@ export async function runScores(
       code: 'not-over',
     },
     {
-      label: 'version 2 (서버와 다름)',
-      make: () => ({ version: 2 }),
+      label: `version ${RULES_VERSION + 1} (서버와 다름)`,
+      make: () => ({ version: RULES_VERSION + 1 }),
       status: 409,
       code: 'version-mismatch',
     },

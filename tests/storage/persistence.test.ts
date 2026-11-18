@@ -34,7 +34,7 @@ describe('부팅 읽기 (load)', () => {
   it('저장된 최고 점수·설정·이어할 판을 읽는다', async () => {
     const store = new MemoryStore();
     store.data.set(PROGRESS, progressJson(700, true));
-    store.data.set(RUN, serializeRun(input(4, 10, 3300)));
+    store.data.set(RUN, serializeRun(input(16, 10, 3300)));
     const result = await new Persistence(store).load();
     expect(result.bestScore).toBe(700);
     expect(result.settings).toEqual({ muted: true, music: true, theme: 'soda' });
@@ -60,24 +60,24 @@ describe('부팅 읽기 (load)', () => {
   it('끝난 판은 이어하기에서 빼고 그 점수로 최고 점수를 되살린 뒤 run을 지운다 (두 번 부팅해도 같다)', async () => {
     const store = new MemoryStore();
     store.data.set(PROGRESS, progressJson(100));
-    store.data.set(RUN, serializeRun(input(10, 3000))); // seed 10: 14수에 게임 오버, 302점
+    store.data.set(RUN, serializeRun(input(294, 3000))); // seed 294: 14수에 게임 오버, 305점
     const first = await new Persistence(store).load();
     expect(first.resume).toBeNull();
-    expect(first.bestScore).toBe(302);
+    expect(first.bestScore).toBe(305);
     expect(store.data.has(RUN)).toBe(false);
-    expect(storedBest(store)).toBe(302);
+    expect(storedBest(store)).toBe(305);
     // 순서: 최고 점수 저장 → run 삭제
     expect(store.writes).toEqual([`set ${PROGRESS}`, `remove ${RUN}`]);
 
     const second = await new Persistence(store).load();
     expect(second.resume).toBeNull();
-    expect(second.bestScore).toBe(302);
+    expect(second.bestScore).toBe(305);
   });
 
   it('끝난 판의 점수가 저장된 최고 점수보다 낮으면 최고 점수는 그대로 (줄지 않는다)', async () => {
     const store = new MemoryStore();
     store.data.set(PROGRESS, progressJson(5000));
-    store.data.set(RUN, serializeRun(input(10, 3000)));
+    store.data.set(RUN, serializeRun(input(294, 3000)));
     const result = await new Persistence(store).load();
     expect(result.bestScore).toBe(5000);
     expect(store.data.has(RUN)).toBe(false);
@@ -85,18 +85,18 @@ describe('부팅 읽기 (load)', () => {
 
   it('끝난 판 복구 중 최고 점수 저장이 실패하면 run을 지우지 않는다 (다음 부팅에 다시 시도)', async () => {
     const store = new MemoryStore();
-    store.data.set(RUN, serializeRun(input(10, 3000)));
+    store.data.set(RUN, serializeRun(input(294, 3000)));
     store.failSet.add(PROGRESS);
     const first = await new Persistence(store).load();
     expect(first.resume).toBeNull();
-    expect(first.bestScore).toBe(302); // 화면용 값은 복구된다
+    expect(first.bestScore).toBe(305); // 화면용 값은 복구된다
     expect(store.data.has(RUN)).toBe(true);
 
     store.failSet.clear();
     const second = await new Persistence(store).load();
-    expect(second.bestScore).toBe(302);
+    expect(second.bestScore).toBe(305);
     expect(store.data.has(RUN)).toBe(false);
-    expect(storedBest(store)).toBe(302);
+    expect(storedBest(store)).toBe(305);
   });
 
   it('버전이 다르거나 깨진 run은 이어하기 대상이 아니고 건드리지 않는다', async () => {
@@ -109,10 +109,24 @@ describe('부팅 읽기 (load)', () => {
     expect(store.writes).toEqual([]);
   });
 
+  it('옛 규칙 버전(rulesVersion 1)으로 저장된 판은 예외 없이 이어하기에서 빠지고 건드리지 않는다 (RULES_VERSION 2 이후)', async () => {
+    const store = new MemoryStore();
+    const raw = JSON.parse(serializeRun(input(16, 5, 3300))) as Record<string, unknown>;
+    raw.rulesVersion = 1; // 조각 29종 시절의 저장
+    const old = JSON.stringify(raw);
+    store.data.set(RUN, old);
+    store.data.set(PROGRESS, progressJson(700));
+    const result = await new Persistence(store).load();
+    expect(result.resume).toBeNull();
+    expect(result.bestScore).toBe(700);
+    expect(store.data.get(RUN)).toBe(old);
+    expect(store.writes).toEqual([]);
+  });
+
   it('깨진 progress는 기본값으로 시작하지만 run은 읽는다', async () => {
     const store = new MemoryStore();
     store.data.set(PROGRESS, '{"vers');
-    store.data.set(RUN, serializeRun(input(4, 10, 3300)));
+    store.data.set(RUN, serializeRun(input(16, 10, 3300)));
     const result = await new Persistence(store).load();
     expect(result.bestScore).toBe(0);
     expect(result.resume).not.toBeNull();
@@ -123,7 +137,7 @@ describe('읽기에 실패한 저장소에는 쓰지 않는다', () => {
   it('전부 읽기 실패: 예외 없이 기본값으로 진행하고, 쓰기·삭제 요청은 저장소를 건드리지 않는다', async () => {
     const store = new MemoryStore();
     store.data.set(PROGRESS, progressJson(900, true));
-    store.data.set(RUN, serializeRun(input(4, 10, 3300)));
+    store.data.set(RUN, serializeRun(input(16, 10, 3300)));
     store.failGet.add(PROGRESS);
     store.failGet.add(RUN);
     const p = new Persistence(store);
@@ -134,8 +148,8 @@ describe('읽기에 실패한 저장소에는 쓰지 않는다', () => {
 
     expect(await p.setMuted(false)).toBe(false);
     const epoch = p.beginRun();
-    expect(await p.saveRun(epoch, input(4, 3))).toBe(false);
-    expect(await p.finishRun(epoch, input(10, 3000), 302)).toBe(false);
+    expect(await p.saveRun(epoch, input(16, 3))).toBe(false);
+    expect(await p.finishRun(epoch, input(294, 3000), 305)).toBe(false);
     expect(await p.discardRun(epoch)).toBe(false);
     // 저장소의 기존 값은 그대로다 (기본값으로 덮이지 않았다)
     expect(store.writes).toEqual([]);
@@ -150,11 +164,11 @@ describe('읽기에 실패한 저장소에는 쓰지 않는다', () => {
     const p = new Persistence(store);
     await p.load();
     const epoch = p.beginRun();
-    expect(await p.saveRun(epoch, input(4, 3))).toBe(false);
+    expect(await p.saveRun(epoch, input(16, 3))).toBe(false);
     expect(await p.setMuted(true)).toBe(true);
-    expect(await p.finishRun(epoch, input(10, 3000), 302)).toBe(false); // 삭제를 못 해서 false
+    expect(await p.finishRun(epoch, input(294, 3000), 305)).toBe(false); // 삭제를 못 해서 false
     expect(store.data.get(RUN)).toBe('old-run');
-    expect(storedBest(store)).toBe(302); // 최고 점수는 저장됐다
+    expect(storedBest(store)).toBe(305); // 최고 점수는 저장됐다
   });
 
   it('progress 키만 읽기 실패: 쓰지 않고 run은 정상 저장한다', async () => {
@@ -165,7 +179,7 @@ describe('읽기에 실패한 저장소에는 쓰지 않는다', () => {
     await p.load();
     expect(await p.setMuted(true)).toBe(false);
     const epoch = p.beginRun();
-    expect(await p.saveRun(epoch, input(4, 3))).toBe(true);
+    expect(await p.saveRun(epoch, input(16, 3))).toBe(true);
     expect(storedBest(store)).toBe(900);
   });
 
@@ -176,8 +190,8 @@ describe('읽기에 실패한 저장소에는 쓰지 않는다', () => {
     const p = new Persistence(store);
     await p.load();
     const epoch = p.beginRun();
-    expect(await p.saveRun(epoch, input(4, 3))).toBe(false);
-    expect(await p.saveRun(epoch, input(4, 4))).toBe(false);
+    expect(await p.saveRun(epoch, input(16, 3))).toBe(false);
+    expect(await p.saveRun(epoch, input(16, 4))).toBe(false);
     expect(await p.discardRun(epoch)).toBe(false);
     expect(warn).toHaveBeenCalledTimes(1);
   });
@@ -190,7 +204,7 @@ describe('쓰기·삭제는 한 줄로 선다', () => {
     await p.load();
     const epoch = p.beginRun();
     store.holdWrites = true;
-    const saving = p.saveRun(epoch, input(4, 5));
+    const saving = p.saveRun(epoch, input(16, 5));
     const discarding = p.discardRun(epoch);
     await flush();
     expect(store.started).toBe(3); // load의 읽기 2번 + 첫 쓰기 1번. 삭제는 아직 시작하지 않았다
@@ -211,9 +225,9 @@ describe('쓰기·삭제는 한 줄로 선다', () => {
     await p.load();
     const epoch = p.beginRun();
     store.holdWrites = true;
-    const a = p.saveRun(epoch, input(4, 3));
-    const b = p.saveRun(epoch, input(4, 6));
-    const c = p.saveRun(epoch, input(4, 9));
+    const a = p.saveRun(epoch, input(16, 3));
+    const b = p.saveRun(epoch, input(16, 6));
+    const c = p.saveRun(epoch, input(16, 9));
     for (let i = 0; i < 3; i++) {
       await flush();
       store.releaseNext();
@@ -227,11 +241,11 @@ describe('쓰기·삭제는 한 줄로 선다', () => {
     const p = new Persistence(store);
     await p.load();
     const epoch = p.beginRun();
-    const played = playGreedy(4, 6);
+    const played = playGreedy(16, 6);
     const log = [...played.placements];
     store.holdWrites = true;
     const saving = p.saveRun(epoch, {
-      seed: 4,
+      seed: 16,
       runId: null,
       placements: log,
       elapsedMs: 5000,
@@ -250,9 +264,9 @@ describe('쓰기·삭제는 한 줄로 선다', () => {
     await p.load();
     const epoch = p.beginRun();
     store.failSet.add(RUN);
-    expect(await p.saveRun(epoch, input(4, 3))).toBe(false);
+    expect(await p.saveRun(epoch, input(16, 3))).toBe(false);
     store.failSet.clear();
-    expect(await p.saveRun(epoch, input(4, 7))).toBe(true);
+    expect(await p.saveRun(epoch, input(16, 7))).toBe(true);
     expect(parseRun(store.data.get(RUN) ?? null)?.placements).toHaveLength(7);
   });
 
@@ -261,13 +275,13 @@ describe('쓰기·삭제는 한 줄로 선다', () => {
     const p = new Persistence(store);
     await p.load();
     const oldEpoch = p.beginRun();
-    expect(await p.saveRun(oldEpoch, input(4, 3))).toBe(true);
+    expect(await p.saveRun(oldEpoch, input(16, 3))).toBe(true);
     const newEpoch = p.beginRun();
     expect(await p.saveRun(newEpoch, input(5, 4))).toBe(true);
 
     // 이전 판의 늦은 콜백들 (hidden 저장, 느린 종료, 삭제)
-    expect(await p.saveRun(oldEpoch, input(4, 8))).toBe(false);
-    expect(await p.finishRun(oldEpoch, input(10, 3000), 99999)).toBe(false);
+    expect(await p.saveRun(oldEpoch, input(16, 8))).toBe(false);
+    expect(await p.finishRun(oldEpoch, input(294, 3000), 99999)).toBe(false);
     expect(await p.discardRun(oldEpoch)).toBe(false);
     const stored = parseRun(store.data.get(RUN) ?? null);
     expect(stored?.seed).toBe(5);
@@ -281,7 +295,7 @@ describe('쓰기·삭제는 한 줄로 선다', () => {
     await p.load();
     const oldEpoch = p.beginRun();
     store.holdWrites = true;
-    const oldSave = p.saveRun(oldEpoch, input(4, 3));
+    const oldSave = p.saveRun(oldEpoch, input(16, 3));
     const newEpoch = p.beginRun();
     const newSave = p.saveRun(newEpoch, input(5, 4));
     for (let i = 0; i < 2; i++) {
@@ -377,12 +391,12 @@ describe('게임 오버 순서와 장애 복구', () => {
     const p = new Persistence(store);
     await p.load();
     const epoch = p.beginRun();
-    const over = input(10, 3000);
-    const result = await p.finishRun(epoch, over, 302);
+    const over = input(294, 3000);
+    const result = await p.finishRun(epoch, over, 305);
     expect(result).toBe(true);
     expect(store.writes).toEqual([`set ${RUN}`, `set ${PROGRESS}`, `remove ${RUN}`]);
     expect(store.data.has(RUN)).toBe(false);
-    expect(storedBest(store)).toBe(302);
+    expect(storedBest(store)).toBe(305);
     expect(p.resumable()).toBeNull();
   });
 
@@ -391,7 +405,7 @@ describe('게임 오버 순서와 장애 복구', () => {
     const p = new Persistence(store);
     await p.load();
     store.failSet.add(PROGRESS);
-    expect(await p.finishRun(p.beginRun(), input(10, 3000), 302)).toBe(false);
+    expect(await p.finishRun(p.beginRun(), input(294, 3000), 305)).toBe(false);
     expect(store.data.has(RUN)).toBe(true);
     expect(parseRun(store.data.get(RUN) ?? null)).not.toBeNull();
 
@@ -399,25 +413,25 @@ describe('게임 오버 순서와 장애 복구', () => {
     const next = new Persistence(store);
     const result = await next.load();
     expect(result.resume).toBeNull(); // 끝난 판은 이어하기로 보이지 않는다
-    expect(result.bestScore).toBe(302);
+    expect(result.bestScore).toBe(305);
     expect(store.data.has(RUN)).toBe(false);
   });
 
   it('끝난 기록 저장 직후 앱이 꺼진 경우(run은 있고 progress는 아직): 다음 부팅이 복구한다', async () => {
     const store = new MemoryStore();
-    store.data.set(RUN, serializeRun(input(10, 3000)));
+    store.data.set(RUN, serializeRun(input(294, 3000)));
     const result = await new Persistence(store).load();
-    expect(result.bestScore).toBe(302);
+    expect(result.bestScore).toBe(305);
     expect(result.resume).toBeNull();
-    expect(storedBest(store)).toBe(302);
+    expect(storedBest(store)).toBe(305);
   });
 
   it('최고 점수 저장 직후·삭제 직전에 꺼진 경우(둘 다 남음): 최고 점수는 유지, 끝난 run은 정리된다', async () => {
     const store = new MemoryStore();
-    store.data.set(PROGRESS, progressJson(302));
-    store.data.set(RUN, serializeRun(input(10, 3000)));
+    store.data.set(PROGRESS, progressJson(305));
+    store.data.set(RUN, serializeRun(input(294, 3000)));
     const result = await new Persistence(store).load();
-    expect(result.bestScore).toBe(302);
+    expect(result.bestScore).toBe(305);
     expect(result.resume).toBeNull();
     expect(store.data.has(RUN)).toBe(false);
   });
@@ -427,7 +441,7 @@ describe('게임 오버 순서와 장애 복구', () => {
     const p = new Persistence(store);
     await p.load();
     store.failRemove.add(RUN);
-    expect(await p.finishRun(p.beginRun(), input(10, 3000), 302)).toBe(false);
+    expect(await p.finishRun(p.beginRun(), input(294, 3000), 305)).toBe(false);
     store.failRemove.clear();
     const next = await new Persistence(store).load();
     expect(next.resume).toBeNull();
@@ -452,11 +466,11 @@ describe('이어할 판 (resumable)', () => {
     await p.load();
     expect(p.resumable()).toBeNull();
     const epoch = p.beginRun();
-    await p.saveRun(epoch, input(4, 3));
+    await p.saveRun(epoch, input(16, 3));
     expect(p.resumable()?.saved.placements).toHaveLength(3);
-    await p.saveRun(epoch, input(4, 6));
+    await p.saveRun(epoch, input(16, 6));
     expect(p.resumable()?.saved.placements).toHaveLength(6);
-    expect(p.resumable()?.state.score).toBe(playGreedy(4, 6).state.score);
+    expect(p.resumable()?.state.score).toBe(playGreedy(16, 6).state.score);
     await p.discardRun(epoch);
     expect(p.resumable()).toBeNull();
   });
@@ -465,16 +479,16 @@ describe('이어할 판 (resumable)', () => {
     const store = new MemoryStore();
     const p = new Persistence(store);
     await p.load();
-    await p.saveRun(p.beginRun(), input(10, 3000));
+    await p.saveRun(p.beginRun(), input(294, 3000));
     expect(p.resumable()).toBeNull();
   });
 });
 
 describe('부팅 읽기가 늦을 때 (리뷰 지적 1)', () => {
-  /** seed 4의 3수 run이 디스크에 있고, load의 첫 읽기가 멈춰 있다 */
+  /** seed 16의 3수 run이 디스크에 있고, load의 첫 읽기가 멈춰 있다 */
   async function slowBoot() {
     const store = new MemoryStore();
-    store.data.set(RUN, serializeRun(input(4, 3, 3000)));
+    store.data.set(RUN, serializeRun(input(16, 3, 3000)));
     store.holdReads = true;
     const p = new Persistence(store);
     const loading = p.load();
@@ -508,12 +522,12 @@ describe('부팅 읽기가 늦을 때 (리뷰 지적 1)', () => {
 
   it('load 지연 중 판이 끝나면 디스크도 resumable도 없고 최고 점수가 저장된다', async () => {
     const { store, p, loading } = await slowBoot();
-    const finishing = p.finishRun(p.beginRun(), input(10, 3000), 302);
+    const finishing = p.finishRun(p.beginRun(), input(294, 3000), 305);
     await release(store);
     await Promise.all([loading, finishing]);
     expect(store.data.has(RUN)).toBe(false);
     expect(p.resumable()).toBeNull();
-    expect(storedBest(store)).toBe(302);
+    expect(storedBest(store)).toBe(305);
   });
 
   it('beginRun만 했고 한 수도 안 뒀다면 기존 run이 resumable로 남는다 (디스크도 그대로)', async () => {
@@ -521,14 +535,14 @@ describe('부팅 읽기가 늦을 때 (리뷰 지적 1)', () => {
     p.beginRun();
     await release(store);
     await loading;
-    expect(p.resumable()?.saved.seed).toBe(4);
+    expect(p.resumable()?.saved.seed).toBe(16);
     expect(p.resumable()?.saved.placements).toHaveLength(3);
-    expect(parseRun(store.data.get(RUN) ?? null)?.seed).toBe(4);
+    expect(parseRun(store.data.get(RUN) ?? null)?.seed).toBe(16);
   });
 
   it('끝난 옛 run 복구(over 분기)가 방금 저장한 새 판을 지우지 않는다', async () => {
     const store = new MemoryStore();
-    store.data.set(RUN, serializeRun(input(10, 3000))); // 끝난 판, 302점
+    store.data.set(RUN, serializeRun(input(294, 3000))); // 끝난 판, 302점
     store.holdReads = true;
     const p = new Persistence(store);
     const loading = p.load();
@@ -538,7 +552,7 @@ describe('부팅 읽기가 늦을 때 (리뷰 지적 1)', () => {
     await Promise.all([loading, saving]);
     expect(parseRun(store.data.get(RUN) ?? null)?.seed).toBe(5);
     expect(p.resumable()?.saved.seed).toBe(5);
-    expect(storedBest(store)).toBe(302); // 최고 점수 복구는 그대로
+    expect(storedBest(store)).toBe(305); // 최고 점수 복구는 그대로
   });
 });
 
@@ -644,19 +658,19 @@ describe('LoadResult.storedBest: 부팅 시점에 저장소에 확정돼 있던 
     expect((await new Persistence(store).load()).storedBest).toBe(0);
   });
 
-  it('끝난 run 복구로 되살린 점수는 포함한다 (이 판 이전의 기록이다): 저장 100 + 끝난 run 302 → 302', async () => {
+  it('끝난 run 복구로 되살린 점수는 포함한다 (이 판 이전의 기록이다): 저장 100 + 끝난 run 305 → 305', async () => {
     const store = new MemoryStore();
     store.data.set(PROGRESS, progressJson(100));
-    store.data.set(RUN, serializeRun(input(10, 3000))); // seed 10: 302점에서 게임 오버
+    store.data.set(RUN, serializeRun(input(294, 3000))); // seed 294: 302점에서 게임 오버
     const result = await new Persistence(store).load();
-    expect(result.storedBest).toBe(302);
-    expect(result.bestScore).toBe(302);
+    expect(result.storedBest).toBe(305);
+    expect(result.bestScore).toBe(305);
   });
 
-  it('끝난 run의 점수가 더 낮으면 저장된 값: 저장 900 + 끝난 run 302 → 900', async () => {
+  it('끝난 run의 점수가 더 낮으면 저장된 값: 저장 900 + 끝난 run 305 → 900', async () => {
     const store = new MemoryStore();
     store.data.set(PROGRESS, progressJson(900));
-    store.data.set(RUN, serializeRun(input(10, 3000)));
+    store.data.set(RUN, serializeRun(input(294, 3000)));
     expect((await new Persistence(store).load()).storedBest).toBe(900);
   });
 });
