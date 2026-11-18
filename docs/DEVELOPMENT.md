@@ -59,7 +59,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 4. **실제 휴대폰으로 보기**: PC와 같은 Wi-Fi에 연결한 뒤 휴대폰 브라우저로 `Network` 주소를 연다. 드래그(터치) 감각은 꼭 실제 휴대폰으로도 본다
    - 밖에서는 Tailscale로: `http://<PC 이름>.<tailnet>.ts.net:5180/` (`vite.config.ts`의 `allowedHosts`, ddooby-pang과 같음)
 5. 에러가 나면 개발자도구의 **Console** 탭을 확인한다
-6. **배포된 주소**: W4-03 이후 https://ddoobyddooby.github.io/ddooby-block/ — main에 push하면 1~2분 뒤 자동으로 새로 배포된다
+6. **배포된 주소**: https://ddoobyddooby.github.io/ddooby-block/ — main에 push하면 Actions(`pages.yml`)가 테스트·빌드 뒤 2~3분 안에 새로 배포한다. 실패하면 GitHub에서 메일이 오고 `gh run list --workflow pages.yml`로 본다
 
 **URL 옵션 (개발용)** — "(예정)"이 붙은 것은 아직 없다
 
@@ -236,7 +236,7 @@ VSCode 터미널에서 실행한다. 터미널은 `+` 버튼으로 여러 개 �
 
 - `npm test` → 파일 97개, 1,771개 통과
 - APK: `npm run android:sync` → `cd android && JAVA_HOME=... ./gradlew assembleDebug` → `adb install -r app/build/outputs/apk/debug/app-debug.apk`
-- 휴대폰에서: 홈 화면 아이콘(밤의 오비트), 시작 화면(민트), 세로 고정, 노치 가림 없음
+- 휴대폰에서: 홈 화면 아이콘(버터 타일), 시작 화면(민트), 세로 고정, 노치 가림 없음
 - 뒤로 가기: 게임 중→일시정지, 일시정지→계속, 게임 오버·랭킹→메뉴, 테마 카드·닉네임 창→닫기, 메뉴→앱 종료(확인 없음)
 - 홈 버튼으로 나갔다 오기: 음악이 멈췄다 이어지고 시간이 흐르지 않는다. 앱을 완전히 닫았다 열면 메뉴에 이어하기
 - 웹: main에 push하면 Actions의 `pages.yml`이 배포 → https://ddoobyddooby.github.io/ddooby-block/ (저장소 Settings → Pages → Source: GitHub Actions, Variables에 `VITE_SUPABASE_URL`·`VITE_SUPABASE_PUBLISHABLE_KEY`)
