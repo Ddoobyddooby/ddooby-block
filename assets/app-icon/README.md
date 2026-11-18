@@ -1,12 +1,12 @@
 # 앱 아이콘 원본
 
-"밤의 오비트" 시안(`assets/theme-src/orbit/orbit-icon.svg`)의 세 블록·타원 궤도·노란 점·반짝임을 투명 전경과 짙은 보라 배경으로 나눈 것이다 (W4-03). 모두 1024×1024 PNG.
+"버터 타일" 시안(파랑·노랑·산호색 도자기 타일 세 개, `#FFF5D8` 크림 배경, -7° 기울임)을 투명 전경과 크림 배경으로 나눈 것이다 (W4-03, 2026-11-18에 오비트에서 교체). 원본은 `.codex-out/icon-src-v2/butter-tiles/`. 모두 1024×1024 PNG.
 
 | 파일 | 쓰임 |
 |---|---|
-| `icon-only.png` | 옛 기기용 통짜 아이콘 (전경 + 배경 합성) |
+| `icon-only.png` | 옛 기기용 통짜 아이콘 (전경 1.5배 확대 + 배경 합성) |
 | `icon-foreground.png` | 적응형 아이콘 앞면 (투명) |
-| `icon-background.png` | 적응형 아이콘 뒷면 (짙은 보라 + 광원) |
+| `icon-background.png` | 적응형 아이콘 뒷면 (크림색 단색 계열) |
 
 웹 favicon은 `public/favicon.png` (64×64, `icon-only.png`를 줄인 것).
 
