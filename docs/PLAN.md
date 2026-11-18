@@ -52,7 +52,7 @@ src/
 │   ├── rng.ts           # pang 그대로 복사
 │   ├── types.ts         # Pos, Board, PieceId, GameState, Placement, GameEvent
 │   ├── board.ts         # 빈 보드, 칸 읽기, canPlace, 배치, 꽉 찬 줄 찾기, 줄 제거
-│   ├── pieces.ts        # 조각 29개의 모양·색 그룹 (가중치는 config)
+│   ├── pieces.ts        # 조각 37개의 모양·색 그룹 (가중치는 config)
 │   ├── generator.ts     # 가중치 추첨, 트레이 생성 + 보정
 │   ├── scoring.ts       # 줄 점수표, 콤보 배율, 배치 점수
 │   ├── engine.ts        # createGame, place, previewPlacement, isGameOver
@@ -144,8 +144,9 @@ export interface Placement extends PlaceAction { readonly t: number }
 | L 대형 (4) | `l5a` `#../#../###`, `l5b` `..#/..#/###`, `l5c` `###/#../#..`, `l5d` `###/..#/..#` | 각 2 |
 | T (5) | `tu` `.#./###`, `td` `###/.#.`, `tl` `.#/##/.#`, `tr` `#./##/#.` | 각 4 |
 | S/Z (6) | `sh` `.##/##.`, `sv` `#./##/.#`, `zh` `##./.##`, `zv` `.#/##/#.` | 각 3 |
+| L 4칸 (3, L 소형과 같은 색) | `l4a` `#./#./##`, `l4b` `###/#..`, `l4c` `##/.#/.#`, `l4d` `..#/###`, `j4a` `.#/.#/##`, `j4b` `#../###`, `j4c` `##/#./#.`, `j4d` `###/..#` | 각 3 |
 
-총 29개. `PIECES: readonly PieceDef[]`(`{ id, cells: readonly Pos[], color }`)의 순서는 위 표 순서로 고정한다. 순서는 가중치 추첨 결과에 영향을 주므로 바꾸면 `RULES_VERSION`을 올린다.
+총 37개, 가중치 합 133 (L 4칸 8개는 2026-11-18 규칙 버전 2에서 맨 끝에 추가). `PIECES: readonly PieceDef[]`(`{ id, cells: readonly Pos[], color }`)의 순서는 위 표 순서로 고정한다. 순서는 가중치 추첨 결과에 영향을 주므로 바꾸면 `RULES_VERSION`을 올린다.
 
 ### 4.3 보드 (`core/board.ts`)
 
@@ -251,7 +252,7 @@ checkIntervals(placements: readonly Placement[], minMs: number): boolean // t가
 ## 5. config 값 (`src/config.ts`)
 
 ```ts
-export const RULES_VERSION = 1;
+export const RULES_VERSION = 2; // 1: 첫 규칙, 2: L·J 4칸 조각 8개 추가 (2026-11-18)
 export const GAME = { width: 720, height: 1280 };
 export const BOARD = { size: 8 };
 export const TRAY = { size: 3 };
